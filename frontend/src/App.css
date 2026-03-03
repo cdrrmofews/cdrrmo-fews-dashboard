@@ -1715,12 +1715,3 @@ body {
   cursor: not-allowed !important;
   pointer-events: none;
 }
-
-/* ================================
-   LEAFLET POPUP OVERRIDES
-================================ */
-.leaflet-popup-content button {
-  border: none !important;
-  outline: none !important;
-  box-shadow: none !important;
-}
