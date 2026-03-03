@@ -1379,7 +1379,7 @@ export default function App() {
                   <span className="card-tag">Batangas City</span>
                 </div>
                 <div className="map-wrap">
-                  <MapContainer center={[13.7703472, 121.0525449]} zoom={20} style={{ height:"100%", width:"100%", borderRadius:"10px" }} scrollWheelZoom={false}>
+                  <MapContainer center={[13.7703472, 121.0525449]} zoom={15} style={{ height:"100%", width:"100%", borderRadius:"10px" }} scrollWheelZoom={false}>
                     <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                     <FlyToStation fews={selectedStation} />
                     <OpenPopup fews={selectedStation} markerRefs={markerRefs} />
