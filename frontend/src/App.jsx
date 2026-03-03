@@ -38,7 +38,7 @@ const FEWS1_BASE = {
   lat: 13.7703472, lng: 121.0525449,
   status: "safe", battery: 0, waterLevel: 0,
   description: "Deployed along the upper tributary of Sta. Rita River. Monitors early upstream surge from heavy rainfall in the Mataas na Gulod watershed.",
-  installedDate: "March 12, 2023", technician: "Engr. Ramon Salazar",
+  installedDate: "—", technician: "Engr. Andrew Van Ryan",
   isLive: true,
 };
 
@@ -601,7 +601,7 @@ function UnitControlPage({ allFews, fews1Connected }) {
           const ed  = editing[f.id];
           const isActuallyLive = f.isLive && fews1Connected;
           return (
-            <div key={f.id} className={`uc-card ${!on ? "uc-card-offline" : ""}`} style={{ "--status-color": cfg.color }}>
+            <div key={f.id} className={`uc-card ${!on ? "uc-card-offline" : !isActuallyLive ? "uc-card-waiting" : ""}`} style={{ "--status-color": isActuallyLive ? cfg.color : "#334155" }}>
               <div className="uc-card-header">
                 <div className="uc-card-left">
                   <div className="uc-status-dot" style={{ background: on ? cfg.color : "#334155" }} />
@@ -1298,15 +1298,21 @@ export default function App() {
                           eventHandlers={{ click: () => setSelectedFEWS(selectedFEWS === f.id ? null : f.id) }}>
                           <Popup minWidth={180}>
                             <div style={{ fontFamily:"sans-serif", fontSize:"11px", lineHeight:"1.8" }}>
-                              <strong style={{ fontSize:"12px" }}>{f.name} - {f.location}</strong>
+                              <strong style={{ fontSize:"12px", color: fews1Connected ? "#1e293b" : "#94a3b8" }}>{f.name} - {f.location}</strong>
                               {f.isLive && (
                                 <span style={{ marginLeft:6, fontSize:9, color: fews1Connected ? "#22c55e" : "#94a3b8", fontWeight:700 }}>
                                   {fews1Connected ? "● LIVE" : "◌ WAITING"}
                                 </span>
                               )}
                               <br />
-                              <span style={{ color: cfg.color, fontWeight:700 }}>{cfg.label}</span>
-                              {" · "}Water: {fews1Connected ? `${f.waterLevel}cm` : "—"} · Battery: {f.battery}%<br />
+                              <span style={{ color: fews1Connected ? cfg.color : "#94a3b8", fontWeight:700 }}>
+                                {fews1Connected ? cfg.label : "WAITING"}
+                              </span>
+                              {" · "}
+                              <span style={{ color: fews1Connected ? "inherit" : "#94a3b8" }}>
+                                Water: {fews1Connected ? `${f.waterLevel}cm` : "—"} · Battery: {fews1Connected ? `${f.battery}%` : "—"}
+                              </span>
+                              <br />
                               <button onClick={() => {
                                 navigator.clipboard.writeText(`${f.lat}, ${f.lng}`);
                                 setCopiedId(f.id);
