@@ -34,9 +34,9 @@ const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 // FEWS 1 base data
 const FEWS1_BASE = {
-  id: 1, name: "FEWS 1", location: "Santa Rita",
+  id: 1, name: "FEWS 1", location: "Bolbok",
   lat: 13.7703472, lng: 121.0525449,
-  status: "safe", battery: 100, waterLevel: 0,
+  status: "safe", battery: 0, waterLevel: 0,
   description: "Deployed along the upper tributary of Sta. Rita River. Monitors early upstream surge from heavy rainfall in the Mataas na Gulod watershed.",
   installedDate: "March 12, 2023", technician: "Engr. Ramon Salazar",
   isLive: true,
@@ -641,7 +641,9 @@ function UnitControlPage({ allFews, fews1Connected }) {
                 </div>
                 <div className="uc-stat">
                   <span className="uc-stat-label">Battery</span>
-                  <span className="uc-stat-val" style={{ color: f.battery > 50 ? "var(--green)" : "var(--amber)" }}>{f.battery}%</span>
+                  <span className="uc-stat-val" style={{ color: isActuallyLive ? (f.battery > 50 ? "var(--green)" : "var(--amber)") : "var(--text-3)" }}>
+                    {isActuallyLive ? `${f.battery}%` : "—"}
+                  </span>
                 </div>
                 <div className="uc-stat">
                   <span className="uc-stat-label">Coordinates</span>
@@ -1238,7 +1240,7 @@ export default function App() {
               <h1>{pageInfo.title}</h1>
               <div className="subtitle">
                 {activeNav === "Dashboard"
-                  ? `${pageInfo.sub} · ${allFews.length} station · FEWS 1 ${fews1Connected ? "🟢 Live" : "⚪ Waiting for data"}`
+                  ? pageInfo.sub
                   : pageInfo.sub}
               </div>
             </div>
@@ -1250,7 +1252,10 @@ export default function App() {
                 {alertCount} Alert{alertCount > 1 ? "s" : ""}
               </div>
             )}
-            <div className="connection online"><span className="pulse-dot" /> System Online</div>
+            <div className={`connection ${fews1Connected ? "online" : "waiting"}`}>
+              <span className={fews1Connected ? "pulse-dot" : "wait-dot"} />
+              {fews1Connected ? "System Online" : "Waiting for Data"}
+            </div>
             <div className="profile-wrap">
               <div className="profile-avatar-btn" onClick={() => setShowProfileDropdown(v => !v)}>
                 {user.photo ? <img src={user.photo} alt="avatar" style={{ width:"100%", height:"100%", borderRadius:"50%", objectFit:"cover" }} /> : user.initials}
@@ -1428,12 +1433,19 @@ export default function App() {
                     <div className="rsb-siren">
                       <div className="rsb-siren-label">Siren Control</div>
                       <div className="rsb-siren-row">
-                        <span>{sirenOn ? "🔊 Active" : "🔇 Off"}</span>
-                        <button className={`siren-btn ${sirenOn ? "siren-on" : "siren-off"}`} onClick={() => toggleSiren(f.id)}>
+                        <span style={{ color: isActuallyLive ? "var(--text-2)" : "var(--text-3)" }}>{sirenOn ? "🔊 Active" : "🔇 Off"}</span>
+                        <button
+                          className={`siren-btn ${sirenOn ? "siren-on" : "siren-off"}`}
+                          onClick={() => isActuallyLive && toggleSiren(f.id)}
+                          disabled={!isActuallyLive}
+                          style={{ opacity: isActuallyLive ? 1 : 0.3, cursor: isActuallyLive ? "pointer" : "not-allowed" }}
+                        >
                           {sirenOn ? "SILENCE" : "MANUAL ON"}
                         </button>
                       </div>
-                      <div className="rsb-siren-note">{sirenOn ? "Tap to silence" : "Tap to manually activate"}</div>
+                      <div className="rsb-siren-note">
+                        {!isActuallyLive ? "Available once station is live" : sirenOn ? "Tap to silence" : "Tap to manually activate"}
+                      </div>
                     </div>
                   </div>
                 );
