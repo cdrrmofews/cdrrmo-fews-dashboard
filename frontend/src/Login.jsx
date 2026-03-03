@@ -1,89 +1,96 @@
 import { useState } from "react";
 
+const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
+
 export default function Login({ onLogin }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError]       = useState("");
-  const [loading, setLoading]   = useState(false);
+  const [error,    setError]    = useState("");
+  const [loading,  setLoading]  = useState(false);
 
-  const handleLogin = (e) => {
-    e.preventDefault();
-    setError("");
-
-    if (!username || !password) {
-      setError("Please enter your username and password.");
+  const handleLogin = async () => {
+    if (!username.trim() || !password.trim()) {
+      setError("Please enter your email and password.");
       return;
     }
-
     setLoading(true);
-
-    // Simulate auth — replace with real API call when backend is ready
-    setTimeout(() => {
-      if (username === "admin" && password === "admin123") {
-        onLogin();
-      } else {
-        setError("Invalid username or password.");
-        setLoading(false);
+    setError("");
+    try {
+      const res = await fetch(`${API_BASE}/login`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ username: username.trim(), password }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.detail || "Invalid credentials.");
+        return;
       }
-    }, 800);
+      // Store token and user info in sessionStorage
+      sessionStorage.setItem("token", data.token);
+      sessionStorage.setItem("user", JSON.stringify({
+        id:         data.id,
+        name:       data.username,
+        email:      data.email,
+        role:       data.role,
+        department: data.department,
+        initials:   data.username.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase(),
+        photo:      null,
+        dob:        "",
+      }));
+      onLogin(data.role);
+    } catch {
+      setError("Could not connect to the server. Try again.");
+    } finally {
+      setLoading(false);
+    }
   };
+
+  const handleKey = (e) => { if (e.key === "Enter") handleLogin(); };
 
   return (
     <div className="login-shell">
-      {/* Background grid decoration */}
       <div className="login-bg" />
-
       <div className="login-box">
-        {/* Brand */}
         <div className="login-brand">
           <div className="login-brand-icon">🌊</div>
           <div className="login-brand-name">CDRRMO</div>
           <div className="login-brand-tag">Flood Early Warning System</div>
         </div>
-
-        {/* Form */}
-        <form className="login-form" onSubmit={handleLogin}>
+        <div className="login-form">
           <div className="login-field">
-            <label className="login-label">Username</label>
+            <label className="login-label">Email / Username</label>
             <input
               className="login-input"
               type="text"
-              placeholder="Enter your username"
+              placeholder="you@cdrrmo.gov.ph"
               value={username}
               onChange={e => setUsername(e.target.value)}
+              onKeyDown={handleKey}
               autoFocus
             />
           </div>
-
           <div className="login-field">
             <label className="login-label">Password</label>
             <input
               className="login-input"
               type="password"
-              placeholder="Enter your password"
+              placeholder="••••••••"
               value={password}
               onChange={e => setPassword(e.target.value)}
+              onKeyDown={handleKey}
             />
           </div>
-
-          {error && (
-            <div className="login-error">
-              ⚠ {error}
-            </div>
-          )}
-
+          {error && <div className="login-error">{error}</div>}
           <button
             className={`login-btn ${loading ? "login-btn-loading" : ""}`}
-            type="submit"
+            onClick={handleLogin}
             disabled={loading}
           >
-            {loading ? "Logging in..." : "Login"}
+            {loading ? "Signing in…" : "Sign In"}
           </button>
-        </form>
-
-        <div className="login-footer">
-          Batangas City CDRRMO · v1.0.0
         </div>
+        <div className="login-footer">CDRRMO · Batangas City · v2.0</div>
       </div>
     </div>
   );

@@ -1,28 +1,24 @@
-from passlib.context import CryptContext
-from jose import jwt
+import bcrypt
+import jwt
+import os
 from datetime import datetime, timedelta
-from database import get_db
 
-SECRET_KEY = "change-this-to-a-random-secret"
-ALGORITHM = "HS256"
-pwd_context = CryptContext(schemes=["bcrypt"])
+SECRET_KEY = os.environ.get("SECRET_KEY", "cdrrmo_fews_secret_2025")
+ALGORITHM  = "HS256"
 
-def hash_password(password: str):
-    return pwd_context.hash(password)
+def hash_password(plain: str) -> str:
+    return bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
 
-def verify_password(plain: str, hashed: str):
-    return pwd_context.verify(plain, hashed)
+def verify_password(plain: str, hashed: str) -> bool:
+    return bcrypt.checkpw(plain.encode(), hashed.encode())
 
-def create_token(username: str):
-    expire = datetime.utcnow() + timedelta(hours=8)
-    return jwt.encode({"sub": username, "exp": expire}, SECRET_KEY, algorithm=ALGORITHM)
+def create_token(user_id: int, role: str) -> str:
+    payload = {
+        "sub":  str(user_id),
+        "role": role,
+        "exp":  datetime.utcnow() + timedelta(hours=12),
+    }
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 
-def authenticate_user(username: str, password: str):
-    conn = get_db()
-    user = conn.execute(
-        "SELECT * FROM users WHERE username = ?", (username,)
-    ).fetchone()
-    conn.close()
-    if not user or not verify_password(password, user["password_hash"]):
-        return None
-    return user
+def decode_token(token: str) -> dict:
+    return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])

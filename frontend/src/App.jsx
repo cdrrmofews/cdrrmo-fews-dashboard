@@ -32,7 +32,24 @@ L.Icon.Default.mergeOptions({
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
-// FEWS 1 base data
+// ─── RBAC HELPERS ─────────────────────────────────────────────────────────────
+
+const ROLE_ACCESS = {
+  Admin:    ["Dashboard", "UnitControl", "Logs", "Settings"],
+  Operator: ["Dashboard", "UnitControl", "Logs", "Settings"],
+  Viewer:   ["Dashboard", "Logs"],
+};
+
+function can(role, feature) {
+  // feature = "unitControl" | "sirenControl" | "manageUsers" | "notifications"
+  if (role === "Admin")    return true;
+  if (role === "Operator") return feature !== "manageUsers";
+  // Viewer
+  return false;
+}
+
+// ─── FEWS BASE DATA ───────────────────────────────────────────────────────────
+
 const FEWS1_BASE = {
   id: 1, name: "FEWS 1", location: "Bolbok",
   lat: 13.7703472, lng: 121.0525449,
@@ -65,7 +82,7 @@ function backendStatusToKey(status) {
 
 const FEWS_COLORS = ["#22c55e"];
 
-const NAV_ITEMS = [
+const ALL_NAV_ITEMS = [
   { key: "Dashboard",   icon: "▦", label: "Dashboard"    },
   { key: "UnitControl", icon: "⏻", label: "Unit Control" },
   { key: "Logs",        icon: "≡", label: "Logs"         },
@@ -462,20 +479,33 @@ function ChangePasswordModal({ onClose }) {
 
 const EMPTY_ADD_FORM = { name: "", email: "", password: "", role: "Viewer", department: "Operations" };
 
-function AddUserModal({ onAdd, onClose }) {
+function AddUserModal({ onAdd, onClose, token }) {
   const [form, setForm]     = useState(EMPTY_ADD_FORM);
   const [error, setError]   = useState("");
   const [saving, setSaving] = useState(false);
 
   const set = (key, val) => { setForm(f => ({ ...f, [key]: val })); setError(""); };
 
-  const handle = () => {
+  const handle = async () => {
     if (!form.name.trim())        { setError("Full name is required."); return; }
     if (!form.email.trim())       { setError("Email is required."); return; }
     if (!form.password.trim())    { setError("Password is required."); return; }
     if (form.password.length < 6) { setError("Password must be at least 6 characters."); return; }
     setSaving(true);
-    setTimeout(() => { onAdd({ ...form, id: Date.now() }); setSaving(false); onClose(); }, 600);
+    try {
+      const res = await fetch(`${API_BASE}/users`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
+        body:    JSON.stringify(form),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.detail || "Failed to create user."); setSaving(false); return; }
+      onAdd(data);
+      onClose();
+    } catch {
+      setError("Network error. Try again.");
+      setSaving(false);
+    }
   };
 
   return (
@@ -588,6 +618,22 @@ function ProfileDropdown({ user, onSave, onClose }) {
               <div className="pd-view-dept">{user.department}</div>
             </div>
           </div>
+          {/* Role badge */}
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "center",
+            marginTop: 2, marginBottom: 2,
+          }}>
+            <span style={{
+              fontSize: 9, fontWeight: 700, fontFamily: "var(--mono)",
+              letterSpacing: "0.1em", textTransform: "uppercase",
+              padding: "3px 10px", borderRadius: 999,
+              background: user.role === "Admin" ? "rgba(239,68,68,0.12)" : user.role === "Operator" ? "rgba(245,158,11,0.12)" : "rgba(148,163,184,0.10)",
+              color: user.role === "Admin" ? "var(--red)" : user.role === "Operator" ? "var(--amber)" : "var(--text-3)",
+              border: `1px solid ${user.role === "Admin" ? "rgba(239,68,68,0.25)" : user.role === "Operator" ? "rgba(245,158,11,0.25)" : "rgba(148,163,184,0.2)"}`,
+            }}>
+              {user.role}
+            </span>
+          </div>
           <div className="pd-divider" />
           <button className="pd-btn" onClick={() => setEditing(true)}>✎  Edit Profile</button>
         </>
@@ -625,7 +671,7 @@ function ProfileDropdown({ user, onSave, onClose }) {
 
 // ─── UNIT CONTROL PAGE ────────────────────────────────────────────────────────
 
-function UnitControlPage({ allFews, fews1Connected }) {
+function UnitControlPage({ allFews, fews1Connected, userRole }) {
   const [fewsData, setFewsData]   = useState(allFews.map(f => ({ ...f })));
   const [units, setUnits] = useState(Object.fromEntries(allFews.map(f => ([f.id, fews1Connected && f.isLive ? true : false]))));
   const [thresholds, setThr]      = useState(Object.fromEntries(allFews.map(f => [f.id, { warning: 2.5, danger: 4.0 }])));
@@ -634,18 +680,25 @@ function UnitControlPage({ allFews, fews1Connected }) {
   const [infoSaved, setInfoSaved] = useState({});
   const [pendingToggle, setPendingToggle] = useState(null);
 
-  const requestToggle = (f) => setPendingToggle({ fews: f, turningOn: !units[f.id] });
+  const canControl = can(userRole, "unitControl");
+
+  const requestToggle = (f) => {
+    if (!canControl) return;
+    setPendingToggle({ fews: f, turningOn: !units[f.id] });
+  };
   const confirmToggle = () => {
     setUnits(prev => ({ ...prev, [pendingToggle.fews.id]: !prev[pendingToggle.fews.id] }));
     setPendingToggle(null);
   };
 
   const saveThr = (id) => {
+    if (!canControl) return;
     setThrSaved(prev => ({ ...prev, [id]: true }));
     setTimeout(() => setThrSaved(prev => ({ ...prev, [id]: false })), 2000);
   };
 
   const startEdit  = (id) => {
+    if (!canControl) return;
     const f = fewsData.find(x => x.id === id);
     setEditing(prev => ({ ...prev, [id]: { installedDate: f.installedDate, technician: f.technician, description: f.description } }));
   };
@@ -709,7 +762,9 @@ function UnitControlPage({ allFews, fews1Connected }) {
                   <div className="uc-badge" style={{ color: on ? cfg.color : "var(--text-3)", background: on ? cfg.bg : "rgba(255,255,255,0.04)" }}>
                     {on ? cfg.label : "OFFLINE"}
                   </div>
-                  <button className={`uc-power-btn ${on ? "uc-power-on" : "uc-power-off"}`} onClick={() => requestToggle(f)} title={on ? "Power Off" : "Power On"}>⏻</button>
+                  {canControl && (
+                    <button className={`uc-power-btn ${on ? "uc-power-on" : "uc-power-off"}`} onClick={() => requestToggle(f)} title={on ? "Power Off" : "Power On"}>⏻</button>
+                  )}
                 </div>
               </div>
 
@@ -749,9 +804,10 @@ function UnitControlPage({ allFews, fews1Connected }) {
               <div className="uc-desc-section">
                 <div className="uc-desc-header">
                   <span className="uc-thr-label">Station Description</span>
-                  {!ed ? (
+                  {canControl && !ed && (
                     <button className="uc-edit-btn" onClick={() => startEdit(f.id)}>✎ Edit</button>
-                  ) : (
+                  )}
+                  {canControl && ed && (
                     <div style={{ display:"flex", gap:6 }}>
                       <button className="uc-edit-btn" onClick={() => cancelEdit(f.id)}>Cancel</button>
                       <button className="uc-save-info-btn" onClick={() => saveInfo(f.id)}>{infoSaved[f.id] ? "✓ Saved" : "Save"}</button>
@@ -764,22 +820,24 @@ function UnitControlPage({ allFews, fews1Connected }) {
                 ) : <div className="uc-description">{f.description}</div>}
               </div>
 
-              <div className="uc-thr-section">
-                <div className="uc-thr-label">Alert Thresholds</div>
-                <div className="uc-thr-row">
-                  <div className="uc-thr-field">
-                    <label className="uc-thr-field-label">⚠ Warning (cm)</label>
-                    <input className="settings-input" type="number" step="1" value={thr.warning}
-                      onChange={e => setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], warning: parseFloat(e.target.value) } }))} />
+              {canControl && (
+                <div className="uc-thr-section">
+                  <div className="uc-thr-label">Alert Thresholds</div>
+                  <div className="uc-thr-row">
+                    <div className="uc-thr-field">
+                      <label className="uc-thr-field-label">⚠ Warning (cm)</label>
+                      <input className="settings-input" type="number" step="1" value={thr.warning}
+                        onChange={e => setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], warning: parseFloat(e.target.value) } }))} />
+                    </div>
+                    <div className="uc-thr-field">
+                      <label className="uc-thr-field-label">🔴 Danger (cm)</label>
+                      <input className="settings-input" type="number" step="1" value={thr.danger}
+                        onChange={e => setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], danger: parseFloat(e.target.value) } }))} />
+                    </div>
+                    <button className="uc-thr-save" onClick={() => saveThr(f.id)}>{thrSaved[f.id] ? "✓ Saved" : "Save"}</button>
                   </div>
-                  <div className="uc-thr-field">
-                    <label className="uc-thr-field-label">🔴 Danger (cm)</label>
-                    <input className="settings-input" type="number" step="1" value={thr.danger}
-                      onChange={e => setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], danger: parseFloat(e.target.value) } }))} />
-                  </div>
-                  <button className="uc-thr-save" onClick={() => saveThr(f.id)}>{thrSaved[f.id] ? "✓ Saved" : "Save"}</button>
                 </div>
-              </div>
+              )}
             </div>
           );
         })}
@@ -1065,52 +1123,75 @@ function LogsPage() {
 
 // ─── SETTINGS PAGE ────────────────────────────────────────────────────────────
 
-function SettingsPage() {
+function SettingsPage({ userRole, token }) {
   const [showEmail, setShowEmail]       = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showAddUser, setShowAddUser]   = useState(false);
   const [notifs, setNotifs]             = useState({ autoSiren: true, sms: true, email: false });
-  const [users, setUsers] = useState([
-    { id:1, name:"Carlo Dela Cruz", role:"Admin",    department:"Operations",   email:"carlo@cdrrmo.gov.ph" },
-    { id:2, name:"Maria Santos",    role:"Operator", department:"Field Unit A", email:"maria@cdrrmo.gov.ph" },
-    { id:3, name:"Jose Reyes",      role:"Operator", department:"Field Unit B", email:"jose@cdrrmo.gov.ph"  },
-    { id:4, name:"Ana Villanueva",  role:"Viewer",   department:"Command Post", email:"ana@cdrrmo.gov.ph"   },
-  ]);
-  const [drafts, setDrafts]           = useState({});
-  const [confirmSave, setConfirmSave] = useState(null);
+  const [users, setUsers]               = useState([]);
+  const [loadingUsers, setLoadingUsers] = useState(false);
+  const [drafts, setDrafts]             = useState({});
+  const [confirmSave, setConfirmSave]   = useState(null);
   const [confirmRemove, setConfirmRemove] = useState(null);
-  const [savedIds, setSavedIds]       = useState({});
+  const [savedIds, setSavedIds]         = useState({});
+
+  const isAdmin    = userRole === "Admin";
+  const isOperator = userRole === "Operator";
+
+  // Load users from backend (admin only)
+  useEffect(() => {
+    if (!isAdmin) return;
+    setLoadingUsers(true);
+    fetch(`${API_BASE}/users`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => { setUsers(Array.isArray(data) ? data : []); })
+      .catch(() => {})
+      .finally(() => setLoadingUsers(false));
+  }, [isAdmin, token]);
 
   const getDraft    = (u) => drafts[u.id] || { role: u.role, department: u.department };
   const handleDraft = (id, key, val) => setDrafts(prev => ({ ...prev, [id]: { ...getDraft(users.find(u => u.id === id)), [key]: val } }));
-  const doSave = () => {
+
+  const doSave = async () => {
     const u = confirmSave; const d = getDraft(u);
-    setUsers(prev => prev.map(x => x.id === u.id ? { ...x, ...d } : x));
-    setDrafts(prev => { const n={...prev}; delete n[u.id]; return n; });
-    setSavedIds(prev => ({ ...prev, [u.id]: true }));
-    setTimeout(() => setSavedIds(prev => ({ ...prev, [u.id]: false })), 2000);
+    try {
+      const res = await fetch(`${API_BASE}/users/${u.id}`, {
+        method:  "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body:    JSON.stringify(d),
+      });
+      if (res.ok) {
+        setUsers(prev => prev.map(x => x.id === u.id ? { ...x, ...d } : x));
+        setDrafts(prev => { const n={...prev}; delete n[u.id]; return n; });
+        setSavedIds(prev => ({ ...prev, [u.id]: true }));
+        setTimeout(() => setSavedIds(prev => ({ ...prev, [u.id]: false })), 2000);
+      }
+    } catch {}
     setConfirmSave(null);
   };
-  const doRemove = () => { setUsers(prev => prev.filter(x => x.id !== confirmRemove.id)); setConfirmRemove(null); };
 
-  const doAdd = (newUser) => {
-    setUsers(prev => [...prev, {
-      id:         newUser.id,
-      name:       newUser.name.trim(),
-      role:       newUser.role,
-      department: newUser.department,
-      email:      newUser.email.trim(),
-    }]);
+  const doRemove = async () => {
+    try {
+      await fetch(`${API_BASE}/users/${confirmRemove.id}`, {
+        method: "DELETE", headers: { Authorization: `Bearer ${token}` },
+      });
+      setUsers(prev => prev.filter(x => x.id !== confirmRemove.id));
+    } catch {}
+    setConfirmRemove(null);
   };
+
+  const doAdd = (newUser) => setUsers(prev => [...prev, newUser]);
 
   return (
     <>
-      {showAddUser  && <AddUserModal onAdd={doAdd} onClose={() => setShowAddUser(false)} />}
+      {showAddUser  && <AddUserModal onAdd={doAdd} onClose={() => setShowAddUser(false)} token={token} />}
       {showEmail    && <ChangeEmailModal    onClose={() => setShowEmail(false)} />}
       {showPassword && <ChangePasswordModal onClose={() => setShowPassword(false)} />}
       {confirmSave   && <ConfirmModal icon="👤" iconColor="var(--blue)" title={`Save Changes for ${confirmSave.name}?`} message={`Role → ${getDraft(confirmSave).role} · Department → ${getDraft(confirmSave).department}`} confirmLabel="Yes, Save" onConfirm={doSave} onCancel={() => setConfirmSave(null)} />}
       {confirmRemove && <ConfirmModal icon="🗑" iconColor="var(--red)" title={`Remove ${confirmRemove.name}?`} message={`This will permanently remove ${confirmRemove.name} from the system.`} confirmLabel="Yes, Remove" confirmColor="var(--red)" onConfirm={doRemove} onCancel={() => setConfirmRemove(null)} />}
       <div className="page-body">
+
+        {/* Account — all roles */}
         <div className="page-card">
           <div className="page-card-title">Account</div>
           <div className="page-card-sub">Manage your login credentials.</div>
@@ -1123,52 +1204,64 @@ function SettingsPage() {
             </button>
           </div>
         </div>
-        <div className="page-card">
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-            <div>
-              <div className="page-card-title">Manage Users</div>
-              <div className="page-card-sub" style={{ marginBottom: 0 }}>Update roles and departments for all system users.</div>
+
+        {/* Manage Users — Admin only */}
+        {isAdmin && (
+          <div className="page-card">
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
+              <div>
+                <div className="page-card-title">Manage Users</div>
+                <div className="page-card-sub" style={{ marginBottom: 0 }}>Update roles and departments for all system users.</div>
+              </div>
+              <button className="mu-add-btn" onClick={() => setShowAddUser(true)} title="Add new user">
+                <span style={{ fontSize: 16, lineHeight: 1, marginRight: 5 }}>+</span>Add User
+              </button>
             </div>
-            <button className="mu-add-btn" onClick={() => setShowAddUser(true)} title="Add new user">
-              <span style={{ fontSize: 16, lineHeight: 1, marginRight: 5 }}>+</span>Add User
-            </button>
+            {loadingUsers ? (
+              <div style={{ color: "var(--text-3)", fontSize: 12, padding: "12px 0" }}>Loading users…</div>
+            ) : (
+              <div className="mu-list">
+                {users.map(u => {
+                  const d = getDraft(u); const changed = d.role !== u.role || d.department !== u.department;
+                  return (
+                    <div key={u.id} className="mu-row">
+                      <div className="mu-avatar">{u.name.split(" ").map(w=>w[0]).join("").slice(0,2)}</div>
+                      <div className="mu-info"><div className="mu-name">{u.name}</div><div className="mu-email">{u.email}</div></div>
+                      <div className="mu-controls">
+                        <select className="mu-select" value={d.role} onChange={e => handleDraft(u.id, "role", e.target.value)}>
+                          <option>Admin</option><option>Operator</option><option>Viewer</option>
+                        </select>
+                        <select className="mu-select" value={d.department} onChange={e => handleDraft(u.id, "department", e.target.value)}>
+                          <option>Operations</option><option>Field Unit A</option><option>Field Unit B</option><option>Command Post</option><option>Admin Office</option>
+                        </select>
+                        <button className="mu-save-btn" disabled={!changed} onClick={() => setConfirmSave(u)}>{savedIds[u.id] ? "✓" : "Save"}</button>
+                        <button className="mu-remove-btn" onClick={() => setConfirmRemove(u)}>✕</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
-          <div className="mu-list">
-            {users.map(u => {
-              const d = getDraft(u); const changed = d.role !== u.role || d.department !== u.department;
-              return (
-                <div key={u.id} className="mu-row">
-                  <div className="mu-avatar">{u.name.split(" ").map(w=>w[0]).join("").slice(0,2)}</div>
-                  <div className="mu-info"><div className="mu-name">{u.name}</div><div className="mu-email">{u.email}</div></div>
-                  <div className="mu-controls">
-                    <select className="mu-select" value={d.role} onChange={e => handleDraft(u.id, "role", e.target.value)}>
-                      <option>Admin</option><option>Operator</option><option>Viewer</option>
-                    </select>
-                    <select className="mu-select" value={d.department} onChange={e => handleDraft(u.id, "department", e.target.value)}>
-                      <option>Operations</option><option>Field Unit A</option><option>Field Unit B</option><option>Command Post</option><option>Admin Office</option>
-                    </select>
-                    <button className="mu-save-btn" disabled={!changed} onClick={() => setConfirmSave(u)}>{savedIds[u.id] ? "✓" : "Save"}</button>
-                    <button className="mu-remove-btn" onClick={() => setConfirmRemove(u)}>✕</button>
-                  </div>
-                </div>
-              );
-            })}
+        )}
+
+        {/* Notifications — Admin + Operator */}
+        {(isAdmin || isOperator) && (
+          <div className="page-card">
+            <div className="page-card-title">Notification Preferences</div>
+            <div className="page-card-sub">Choose how the system alerts operators during flood events.</div>
+            {[
+              { key:"autoSiren", label:"Auto-trigger siren on CRITICAL", sub:"Siren activates automatically when danger threshold is crossed" },
+              { key:"sms",       label:"SMS Notifications",              sub:"Send SMS alerts to registered operators" },
+              { key:"email",     label:"Email Notifications",            sub:"Send email alerts to registered operators" },
+            ].map(item => (
+              <div key={item.key} className="settings-toggle-row">
+                <div className="settings-toggle-info"><div className="settings-toggle-label">{item.label}</div><div className="settings-toggle-sub">{item.sub}</div></div>
+                <button className={`settings-toggle ${notifs[item.key] ? "stoggle-on" : "stoggle-off"}`} onClick={() => setNotifs(n => ({ ...n, [item.key]: !n[item.key] }))}>{notifs[item.key] ? "ON" : "OFF"}</button>
+              </div>
+            ))}
           </div>
-        </div>
-        <div className="page-card">
-          <div className="page-card-title">Notification Preferences</div>
-          <div className="page-card-sub">Choose how the system alerts operators during flood events.</div>
-          {[
-            { key:"autoSiren", label:"Auto-trigger siren on CRITICAL", sub:"Siren activates automatically when danger threshold is crossed" },
-            { key:"sms",       label:"SMS Notifications",              sub:"Send SMS alerts to registered operators" },
-            { key:"email",     label:"Email Notifications",            sub:"Send email alerts to registered operators" },
-          ].map(item => (
-            <div key={item.key} className="settings-toggle-row">
-              <div className="settings-toggle-info"><div className="settings-toggle-label">{item.label}</div><div className="settings-toggle-sub">{item.sub}</div></div>
-              <button className={`settings-toggle ${notifs[item.key] ? "stoggle-on" : "stoggle-off"}`} onClick={() => setNotifs(n => ({ ...n, [item.key]: !n[item.key] }))}>{notifs[item.key] ? "ON" : "OFF"}</button>
-            </div>
-          ))}
-        </div>
+        )}
       </div>
     </>
   );
@@ -1190,13 +1283,50 @@ export default function App() {
   const [fews1Connected, setFews1Connected] = useState(false);
   const [lastUpdated, setLastUpdated]       = useState(null);
 
-  const [user, setUser] = useState({
-    name: "Carlo Dela Cruz", role: "Admin", department: "Operations",
-    initials: "CD", dob: "", photo: null,
+  // Load user from sessionStorage on mount
+  const [user, setUser] = useState(() => {
+    try {
+      const stored = sessionStorage.getItem("user");
+      if (stored) return JSON.parse(stored);
+    } catch {}
+    return { name: "", role: "Viewer", department: "", initials: "?", dob: "", photo: null, email: "" };
   });
 
+  const [token, setToken] = useState(() => sessionStorage.getItem("token") || "");
+
   const [sirens, setSirens] = useState({ 1: false });
-  const toggleSiren = (id) => setSirens(prev => ({ ...prev, [id]: !prev[id] }));
+  const toggleSiren = (id) => {
+    if (!can(user.role, "sirenControl")) return;
+    setSirens(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  // If token exists in sessionStorage, auto-login
+  useEffect(() => {
+    if (token && user.name) setIsLoggedIn(true);
+  }, []);
+
+  const handleLogin = (role) => {
+    const stored = sessionStorage.getItem("user");
+    if (stored) setUser(JSON.parse(stored));
+    setToken(sessionStorage.getItem("token") || "");
+    setIsLoggedIn(true);
+    setActiveNav("Dashboard");
+  };
+
+  const handleLogout = () => {
+    sessionStorage.removeItem("token");
+    sessionStorage.removeItem("user");
+    setIsLoggedIn(false);
+    setUser({ name: "", role: "Viewer", department: "", initials: "?", dob: "", photo: null, email: "" });
+    setToken("");
+    setShowLogoutModal(false);
+  };
+
+  // Role-filtered nav items
+  const navItems = useMemo(() =>
+    ALL_NAV_ITEMS.filter(item => ROLE_ACCESS[user.role]?.includes(item.key)),
+    [user.role]
+  );
 
   useEffect(() => {
     const poll = async () => {
@@ -1233,7 +1363,7 @@ export default function App() {
     return [fews1];
   }, [fews1Live]);
 
-  if (!isLoggedIn) return <Login onLogin={() => setIsLoggedIn(true)} />;
+  if (!isLoggedIn) return <Login onLogin={handleLogin} />;
 
   const phNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
   phNow.setMinutes(Math.floor(phNow.getMinutes() / 5) * 5, 0, 0);
@@ -1300,7 +1430,7 @@ export default function App() {
       {showLogoutModal && (
         <ConfirmModal title="Logout" message="Are you sure you want to log out of the CDRRMO dashboard?"
           confirmLabel="Yes, Logout" confirmColor="var(--red)"
-          onConfirm={() => { setShowLogoutModal(false); setIsLoggedIn(false); }}
+          onConfirm={handleLogout}
           onCancel={() => setShowLogoutModal(false)} />
       )}
 
@@ -1314,7 +1444,7 @@ export default function App() {
           </div>
         </div>
         <nav className="nav">
-          {NAV_ITEMS.map(item => (
+          {navItems.map(item => (
             <button key={item.key} className={`nav-btn ${activeNav === item.key ? "active" : ""}`} onClick={() => setActiveNav(item.key)}>
               <span className="nav-icon">{item.icon}</span>
               <span className={`nav-label ${sidebarOpen ? "" : "hidden"}`}>{item.label}</span>
@@ -1338,11 +1468,7 @@ export default function App() {
             </button>
             <div className="title-block">
               <h1>{pageInfo.title}</h1>
-              <div className="subtitle">
-                {activeNav === "Dashboard"
-                  ? pageInfo.sub
-                  : pageInfo.sub}
-              </div>
+              <div className="subtitle">{pageInfo.sub}</div>
             </div>
           </div>
           <div className="top-right">
@@ -1362,7 +1488,7 @@ export default function App() {
               </div>
               {showProfileDropdown && createPortal(
                 <div style={{ position:"fixed", top:"64px", right:"16px", zIndex:99999 }}>
-                  <ProfileDropdown user={user} onSave={u => setUser(u)} onClose={() => setShowProfileDropdown(false)} />
+                  <ProfileDropdown user={user} onSave={u => { setUser(u); sessionStorage.setItem("user", JSON.stringify(u)); }} onClose={() => setShowProfileDropdown(false)} />
                 </div>, document.body
               )}
             </div>
@@ -1423,7 +1549,6 @@ export default function App() {
                 </div>
               </div>
 
-              {/* Water level chart — show waiting state when no data */}
               <div className="card card-water">
                 <div className="card-header">
                   <h2>Water Level</h2>
@@ -1440,7 +1565,6 @@ export default function App() {
                 )}
               </div>
 
-              {/* Battery chart — show waiting state when no data */}
               <div className="card card-battery">
                 <div className="card-header">
                   <h2>Battery Level</h2>
@@ -1476,11 +1600,7 @@ export default function App() {
                         <div className="rsb-name" style={{ display:"flex", alignItems:"center", gap:5 }}>
                           {f.name}
                           {f.isLive && (
-                            <span style={{
-                              fontSize: 8, fontWeight: 700,
-                              color: isActuallyLive ? "var(--green)" : "var(--text-3)",
-                              fontFamily: "var(--mono)"
-                            }}>
+                            <span style={{ fontSize: 8, fontWeight: 700, color: isActuallyLive ? "var(--green)" : "var(--text-3)", fontFamily: "var(--mono)" }}>
                               {isActuallyLive ? "LIVE" : "WAITING"}
                             </span>
                           )}
@@ -1499,6 +1619,7 @@ export default function App() {
                 const cfg     = STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"];
                 const sirenOn = sirens[f.id];
                 const isActuallyLive = f.isLive && fews1Connected;
+                const canSiren = can(user.role, "sirenControl");
                 return (
                   <div className="rsb-detail" style={{ "--status-color": isActuallyLive ? cfg.color : "var(--text-3)" }}>
                     <div className="rsb-detail-title">
@@ -1510,43 +1631,29 @@ export default function App() {
                         </span>
                       )}
                     </div>
-                    <div className="rsb-stat">
-                      <span>Water Level</span>
-                      <strong style={{ color: isActuallyLive ? cfg.color : "var(--text-3)" }}>
-                        {isActuallyLive ? `${f.waterLevel}cm` : "—"}
-                      </strong>
-                    </div>
-                    <div className="rsb-stat">
-                      <span>Battery</span>
-                      <strong>{isActuallyLive ? `${f.battery}%` : "—"}</strong>
-                    </div>
-                    <div className="rsb-stat">
-                      <span>Status</span>
-                      <strong style={{ color: isActuallyLive ? cfg.color : "var(--text-3)" }}>
-                        {isActuallyLive ? cfg.label : "WAITING"}
-                      </strong>
-                    </div>
-                    <div className="rsb-stat">
-                      <span>Last sync</span>
-                      <strong>{isActuallyLive && lastUpdatedStr ? lastUpdatedStr : "—"}</strong>
-                    </div>
-                    <div className="rsb-siren">
-                      <div className="rsb-siren-label">Siren Control</div>
-                      <div className="rsb-siren-row">
-                        <span style={{ color: isActuallyLive ? "var(--text-2)" : "var(--text-3)" }}>{sirenOn ? "🔊 Active" : "🔇 Off"}</span>
-                        <button
-                          className={`siren-btn ${sirenOn ? "siren-on" : "siren-off"}`}
-                          onClick={() => isActuallyLive && toggleSiren(f.id)}
-                          disabled={!isActuallyLive}
-                          style={{ opacity: isActuallyLive ? 1 : 0.3, cursor: isActuallyLive ? "pointer" : "not-allowed" }}
-                        >
-                          {sirenOn ? "SILENCE" : "MANUAL ON"}
-                        </button>
+                    <div className="rsb-stat"><span>Water Level</span><strong style={{ color: isActuallyLive ? cfg.color : "var(--text-3)" }}>{isActuallyLive ? `${f.waterLevel}cm` : "—"}</strong></div>
+                    <div className="rsb-stat"><span>Battery</span><strong>{isActuallyLive ? `${f.battery}%` : "—"}</strong></div>
+                    <div className="rsb-stat"><span>Status</span><strong style={{ color: isActuallyLive ? cfg.color : "var(--text-3)" }}>{isActuallyLive ? cfg.label : "WAITING"}</strong></div>
+                    <div className="rsb-stat"><span>Last sync</span><strong>{isActuallyLive && lastUpdatedStr ? lastUpdatedStr : "—"}</strong></div>
+                    {canSiren && (
+                      <div className="rsb-siren">
+                        <div className="rsb-siren-label">Siren Control</div>
+                        <div className="rsb-siren-row">
+                          <span style={{ color: isActuallyLive ? "var(--text-2)" : "var(--text-3)" }}>{sirenOn ? "🔊 Active" : "🔇 Off"}</span>
+                          <button
+                            className={`siren-btn ${sirenOn ? "siren-on" : "siren-off"}`}
+                            onClick={() => isActuallyLive && toggleSiren(f.id)}
+                            disabled={!isActuallyLive}
+                            style={{ opacity: isActuallyLive ? 1 : 0.3, cursor: isActuallyLive ? "pointer" : "not-allowed" }}
+                          >
+                            {sirenOn ? "SILENCE" : "MANUAL ON"}
+                          </button>
+                        </div>
+                        <div className="rsb-siren-note">
+                          {!isActuallyLive ? "Available once station is live" : sirenOn ? "Tap to silence" : "Tap to manually activate"}
+                        </div>
                       </div>
-                      <div className="rsb-siren-note">
-                        {!isActuallyLive ? "Available once station is live" : sirenOn ? "Tap to silence" : "Tap to manually activate"}
-                      </div>
-                    </div>
+                    )}
                   </div>
                 );
               })()}
@@ -1554,9 +1661,9 @@ export default function App() {
           </div>
         )}
 
-        {activeNav === "UnitControl" && <UnitControlPage allFews={allFews} fews1Connected={fews1Connected} />}
+        {activeNav === "UnitControl" && <UnitControlPage allFews={allFews} fews1Connected={fews1Connected} userRole={user.role} />}
         {activeNav === "Logs"        && <LogsPage />}
-        {activeNav === "Settings"    && <SettingsPage />}
+        {activeNav === "Settings"    && <SettingsPage userRole={user.role} token={token} />}
       </div>
     </div>
   );

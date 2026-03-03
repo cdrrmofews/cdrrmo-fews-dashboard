@@ -1,5 +1,6 @@
 fastapi
-uvicorn[standard]
-passlib[bcrypt]
-python-jose[cryptography]
-pydantic
+uvicorn
+psycopg2-binary
+bcrypt
+pyjwt
+python-multipart
