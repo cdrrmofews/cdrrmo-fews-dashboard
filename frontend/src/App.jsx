@@ -30,41 +30,9 @@ L.Icon.Default.mergeOptions({
   shadowUrl:     "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
 
-// ─── BACKEND URL ──────────────────────────────────────────────────────────────
-// After deploying to Render, replace with your actual URL:
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
-// ─── DATA ─────────────────────────────────────────────────────────────────────
-
-// Mock data for FEWS 2–5 (unchanged)
-const MOCK_FEWS_REST = [
-  {
-    id: 2, name: "FEWS 2", location: "Aplaya",
-    lat: 13.7489, lng: 121.0701, status: "warning", battery: 85, waterLevel: 2.8,
-    description: "Positioned at the coastal convergence zone near Aplaya Barangay Hall. Critical for detecting tidal backflow combined with heavy rainfall.",
-    installedDate: "April 3, 2023", technician: "Engr. Liza Macaraeg", isLive: false,
-  },
-  {
-    id: 3, name: "FEWS 3", location: "Riverside",
-    lat: 13.7612, lng: 121.0520, status: "danger", battery: 70, waterLevel: 4.1,
-    description: "Centrally located at the main Calumpang River channel, directly upstream of the low-lying Riverside District.",
-    installedDate: "April 3, 2023", technician: "Engr. Liza Macaraeg", isLive: false,
-  },
-  {
-    id: 4, name: "FEWS 4", location: "Maharlika",
-    lat: 13.7550, lng: 121.0650, status: "safe", battery: 60, waterLevel: 0.9,
-    description: "Installed beneath the Maharlika Highway Bridge, monitoring the drainage canal that runs parallel to the national road.",
-    installedDate: "June 20, 2023", technician: "Engr. Joel Bautista", isLive: false,
-  },
-  {
-    id: 5, name: "FEWS 5", location: "Poblacion",
-    lat: 13.7600, lng: 121.0590, status: "safe", battery: 90, waterLevel: 1.5,
-    description: "Situated at the town center near the Poblacion public market. Solar-powered with cellular backup.",
-    installedDate: "July 7, 2023", technician: "Engr. Ramon Salazar", isLive: false,
-  },
-];
-
-// FEWS 1 base data — water level / status / battery / coords will be replaced by live data
+// FEWS 1 base data
 const FEWS1_BASE = {
   id: 1, name: "FEWS 1", location: "Santa Rita",
   lat: 13.7703472, lng: 121.0525449,
@@ -78,14 +46,12 @@ const STATUS_CONFIG = {
   safe:     { color: "#22c55e", bg: "rgba(34,197,94,0.12)",  label: "SAFE"     },
   warning:  { color: "#f59e0b", bg: "rgba(245,158,11,0.12)", label: "WARNING"  },
   danger:   { color: "#ef4444", bg: "rgba(239,68,68,0.12)",  label: "DANGER"   },
-  // Map backend statuses → frontend status keys
   NORMAL:   { color: "#22c55e", bg: "rgba(34,197,94,0.12)",  label: "NORMAL"   },
   ADVISORY: { color: "#38bdf8", bg: "rgba(56,189,248,0.12)", label: "ADVISORY" },
   WARNING:  { color: "#f59e0b", bg: "rgba(245,158,11,0.12)", label: "WARNING"  },
   CRITICAL: { color: "#ef4444", bg: "rgba(239,68,68,0.12)",  label: "CRITICAL" },
 };
 
-// Map backend status string → frontend status key for styling
 function backendStatusToKey(status) {
   if (!status) return "safe";
   switch (status.toUpperCase()) {
@@ -97,7 +63,7 @@ function backendStatusToKey(status) {
   }
 }
 
-const FEWS_COLORS = ["#22c55e", "#f59e0b", "#ef4444", "#38bdf8", "#a78bfa"];
+const FEWS_COLORS = ["#22c55e"];
 
 const NAV_ITEMS = [
   { key: "Dashboard",   icon: "▦", label: "Dashboard"    },
@@ -127,19 +93,8 @@ function _fmtTime(d) { return `${_pad(d.getHours())}:${_pad(d.getMinutes())}:${_
 function _makeId(i)  { return Math.random().toString(36).slice(2, 9) + i; }
 
 const RAW_LOG_EVENTS = [
-  { minsAgo: 2,    station: "FEWS 3", type: "danger",  msg: "CRITICAL: Water level reached 4.1 m — danger threshold exceeded" },
-  { minsAgo: 2,    station: "FEWS 3", type: "danger",  msg: "Auto-siren triggered at Riverside station" },
-  { minsAgo: 3,    station: "System", type: "system",  msg: "Emergency broadcast sent to all registered operators" },
-  { minsAgo: 8,    station: "FEWS 2", type: "warning", msg: "Water level crossed 2.8 m — approaching warning threshold (2.5 m)" },
-  { minsAgo: 8,    station: "System", type: "system",  msg: "SMS alert dispatched to Field Unit A operators" },
-  { minsAgo: 15,   station: "FEWS 1", type: "info",    msg: "Periodic reading: water level 1.2 m — status NORMAL (LIVE)" },
-  { minsAgo: 15,   station: "FEWS 4", type: "info",    msg: "Periodic reading: water level 0.9 m — status SAFE" },
-  { minsAgo: 15,   station: "FEWS 5", type: "info",    msg: "Periodic reading: water level 1.5 m — status SAFE" },
-  { minsAgo: 15,   station: "FEWS 2", type: "warning", msg: "Periodic reading: water level 2.8 m — status WARNING" },
-  { minsAgo: 15,   station: "FEWS 3", type: "danger",  msg: "Periodic reading: water level 4.1 m — status DANGER" },
-  { minsAgo: 20,   station: "System", type: "system",  msg: "All 5 stations synced successfully" },
-  { minsAgo: 25,   station: "FEWS 3", type: "warning", msg: "Manual siren override requested by operator Carlo Dela Cruz" },
-  { minsAgo: 60,   station: "System", type: "system",  msg: "All 5 stations synced successfully" },
+  { minsAgo: 15,   station: "FEWS 1", type: "info",    msg: "Periodic reading: water level — status WAITING FOR DATA" },
+  { minsAgo: 20,   station: "System", type: "system",  msg: "FEWS 1 station sync pending — awaiting first data transmission" },
   { minsAgo: 330,  station: "System", type: "system",  msg: "CDRRMO Flood Warning Dashboard initialized — all services online" },
 ];
 
@@ -164,7 +119,7 @@ const LOG_TYPE_CFG = {
   system:  { label: "SYSTEM",  color: "#38bdf8", bg: "rgba(56,189,248,0.12)" },
 };
 
-const LOG_ALL_STATIONS = ["System", "FEWS 1", "FEWS 2", "FEWS 3", "FEWS 4", "FEWS 5"];
+const LOG_ALL_STATIONS = ["System", "FEWS 1"];
 const LOG_ALL_TYPES    = ["info", "warning", "danger", "system"];
 const ROWS_PER_PAGE    = 30;
 
@@ -589,7 +544,7 @@ function ProfileDropdown({ user, onSave, onClose }) {
 
 // ─── UNIT CONTROL PAGE ────────────────────────────────────────────────────────
 
-function UnitControlPage({ allFews }) {
+function UnitControlPage({ allFews, fews1Connected }) {
   const [fewsData, setFewsData]   = useState(allFews.map(f => ({ ...f })));
   const [units, setUnits]         = useState(Object.fromEntries(allFews.map(f => [f.id, true])));
   const [thresholds, setThr]      = useState(Object.fromEntries(allFews.map(f => [f.id, { warning: 2.5, danger: 4.0 }])));
@@ -644,6 +599,7 @@ function UnitControlPage({ allFews }) {
           const on  = units[f.id];
           const thr = thresholds[f.id];
           const ed  = editing[f.id];
+          const isActuallyLive = f.isLive && fews1Connected;
           return (
             <div key={f.id} className={`uc-card ${!on ? "uc-card-offline" : ""}`} style={{ "--status-color": cfg.color }}>
               <div className="uc-card-header">
@@ -655,10 +611,14 @@ function UnitControlPage({ allFews }) {
                       {f.isLive && (
                         <span style={{
                           fontSize: 9, fontWeight: 700, fontFamily: "var(--mono)",
-                          background: "rgba(34,197,94,0.15)", color: "var(--green)",
-                          border: "1px solid rgba(34,197,94,0.3)", borderRadius: 999,
+                          background: isActuallyLive ? "rgba(34,197,94,0.15)" : "rgba(148,163,184,0.12)",
+                          color: isActuallyLive ? "var(--green)" : "var(--text-3)",
+                          border: `1px solid ${isActuallyLive ? "rgba(34,197,94,0.3)" : "rgba(148,163,184,0.2)"}`,
+                          borderRadius: 999,
                           padding: "2px 7px", letterSpacing: "0.07em"
-                        }}>● LIVE</span>
+                        }}>
+                          {isActuallyLive ? "● LIVE" : "◌ WAITING"}
+                        </span>
                       )}
                     </div>
                     <div className="uc-card-loc">📍 {f.location}, Batangas City</div>
@@ -675,8 +635,8 @@ function UnitControlPage({ allFews }) {
               <div className="uc-stats-row">
                 <div className="uc-stat">
                   <span className="uc-stat-label">Water Level</span>
-                  <span className="uc-stat-val" style={{ color: cfg.color }}>
-                    {f.isLive ? `${f.waterLevel} cm` : `${f.waterLevel} m`}
+                  <span className="uc-stat-val" style={{ color: isActuallyLive ? cfg.color : "var(--text-3)" }}>
+                    {isActuallyLive ? `${f.waterLevel} cm` : "—"}
                   </span>
                 </div>
                 <div className="uc-stat">
@@ -1124,20 +1084,18 @@ export default function App() {
   const markerRefs = useRef({});
   const [copiedId, setCopiedId] = useState(null);
 
-  // ─── Live data state for FEWS 1 ──────────────────────────────────────────
-  const [fews1Live, setFews1Live]         = useState(null);   // null = not yet received
+  const [fews1Live, setFews1Live]           = useState(null);
   const [fews1Connected, setFews1Connected] = useState(false);
-  const [lastUpdated, setLastUpdated]     = useState(null);
+  const [lastUpdated, setLastUpdated]       = useState(null);
 
   const [user, setUser] = useState({
     name: "Carlo Dela Cruz", role: "Admin", department: "Operations",
     initials: "CD", dob: "", photo: null,
   });
 
-  const [sirens, setSirens] = useState({ 1:false, 2:false, 3:false, 4:false, 5:false });
+  const [sirens, setSirens] = useState({ 1: false });
   const toggleSiren = (id) => setSirens(prev => ({ ...prev, [id]: !prev[id] }));
 
-  // ─── Poll /data/latest every 5 seconds ───────────────────────────────────
   useEffect(() => {
     const poll = async () => {
       try {
@@ -1150,16 +1108,14 @@ export default function App() {
           setLastUpdated(new Date());
         }
       } catch {
-        // Backend not reachable — keep showing last data or placeholder
         setFews1Connected(false);
       }
     };
-    poll(); // immediate
+    poll();
     const interval = setInterval(poll, 5000);
     return () => clearInterval(interval);
   }, []);
 
-  // ─── Build merged FEWS array ──────────────────────────────────────────────
   const allFews = useMemo(() => {
     let fews1 = { ...FEWS1_BASE };
     if (fews1Live) {
@@ -1172,7 +1128,7 @@ export default function App() {
         lng:        fews1Live.longitude,
       };
     }
-    return [fews1, ...MOCK_FEWS_REST];
+    return [fews1];
   }, [fews1Live]);
 
   if (!isLoggedIn) return <Login onLogin={() => setIsLoggedIn(true)} />;
@@ -1191,6 +1147,7 @@ export default function App() {
     datasets: allFews.map((f, i) => ({
       label: f.name,
       data: Array.from({ length: 13 }, (_, j) => {
+        if (!fews1Connected) return null;
         const base = f.waterLevel || 0;
         return +(base * (0.3 + j * 0.054) + Math.random() * 0.2).toFixed(2);
       }),
@@ -1214,7 +1171,7 @@ export default function App() {
 
   const batteryData = {
     labels: allFews.map(f => f.name),
-    datasets: [{ label: "Battery %", data: allFews.map(f => f.battery),
+    datasets: [{ label: "Battery %", data: allFews.map(f => fews1Connected ? f.battery : null),
       backgroundColor: allFews.map(f => f.battery > 80 ? "#22c55e" : f.battery > 50 ? "#f59e0b" : "#ef4444"),
       borderRadius: 6 }],
   };
@@ -1232,7 +1189,6 @@ export default function App() {
   const selectedStation = allFews.find(f => f.id === selectedFEWS) || null;
   const pageInfo        = PAGE_TITLES[activeNav];
 
-  // Format last updated time
   const lastUpdatedStr = lastUpdated
     ? lastUpdated.toLocaleTimeString("en-PH", { timeZone: "Asia/Manila", hour:"2-digit", minute:"2-digit", second:"2-digit" })
     : null;
@@ -1282,25 +1238,12 @@ export default function App() {
               <h1>{pageInfo.title}</h1>
               <div className="subtitle">
                 {activeNav === "Dashboard"
-                  ? `${pageInfo.sub} · ${allFews.length} stations · FEWS 1 ${fews1Connected ? "🟢 Live" : "⚪ Waiting"}`
+                  ? `${pageInfo.sub} · ${allFews.length} station · FEWS 1 ${fews1Connected ? "🟢 Live" : "⚪ Waiting for data"}`
                   : pageInfo.sub}
               </div>
             </div>
           </div>
           <div className="top-right">
-            {/* FEWS 1 live indicator */}
-            {fews1Live && (
-              <div style={{
-                display:"flex", alignItems:"center", gap:6,
-                background:"rgba(34,197,94,0.1)", color:"var(--green)",
-                border:"1px solid rgba(34,197,94,0.2)",
-                padding:"5px 12px", borderRadius:999, fontSize:10, fontWeight:600,
-              }}>
-                <span style={{ width:7, height:7, borderRadius:"50%", background:"var(--green)", display:"inline-block", animation:"pulse 2s infinite" }} />
-                FEWS 1 · {fews1Live.water_level_cm}cm · {fews1Live.status}
-                {lastUpdatedStr && <span style={{ color:"var(--text-3)", marginLeft:6 }}>{lastUpdatedStr}</span>}
-              </div>
-            )}
             {alertCount > 0 && (
               <div className="alert-badge">
                 <span className="alert-dot" />
@@ -1331,7 +1274,7 @@ export default function App() {
                   <span className="card-tag">Batangas City</span>
                 </div>
                 <div className="map-wrap">
-                  <MapContainer center={[13.7565, 121.0583]} zoom={14} style={{ height:"100%", width:"100%", borderRadius:"10px" }} scrollWheelZoom={false}>
+                  <MapContainer center={[13.7703472, 121.0525449]} zoom={15} style={{ height:"100%", width:"100%", borderRadius:"10px" }} scrollWheelZoom={false}>
                     <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                     <FlyToStation fews={selectedStation} />
                     <OpenPopup fews={selectedStation} markerRefs={markerRefs} />
@@ -1351,10 +1294,14 @@ export default function App() {
                           <Popup minWidth={180}>
                             <div style={{ fontFamily:"sans-serif", fontSize:"11px", lineHeight:"1.8" }}>
                               <strong style={{ fontSize:"12px" }}>{f.name} - {f.location}</strong>
-                              {f.isLive && <span style={{ marginLeft:6, fontSize:9, color:"#22c55e", fontWeight:700 }}>● LIVE</span>}
+                              {f.isLive && (
+                                <span style={{ marginLeft:6, fontSize:9, color: fews1Connected ? "#22c55e" : "#94a3b8", fontWeight:700 }}>
+                                  {fews1Connected ? "● LIVE" : "◌ WAITING"}
+                                </span>
+                              )}
                               <br />
                               <span style={{ color: cfg.color, fontWeight:700 }}>{cfg.label}</span>
-                              {" · "}Water: {f.waterLevel}{f.isLive ? "cm" : "m"} · Battery: {f.battery}%<br />
+                              {" · "}Water: {fews1Connected ? `${f.waterLevel}cm` : "—"} · Battery: {f.battery}%<br />
                               <button onClick={() => {
                                 navigator.clipboard.writeText(`${f.lat}, ${f.lng}`);
                                 setCopiedId(f.id);
@@ -1370,13 +1317,38 @@ export default function App() {
                   </MapContainer>
                 </div>
               </div>
+
+              {/* Water level chart — show waiting state when no data */}
               <div className="card card-water">
-                <div className="card-header"><h2>Water Level</h2><span className="card-tag">Last 1 Hour</span></div>
-                <div className="chart-wrap"><Line data={waterChartData} options={waterChartOptions} /></div>
+                <div className="card-header">
+                  <h2>Water Level</h2>
+                  <span className="card-tag">{fews1Connected ? "Last 1 Hour" : "Waiting for data"}</span>
+                </div>
+                {fews1Connected ? (
+                  <div className="chart-wrap"><Line data={waterChartData} options={waterChartOptions} /></div>
+                ) : (
+                  <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:8 }}>
+                    <div style={{ fontSize:24 }}>📡</div>
+                    <div style={{ color:"var(--text-3)", fontSize:12, fontWeight:600 }}>Waiting for FEWS 1 to come online</div>
+                    <div style={{ color:"var(--text-3)", fontSize:10, fontFamily:"var(--mono)" }}>Data will appear once the sensor starts transmitting</div>
+                  </div>
+                )}
               </div>
+
+              {/* Battery chart — show waiting state when no data */}
               <div className="card card-battery">
-                <div className="card-header"><h2>Battery Levels</h2><span className="card-tag">All stations</span></div>
-                <div className="chart-wrap"><Bar data={batteryData} options={batteryOptions} /></div>
+                <div className="card-header">
+                  <h2>Battery Level</h2>
+                  <span className="card-tag">{fews1Connected ? "FEWS 1" : "Waiting for data"}</span>
+                </div>
+                {fews1Connected ? (
+                  <div className="chart-wrap"><Bar data={batteryData} options={batteryOptions} /></div>
+                ) : (
+                  <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:8 }}>
+                    <div style={{ fontSize:24 }}>🔋</div>
+                    <div style={{ color:"var(--text-3)", fontSize:12, fontWeight:600 }}>No battery data yet</div>
+                  </div>
+                )}
               </div>
             </main>
 
@@ -1389,19 +1361,30 @@ export default function App() {
                 {allFews.map(f => {
                   const cfg   = STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"];
                   const isSel = selectedFEWS === f.id;
+                  const isActuallyLive = f.isLive && fews1Connected;
                   return (
                     <button key={f.id} className={`rsb-item ${isSel ? "selected" : ""}`}
                       onClick={() => setSelectedFEWS(isSel ? null : f.id)}
                       style={{ "--status-color": cfg.color }}>
-                      <div className="rsb-dot" style={{ background: cfg.color }} />
+                      <div className="rsb-dot" style={{ background: isActuallyLive ? cfg.color : "#334155" }} />
                       <div className="rsb-info">
                         <div className="rsb-name" style={{ display:"flex", alignItems:"center", gap:5 }}>
                           {f.name}
-                          {f.isLive && <span style={{ fontSize:8, fontWeight:700, color:"var(--green)", fontFamily:"var(--mono)" }}>LIVE</span>}
+                          {f.isLive && (
+                            <span style={{
+                              fontSize: 8, fontWeight: 700,
+                              color: isActuallyLive ? "var(--green)" : "var(--text-3)",
+                              fontFamily: "var(--mono)"
+                            }}>
+                              {isActuallyLive ? "LIVE" : "WAITING"}
+                            </span>
+                          )}
                         </div>
                         <div className="rsb-loc">{f.location || "-"}</div>
                       </div>
-                      <div className="rsb-badge" style={{ color: cfg.color, background: cfg.bg }}>{cfg.label}</div>
+                      <div className="rsb-badge" style={{ color: cfg.color, background: cfg.bg }}>
+                        {isActuallyLive ? cfg.label : "—"}
+                      </div>
                     </button>
                   );
                 })}
@@ -1410,18 +1393,37 @@ export default function App() {
                 const f       = allFews.find(s => s.id === selectedFEWS);
                 const cfg     = STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"];
                 const sirenOn = sirens[f.id];
+                const isActuallyLive = f.isLive && fews1Connected;
                 return (
-                  <div className="rsb-detail" style={{ "--status-color": cfg.color }}>
+                  <div className="rsb-detail" style={{ "--status-color": isActuallyLive ? cfg.color : "var(--text-3)" }}>
                     <div className="rsb-detail-title">
                       {f.name} · {f.location}
-                      {f.isLive && <span style={{ marginLeft:8, fontSize:9, color:"var(--green)", fontWeight:700, fontFamily:"var(--mono)" }}>● LIVE</span>}
+                      {f.isLive && (
+                        <span style={{ marginLeft:8, fontSize:9, fontWeight:700, fontFamily:"var(--mono)",
+                          color: isActuallyLive ? "var(--green)" : "var(--text-3)" }}>
+                          {isActuallyLive ? "● LIVE" : "◌ WAITING"}
+                        </span>
+                      )}
                     </div>
-                    <div className="rsb-stat"><span>Water Level</span><strong>{f.waterLevel}{f.isLive ? "cm" : "m"}</strong></div>
-                    <div className="rsb-stat"><span>Battery</span><strong>{f.battery}%</strong></div>
-                    <div className="rsb-stat"><span>Status</span><strong style={{ color: cfg.color }}>{cfg.label}</strong></div>
+                    <div className="rsb-stat">
+                      <span>Water Level</span>
+                      <strong style={{ color: isActuallyLive ? cfg.color : "var(--text-3)" }}>
+                        {isActuallyLive ? `${f.waterLevel}cm` : "—"}
+                      </strong>
+                    </div>
+                    <div className="rsb-stat">
+                      <span>Battery</span>
+                      <strong>{isActuallyLive ? `${f.battery}%` : "—"}</strong>
+                    </div>
+                    <div className="rsb-stat">
+                      <span>Status</span>
+                      <strong style={{ color: isActuallyLive ? cfg.color : "var(--text-3)" }}>
+                        {isActuallyLive ? cfg.label : "WAITING"}
+                      </strong>
+                    </div>
                     <div className="rsb-stat">
                       <span>Last sync</span>
-                      <strong>{f.isLive && lastUpdatedStr ? lastUpdatedStr : "Just now"}</strong>
+                      <strong>{isActuallyLive && lastUpdatedStr ? lastUpdatedStr : "—"}</strong>
                     </div>
                     <div className="rsb-siren">
                       <div className="rsb-siren-label">Siren Control</div>
@@ -1440,7 +1442,7 @@ export default function App() {
           </div>
         )}
 
-        {activeNav === "UnitControl" && <UnitControlPage allFews={allFews} />}
+        {activeNav === "UnitControl" && <UnitControlPage allFews={allFews} fews1Connected={fews1Connected} />}
         {activeNav === "Logs"        && <LogsPage />}
         {activeNav === "Settings"    && <SettingsPage />}
       </div>
