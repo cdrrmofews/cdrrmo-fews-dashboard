@@ -259,6 +259,19 @@ body {
   border: 1px solid rgba(34,197,94,0.2);
 }
 
+.connection.waiting {
+  background: rgba(148,163,184,0.08);
+  color: var(--text-3);
+  border: 1px solid rgba(148,163,184,0.2);
+}
+
+.wait-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--text-3);
+}
+
 .pulse-dot {
   width: 7px;
   height: 7px;
@@ -1562,6 +1575,11 @@ body {
   background: rgba(56,189,248,0.10);
   border-color: rgba(56,189,248,0.35) !important;
   color: var(--blue) !important;
+}
+
+.fdd-trigger-open {
+  border-color: var(--blue) !important;
+  color: var(--text-1);
 }
 
 .fdd-icon   { font-size: 12px; flex-shrink: 0; }

@@ -38,7 +38,7 @@ const FEWS1_BASE = {
   lat: 13.7703472, lng: 121.0525449,
   status: "safe", battery: 0, waterLevel: 0,
   description: "Deployed along the upper tributary of Sta. Rita River. Monitors early upstream surge from heavy rainfall in the Mataas na Gulod watershed.",
-  installedDate: "March 12, 2023", technician: "Engr. Ramon Salazar",
+  installedDate: "—", technician: "Engr. Andrew Van Ryan",
   isLive: true,
 };
 
@@ -546,7 +546,7 @@ function ProfileDropdown({ user, onSave, onClose }) {
 
 function UnitControlPage({ allFews, fews1Connected }) {
   const [fewsData, setFewsData]   = useState(allFews.map(f => ({ ...f })));
-  const [units, setUnits]         = useState(Object.fromEntries(allFews.map(f => [f.id, true])));
+  const [units, setUnits] = useState(Object.fromEntries(allFews.map(f => ([f.id, fews1Connected && f.isLive ? true : false]))));
   const [thresholds, setThr]      = useState(Object.fromEntries(allFews.map(f => [f.id, { warning: 2.5, danger: 4.0 }])));
   const [thrSaved, setThrSaved]   = useState({});
   const [editing, setEditing]     = useState({});
@@ -596,7 +596,7 @@ function UnitControlPage({ allFews, fews1Connected }) {
       <div className="page-body">
         {fewsData.map(f => {
           const cfg = STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"];
-          const on  = units[f.id];
+          const on = units[f.id] && (f.isLive ? fews1Connected : true);
           const thr = thresholds[f.id];
           const ed  = editing[f.id];
           const isActuallyLive = f.isLive && fews1Connected;
@@ -727,7 +727,7 @@ function FilterDropdown({ label, options, value, onChange }) {
     <div className="fdd-wrap" ref={ref}>
       <button
         type="button"
-        className={`fdd-trigger ${isFiltered ? "fdd-trigger-active" : ""}`}
+        className={`fdd-trigger ${isFiltered ? "fdd-trigger-active" : ""} ${open ? "fdd-trigger-open" : ""}`}
         onClick={() => setOpen(o => !o)}
       >
         <span className="fdd-label">{displayLabel}</span>
@@ -1311,7 +1311,7 @@ export default function App() {
                                 navigator.clipboard.writeText(`${f.lat}, ${f.lng}`);
                                 setCopiedId(f.id);
                                 setTimeout(() => setCopiedId(null), 1500);
-                              }} style={{ marginTop:"7px", padding:"3px 8px", background: copiedId===f.id?"#22c55e":cfg.color, color:"#000", border:"none", borderRadius:"4px", cursor:"pointer", fontWeight:"700", fontSize:"10px", width:"100%", transition:"background 0.2s" }}>
+                              }} style={{ marginTop:"7px", padding:"3px 8px", background: copiedId===f.id?"#22c55e":cfg.color, color:"#000", border:"none", outline:"none", boxShadow:"none", borderRadius:"4px", cursor:"pointer", fontWeight:"700", fontSize:"10px", width:"100%", transition:"background 0.2s" }}>
                                 {copiedId===f.id ? "✓ Copied!" : "📋 Copy Coordinates"}
                               </button>
                             </div>
