@@ -1311,7 +1311,7 @@ export default function App() {
                                 navigator.clipboard.writeText(`${f.lat}, ${f.lng}`);
                                 setCopiedId(f.id);
                                 setTimeout(() => setCopiedId(null), 1500);
-                              }} style={{ marginTop:"7px", padding:"3px 8px", background: copiedId===f.id?"#22c55e":cfg.color, color:"#blue", border:"none", borderRadius:"4px", cursor:"pointer", fontWeight:"700", fontSize:"10px", width:"100%", transition:"background 0.2s" }}>
+                              }} style={{ marginTop:"7px", padding:"3px 8px", background: copiedId===f.id?"#22c55e":cfg.color, color:"#000", border:"none", borderRadius:"4px", cursor:"pointer", fontWeight:"700", fontSize:"10px", width:"100%", transition:"background 0.2s" }}>
                                 {copiedId===f.id ? "✓ Copied!" : "📋 Copy Coordinates"}
                               </button>
                             </div>
