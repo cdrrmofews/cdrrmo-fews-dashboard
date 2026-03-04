@@ -74,7 +74,6 @@ def login(req: LoginRequest):
     conn = get_db()
     cur  = conn.cursor()
     try:
-        # Accept login by email OR username (name)
         cur.execute(
             "SELECT * FROM users WHERE email = %s OR name = %s",
             (req.username, req.username)
@@ -90,7 +89,7 @@ def login(req: LoginRequest):
             "department": user["department"],
             "email":      user["email"],
             "id":         user["id"],
-            "photo":      user.get("photo"),
+            "photo":      user.get("photo"),   # ← always return photo on login
         }
     finally:
         cur.close()
@@ -170,7 +169,8 @@ def list_users(admin=Depends(require_admin)):
     conn = get_db()
     cur  = conn.cursor()
     try:
-        cur.execute("SELECT id, name, email, role, department, created_at FROM users ORDER BY id")
+        # ← include photo so Manage Users can show profile pictures
+        cur.execute("SELECT id, name, email, role, department, photo, created_at FROM users ORDER BY id")
         return cur.fetchall()
     finally:
         cur.close()

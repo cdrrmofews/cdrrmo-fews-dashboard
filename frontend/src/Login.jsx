@@ -35,7 +35,7 @@ export default function Login({ onLogin }) {
         role:       data.role,
         department: data.department,
         initials:   data.username.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase(),
-        photo:      null,
+        photo:      data.photo || null,   // ← fixed: persist photo from server
         dob:        "",
       }));
       onLogin(data.role);
