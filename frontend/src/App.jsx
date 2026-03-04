@@ -37,7 +37,7 @@ const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 const ROLE_ACCESS = {
   Admin:    ["Dashboard", "UnitControl", "Logs", "Settings"],
   Operator: ["Dashboard", "UnitControl", "Logs", "Settings"],
-  Viewer:   ["Dashboard", "Logs"],
+  Viewer:   ["Dashboard", "Logs", "Settings"],
 };
 
 function can(role, feature) {
