@@ -1224,7 +1224,12 @@ function SettingsPage({ userRole, token }) {
                   const d = getDraft(u); const changed = d.role !== u.role || d.department !== u.department;
                   return (
                     <div key={u.id} className="mu-row">
-                      <div className="mu-avatar">{u.name.split(" ").map(w=>w[0]).join("").slice(0,2)}</div>
+                     <div className="mu-avatar">
+  {u.photo
+    ? <img src={u.photo} alt={u.name} style={{ width:"100%", height:"100%", borderRadius:"50%", objectFit:"cover" }} />
+    : u.name.split(" ").map(w=>w[0]).join("").slice(0,2)
+  }
+</div>
                       <div className="mu-info"><div className="mu-name">{u.name}</div><div className="mu-email">{u.email}</div></div>
                       <div className="mu-controls">
                         <select className="mu-select" value={d.role} onChange={e => handleDraft(u.id, "role", e.target.value)}>
