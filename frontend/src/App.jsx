@@ -118,14 +118,20 @@ function _fmtTime(d) {
 
 // Convert a raw DB log row into the shape the table expects
 function parseLog(row) {
-  const d = new Date(row.timestamp);
-  // Convert to Philippine Time for display
-  const ph = new Date(d.toLocaleString("en-US", { timeZone: "Asia/Manila" }));
+  // Parse the UTC timestamp from the DB
+  const raw = row.timestamp;
+  // If the string has no timezone indicator, treat it as UTC by appending Z
+  const utcStr = (typeof raw === "string" && !raw.endsWith("Z") && !raw.includes("+"))
+    ? raw.replace(" ", "T") + "Z"
+    : raw;
+  const d = new Date(utcStr);
+  // Add 8 hours to get Philippine Time (UTC+8)
+  const ph = new Date(d.getTime() + 8 * 60 * 60 * 1000);
   return {
     id:      row.id,
     date:    _fmtDate(ph),
     time:    _fmtTime(ph),
-    rawDate: d,  // keep rawDate as UTC for filtering to work correctly
+    rawDate: d,  // keep rawDate as UTC for filtering
     station: row.station,
     type:    row.type,
     msg:     row.message,
@@ -1345,7 +1351,7 @@ function SettingsPage({ userRole, token, addLog }) {
                         <select className="mu-select" value={d.department} onChange={e => handleDraft(u.id, "department", e.target.value)}>
                           <option>Operations</option><option>Field Unit A</option><option>Field Unit B</option><option>Command Post</option><option>Admin Office</option>
                         </select>
-                        <button className="mu-save-btn" disabled={!changed} onClick={() => setConfirmSave(u)}>{savedIds[u.id] ? "✓" : "Save"}</button>
+                        <button className="mu-save-btn" disabled={!changed} onClick={() => setConfirmSave(u)}>{savedIds[u.id] ? "Saved" : "Save"}</button>
                         <button className="mu-remove-btn" onClick={() => setConfirmRemove(u)}>✕</button>
                       </div>
                     </div>
