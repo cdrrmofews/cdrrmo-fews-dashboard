@@ -59,7 +59,7 @@ export default function Login({ onLogin }) {
         </div>
         <div className="login-form">
           <div className="login-field">
-            <label className="login-label">Email / Username</label>
+            <label className="login-label">Email</label>
             <input
               className="login-input"
               type="text"
