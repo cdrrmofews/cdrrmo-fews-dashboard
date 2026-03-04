@@ -635,22 +635,7 @@ function ProfileDropdown({ user, token, onSave, onClose }) {
               <div className="pd-view-dept">{user.department}</div>
             </div>
           </div>
-          {/* Role badge */}
-          <div style={{
-            display: "flex", alignItems: "center", justifyContent: "center",
-            marginTop: 2, marginBottom: 2,
-          }}>
-            <span style={{
-              fontSize: 9, fontWeight: 700, fontFamily: "var(--mono)",
-              letterSpacing: "0.1em", textTransform: "uppercase",
-              padding: "3px 10px", borderRadius: 999,
-              background: user.role === "Admin" ? "rgba(239,68,68,0.12)" : user.role === "Operator" ? "rgba(245,158,11,0.12)" : "rgba(148,163,184,0.10)",
-              color: user.role === "Admin" ? "var(--red)" : user.role === "Operator" ? "var(--amber)" : "var(--text-3)",
-              border: `1px solid ${user.role === "Admin" ? "rgba(239,68,68,0.25)" : user.role === "Operator" ? "rgba(245,158,11,0.25)" : "rgba(148,163,184,0.2)"}`,
-            }}>
-              {user.role}
-            </span>
-          </div>
+
           <div className="pd-divider" />
           <button className="pd-btn" onClick={() => setEditing(true)}>✎  Edit Profile</button>
         </>
