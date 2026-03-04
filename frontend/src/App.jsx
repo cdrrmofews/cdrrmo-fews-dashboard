@@ -118,14 +118,24 @@ function _fmtTime(d) {
 
 // Convert a raw DB log row into the shape the table expects
 function parseLog(row) {
+  // DB stores UTC. Force UTC parsing with Z, then display in PHT using
+  // toLocaleString which correctly handles the Asia/Manila timezone.
   const raw = row.timestamp;
-  // Supabase TIMESTAMP columns return UTC with no "Z" suffix.
-  // Force UTC parsing by appending Z, then convert to PHT (UTC+8).
   const utcStr = typeof raw === "string"
     ? raw.replace(" ", "T").replace(/Z?$/, "Z")
     : raw;
   const utc = new Date(utcStr);
-  const ph  = new Date(utc.getTime() + 8 * 60 * 60 * 1000);
+  // Get the date/time components in PHT directly from the browser
+  const opts = { timeZone: "Asia/Manila", hour12: false,
+    year: "numeric", month: "2-digit", day: "2-digit",
+    hour: "2-digit", minute: "2-digit", second: "2-digit" };
+  const parts = new Intl.DateTimeFormat("en-PH", opts).formatToParts(utc);
+  const get = (type) => parts.find(p => p.type === type)?.value ?? "00";
+  const year = get("year"), month = get("month"), day = get("day");
+  const hour = get("hour"), minute = get("minute"), second = get("second");
+  // Build a plain local date object for _fmtDate/_fmtTime (no tz shift)
+  const ph = new Date(year, parseInt(month) - 1, parseInt(day),
+                      parseInt(hour), parseInt(minute), parseInt(second));
   return {
     id:      row.id,
     date:    _fmtDate(ph),
@@ -1350,7 +1360,7 @@ function SettingsPage({ userRole, userName, token, addLog }) {
                         <select className="mu-select" value={d.department} onChange={e => handleDraft(u.id, "department", e.target.value)}>
                           <option>Operations</option><option>Field Unit A</option><option>Field Unit B</option><option>Command Post</option><option>Admin Office</option>
                         </select>
-                        <button className="mu-save-btn" disabled={!changed} onClick={() => setConfirmSave(u)}>{savedIds[u.id] ? "✓" : "Save"}</button>
+                        <button className="mu-save-btn" disabled={!changed} onClick={() => setConfirmSave(u)}>{savedIds[u.id] ? "Saved" : "Save"}</button>
                         <button className="mu-remove-btn" onClick={() => setConfirmRemove(u)}>✕</button>
                       </div>
                     </div>

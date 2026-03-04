@@ -181,25 +181,18 @@ def latest():
 
 # ─── SYSTEM LOGS ──────────────────────────────────────────────────────────────
 
-@app.get("/logs")
-def get_logs(user=Depends(get_current_user)):
+@app.post("/logs")
+def create_log(req: CreateLogRequest, user=Depends(get_current_user)):
     conn = get_db()
     cur  = conn.cursor()
     try:
         cur.execute("""
-            SELECT id, station, type, message, user_name, timestamp
-            FROM system_logs
-            ORDER BY timestamp DESC
-            LIMIT 500
-        """)
-        rows = cur.fetchall()
-        result = []
-        for row in rows:
-            r = dict(row)
-            if r.get("timestamp"):
-                r["timestamp"] = r["timestamp"].strftime("%Y-%m-%dT%H:%M:%SZ")
-            result.append(r)
-        return result
+            INSERT INTO system_logs (station, type, message, user_name)
+            VALUES (%s, %s, %s, %s)
+            RETURNING id, station, type, message, user_name, timestamp
+        """, (req.station, req.type, req.message, req.user_name))
+        conn.commit()
+        return cur.fetchone()
     finally:
         cur.close()
         conn.close()
