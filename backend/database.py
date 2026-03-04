@@ -28,7 +28,6 @@ def init_db():
         )
     """)
 
-    # Add photo column to existing databases that don't have it yet
     cur.execute("""
         ALTER TABLE users ADD COLUMN IF NOT EXISTS photo TEXT
     """)
@@ -43,6 +42,18 @@ def init_db():
             latitude       REAL,
             longitude      REAL,
             timestamp      TIMESTAMP DEFAULT NOW()
+        )
+    """)
+
+    # NEW: system_logs table
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS system_logs (
+            id        SERIAL PRIMARY KEY,
+            station   TEXT NOT NULL DEFAULT 'System',
+            type      TEXT NOT NULL DEFAULT 'system',
+            message   TEXT NOT NULL,
+            user_name TEXT,
+            timestamp TIMESTAMP DEFAULT NOW()
         )
     """)
 

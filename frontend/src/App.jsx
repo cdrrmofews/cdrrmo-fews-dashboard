@@ -1,5 +1,5 @@
 import "./App.css";
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Line, Bar } from "react-chartjs-2";
 import { createPortal } from "react-dom";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
@@ -41,10 +41,8 @@ const ROLE_ACCESS = {
 };
 
 function can(role, feature) {
-  // feature = "unitControl" | "sirenControl" | "manageUsers" | "notifications"
   if (role === "Admin")    return true;
   if (role === "Operator") return feature !== "manageUsers";
-  // Viewer
   return false;
 }
 
@@ -99,7 +97,7 @@ const PAGE_TITLES = {
 const MONTHS     = ["January","February","March","April","May","June","July","August","September","October","November","December"];
 const DAYS_SHORT = ["Su","Mo","Tu","We","Th","Fr","Sa"];
 
-// ─── LOGS DATA ────────────────────────────────────────────────────────────────
+// ─── LOG HELPERS ──────────────────────────────────────────────────────────────
 
 function _pad(n) { return String(n).padStart(2, "0"); }
 function _fmtDate(d) {
@@ -107,27 +105,20 @@ function _fmtDate(d) {
   return `${mo[d.getMonth()]} ${_pad(d.getDate())}, ${d.getFullYear()}`;
 }
 function _fmtTime(d) { return `${_pad(d.getHours())}:${_pad(d.getMinutes())}:${_pad(d.getSeconds())}`; }
-function _makeId(i)  { return Math.random().toString(36).slice(2, 9) + i; }
 
-const RAW_LOG_EVENTS = [
-  { minsAgo: 15,   station: "FEWS 1", type: "info",    msg: "Periodic reading: water level — status WAITING FOR DATA" },
-  { minsAgo: 20,   station: "System", type: "system",  msg: "FEWS 1 station sync pending — awaiting first data transmission" },
-  { minsAgo: 330,  station: "System", type: "system",  msg: "CDRRMO Flood Warning Dashboard initialized — all services online" },
-];
-
-const _logNow = new Date();
-const MOCK_LOGS = RAW_LOG_EVENTS.map((e, i) => {
-  const d = new Date(_logNow.getTime() - e.minsAgo * 60 * 1000);
+// Convert a raw DB log row into the shape the table expects
+function parseLog(row) {
+  const d = new Date(row.timestamp);
   return {
-    id:      _makeId(i),
+    id:      row.id,
     date:    _fmtDate(d),
     time:    _fmtTime(d),
     rawDate: d,
-    station: e.station,
-    type:    e.type,
-    msg:     e.msg,
+    station: row.station,
+    type:    row.type,
+    msg:     row.message,
   };
-}).sort((a, b) => b.rawDate - a.rawDate);
+}
 
 const LOG_TYPE_CFG = {
   info:    { label: "INFO",    color: "#94a3b8", bg: "rgba(148,163,184,0.10)" },
@@ -136,9 +127,8 @@ const LOG_TYPE_CFG = {
   system:  { label: "SYSTEM",  color: "#38bdf8", bg: "rgba(56,189,248,0.12)" },
 };
 
-const LOG_ALL_STATIONS = ["System", "FEWS 1"];
-const LOG_ALL_TYPES    = ["info", "warning", "danger", "system"];
-const ROWS_PER_PAGE    = 30;
+const LOG_ALL_TYPES = ["info", "warning", "danger", "system"];
+const ROWS_PER_PAGE = 30;
 
 // ─── EXPORT HELPERS ───────────────────────────────────────────────────────────
 
@@ -479,7 +469,7 @@ function ChangePasswordModal({ onClose }) {
 
 const EMPTY_ADD_FORM = { name: "", email: "", password: "", role: "Viewer", department: "Operations" };
 
-function AddUserModal({ onAdd, onClose, token }) {
+function AddUserModal({ onAdd, onClose, token, addLog }) {
   const [form, setForm]     = useState(EMPTY_ADD_FORM);
   const [error, setError]   = useState("");
   const [saving, setSaving] = useState(false);
@@ -501,6 +491,10 @@ function AddUserModal({ onAdd, onClose, token }) {
       const data = await res.json();
       if (!res.ok) { setError(data.detail || "Failed to create user."); setSaving(false); return; }
       onAdd(data);
+      addLog({
+        station: "System", type: "system",
+        message: `New user ${form.name} (${form.role}, ${form.department}) has been added to the system`,
+      });
       onClose();
     } catch {
       setError("Network error. Try again.");
@@ -570,7 +564,6 @@ function AddUserModal({ onAdd, onClose, token }) {
 }
 
 // ─── PROFILE DROPDOWN ─────────────────────────────────────────────────────────
-// CHANGES: removed dob field, added token prop, handleSave now calls PUT /users/me
 
 function ProfileDropdown({ user, token, onSave, onClose }) {
   const ref                   = useRef();
@@ -635,7 +628,6 @@ function ProfileDropdown({ user, token, onSave, onClose }) {
               <div className="pd-view-dept">{user.department}</div>
             </div>
           </div>
-
           <div className="pd-divider" />
           <button className="pd-btn" onClick={() => setEditing(true)}>✎  Edit Profile</button>
         </>
@@ -670,13 +662,14 @@ function ProfileDropdown({ user, token, onSave, onClose }) {
 
 // ─── UNIT CONTROL PAGE ────────────────────────────────────────────────────────
 
-function UnitControlPage({ allFews, fews1Connected, userRole }) {
-  const [fewsData, setFewsData]   = useState(allFews.map(f => ({ ...f })));
-  const [units, setUnits] = useState(Object.fromEntries(allFews.map(f => ([f.id, fews1Connected && f.isLive ? true : false]))));
-  const [thresholds, setThr]      = useState(Object.fromEntries(allFews.map(f => [f.id, { warning: 2.5, danger: 4.0 }])));
-  const [thrSaved, setThrSaved]   = useState({});
-  const [editing, setEditing]     = useState({});
-  const [infoSaved, setInfoSaved] = useState({});
+function UnitControlPage({ allFews, fews1Connected, userRole, addLog }) {
+  const [fewsData, setFewsData]           = useState(allFews.map(f => ({ ...f })));
+  const [units, setUnits]                 = useState(Object.fromEntries(allFews.map(f => ([f.id, fews1Connected && f.isLive ? true : false]))));
+  const [thresholds, setThr]              = useState(Object.fromEntries(allFews.map(f => [f.id, { warning: 2.5, danger: 4.0 }])));
+  const [prevThresholds, setPrevThr]      = useState(Object.fromEntries(allFews.map(f => [f.id, { warning: 2.5, danger: 4.0 }])));
+  const [thrSaved, setThrSaved]           = useState({});
+  const [editing, setEditing]             = useState({});
+  const [infoSaved, setInfoSaved]         = useState({});
   const [pendingToggle, setPendingToggle] = useState(null);
 
   const canControl = can(userRole, "unitControl");
@@ -685,28 +678,57 @@ function UnitControlPage({ allFews, fews1Connected, userRole }) {
     if (!canControl) return;
     setPendingToggle({ fews: f, turningOn: !units[f.id] });
   };
+
   const confirmToggle = () => {
-    setUnits(prev => ({ ...prev, [pendingToggle.fews.id]: !prev[pendingToggle.fews.id] }));
+    const { fews, turningOn } = pendingToggle;
+    setUnits(prev => ({ ...prev, [fews.id]: !prev[fews.id] }));
+    addLog({
+      station: fews.name, type: "system",
+      message: `${fews.name} (${fews.location}) has been powered ${turningOn ? "ON" : "OFF"}`,
+    });
     setPendingToggle(null);
   };
 
   const saveThr = (id) => {
     if (!canControl) return;
+    const f    = fewsData.find(x => x.id === id);
+    const thr  = thresholds[id];
+    const prev = prevThresholds[id];
+    if (thr.warning !== prev.warning) {
+      addLog({
+        station: f.name, type: "info",
+        message: `${f.name} (${f.location}) warning threshold has been updated from ${prev.warning} cm to ${thr.warning} cm`,
+      });
+    }
+    if (thr.danger !== prev.danger) {
+      addLog({
+        station: f.name, type: "info",
+        message: `${f.name} (${f.location}) danger threshold has been updated from ${prev.danger} cm to ${thr.danger} cm`,
+      });
+    }
+    setPrevThr(p => ({ ...p, [id]: { ...thr } }));
     setThrSaved(prev => ({ ...prev, [id]: true }));
     setTimeout(() => setThrSaved(prev => ({ ...prev, [id]: false })), 2000);
   };
 
-  const startEdit  = (id) => {
+  const startEdit = (id) => {
     if (!canControl) return;
     const f = fewsData.find(x => x.id === id);
     setEditing(prev => ({ ...prev, [id]: { installedDate: f.installedDate, technician: f.technician, description: f.description } }));
   };
-  const saveInfo   = (id) => {
-    setFewsData(prev => prev.map(f => f.id === id ? { ...f, ...editing[id] } : f));
+
+  const saveInfo = (id) => {
+    const f = fewsData.find(x => x.id === id);
+    setFewsData(prev => prev.map(x => x.id === id ? { ...x, ...editing[id] } : x));
     setEditing(prev => { const n = {...prev}; delete n[id]; return n; });
+    addLog({
+      station: f.name, type: "info",
+      message: `${f.name} (${f.location}) station information has been updated`,
+    });
     setInfoSaved(prev => ({ ...prev, [id]: true }));
     setTimeout(() => setInfoSaved(prev => ({ ...prev, [id]: false })), 2000);
   };
+
   const cancelEdit = (id) => setEditing(prev => { const n = {...prev}; delete n[id]; return n; });
 
   return (
@@ -729,7 +751,7 @@ function UnitControlPage({ allFews, fews1Connected, userRole }) {
       <div className="page-body">
         {fewsData.map(f => {
           const cfg = STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"];
-          const on = units[f.id] && (f.isLive ? fews1Connected : true);
+          const on  = units[f.id] && (f.isLive ? fews1Connected : true);
           const thr = thresholds[f.id];
           const ed  = editing[f.id];
           const isActuallyLive = f.isLive && fews1Connected;
@@ -747,8 +769,7 @@ function UnitControlPage({ allFews, fews1Connected, userRole }) {
                           background: isActuallyLive ? "rgba(34,197,94,0.15)" : "rgba(148,163,184,0.12)",
                           color: isActuallyLive ? "var(--green)" : "var(--text-3)",
                           border: `1px solid ${isActuallyLive ? "rgba(34,197,94,0.3)" : "rgba(148,163,184,0.2)"}`,
-                          borderRadius: 999,
-                          padding: "2px 7px", letterSpacing: "0.07em"
+                          borderRadius: 999, padding: "2px 7px", letterSpacing: "0.07em"
                         }}>
                           {isActuallyLive ? "● LIVE" : "◌ WAITING"}
                         </span>
@@ -1020,20 +1041,57 @@ function ExportMenu({ filtered, exporting, setExporting }) {
   );
 }
 
-function LogsPage() {
-  const [search, setSearch]               = useState("");
-  const [filterStation, setFilterStation] = useState("All");
-  const [filterType, setFilterType]       = useState("All");
+// LogsPage now fetches real data from /logs and polls every 10s
+function LogsPage({ token }) {
+  const [logs, setLogs]                       = useState([]);
+  const [loading, setLoading]                 = useState(true);
+  const [search, setSearch]                   = useState("");
+  const [filterStation, setFilterStation]     = useState("All");
+  const [filterType, setFilterType]           = useState("All");
   const [filterDateRange, setFilterDateRange] = useState({ from: "", to: "" });
-  const [page, setPage]                   = useState(1);
-  const [exporting, setExporting]         = useState(null);
+  const [page, setPage]                       = useState(1);
+  const [exporting, setExporting]             = useState(null);
 
-  const stationOptions = useMemo(() => [{ value: "All", label: "All Stations" }, ...LOG_ALL_STATIONS.map(s => ({ value: s, label: s }))], []);
-  const typeOptions    = useMemo(() => [{ value: "All", label: "All Types" }, ...LOG_ALL_TYPES.map(t => ({ value: t, label: t.charAt(0).toUpperCase() + t.slice(1) }))], []);
+  const fetchLogs = useCallback(() => {
+    if (!token) return;
+    fetch(`${API_BASE}/logs`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => { if (Array.isArray(data)) setLogs(data.map(parseLog)); })
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  // Initial fetch
+  useEffect(() => { fetchLogs(); }, [fetchLogs]);
+
+  // Poll every 10s so new entries appear automatically
+  useEffect(() => {
+    const interval = setInterval(fetchLogs, 10000);
+    return () => clearInterval(interval);
+  }, [fetchLogs]);
+
+  // Build station options dynamically from real log data
+  const allStations = useMemo(() => {
+    const seen = new Set();
+    const order = ["System", "FEWS 1"];
+    logs.forEach(l => seen.add(l.station));
+    const extra = Array.from(seen).filter(s => !order.includes(s));
+    return [...order.filter(s => seen.has(s)), ...extra];
+  }, [logs]);
+
+  const stationOptions = useMemo(() => [
+    { value: "All", label: "All Stations" },
+    ...allStations.map(s => ({ value: s, label: s })),
+  ], [allStations]);
+
+  const typeOptions = useMemo(() => [
+    { value: "All", label: "All Types" },
+    ...LOG_ALL_TYPES.map(t => ({ value: t, label: t.charAt(0).toUpperCase() + t.slice(1) })),
+  ], []);
 
   const filtered = useMemo(() => {
     const q = search.toLowerCase();
-    return MOCK_LOGS.filter(l => {
+    return logs.filter(l => {
       if (filterStation !== "All" && l.station !== filterStation) return false;
       if (filterType    !== "All" && l.type    !== filterType)    return false;
       if (filterDateRange.from) { const f = new Date(filterDateRange.from + "T00:00:00"); if (l.rawDate < f) return false; }
@@ -1041,7 +1099,7 @@ function LogsPage() {
       if (q && !l.msg.toLowerCase().includes(q) && !l.station.toLowerCase().includes(q) && !l.type.includes(q)) return false;
       return true;
     });
-  }, [search, filterStation, filterType, filterDateRange]);
+  }, [logs, search, filterStation, filterType, filterDateRange]);
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ROWS_PER_PAGE));
   const safePage   = Math.min(page, totalPages);
@@ -1086,13 +1144,18 @@ function LogsPage() {
           <span className="logs-col-msg">Message</span>
         </div>
         <div className="logs-table-body">
-          {pageRows.length === 0 ? (
+          {loading ? (
+            <div className="logs-empty">
+              <div style={{ fontSize:24, marginBottom:8 }}>⏳</div>
+              <div style={{ color:"var(--text-2)", fontWeight:600 }}>Loading logs…</div>
+            </div>
+          ) : pageRows.length === 0 ? (
             <div className="logs-empty">
               <div style={{ fontSize:28, marginBottom:8 }}>🔍</div>
               <div style={{ color:"var(--text-2)", fontWeight:600 }}>No logs match your filters</div>
             </div>
           ) : pageRows.map((l, i) => {
-            const cfg = LOG_TYPE_CFG[l.type];
+            const cfg = LOG_TYPE_CFG[l.type] || LOG_TYPE_CFG["system"];
             return (
               <div key={l.id} className={`logs-row ${i%2===1 ? "logs-row-alt":""}`}>
                 <span className="logs-col-date"><span className="logs-date-day">{l.date}</span><span className="logs-date-time">{l.time}</span></span>
@@ -1122,22 +1185,27 @@ function LogsPage() {
 
 // ─── SETTINGS PAGE ────────────────────────────────────────────────────────────
 
-function SettingsPage({ userRole, token }) {
-  const [showEmail, setShowEmail]       = useState(false);
-  const [showPassword, setShowPassword] = useState(false);
-  const [showAddUser, setShowAddUser]   = useState(false);
-  const [notifs, setNotifs]             = useState({ autoSiren: true, sms: true, email: false });
-  const [users, setUsers]               = useState([]);
-  const [loadingUsers, setLoadingUsers] = useState(false);
-  const [drafts, setDrafts]             = useState({});
-  const [confirmSave, setConfirmSave]   = useState(null);
-  const [confirmRemove, setConfirmRemove] = useState(null);
-  const [savedIds, setSavedIds]         = useState({});
+function SettingsPage({ userRole, token, addLog }) {
+  const [showEmail, setShowEmail]           = useState(false);
+  const [showPassword, setShowPassword]     = useState(false);
+  const [showAddUser, setShowAddUser]       = useState(false);
+  const [notifs, setNotifs]                 = useState({ autoSiren: true, sms: true, email: false });
+  const [users, setUsers]                   = useState([]);
+  const [loadingUsers, setLoadingUsers]     = useState(false);
+  const [drafts, setDrafts]                 = useState({});
+  const [confirmSave, setConfirmSave]       = useState(null);
+  const [confirmRemove, setConfirmRemove]   = useState(null);
+  const [savedIds, setSavedIds]             = useState({});
 
   const isAdmin    = userRole === "Admin";
   const isOperator = userRole === "Operator";
 
-  // Load users from backend (admin only)
+  const NOTIF_LABELS = {
+    autoSiren: "Auto-trigger siren on CRITICAL",
+    sms:       "SMS Notifications",
+    email:     "Email Notifications",
+  };
+
   useEffect(() => {
     if (!isAdmin) return;
     setLoadingUsers(true);
@@ -1152,7 +1220,8 @@ function SettingsPage({ userRole, token }) {
   const handleDraft = (id, key, val) => setDrafts(prev => ({ ...prev, [id]: { ...getDraft(users.find(u => u.id === id)), [key]: val } }));
 
   const doSave = async () => {
-    const u = confirmSave; const d = getDraft(u);
+    const u = confirmSave;
+    const d = getDraft(u);
     try {
       const res = await fetch(`${API_BASE}/users/${u.id}`, {
         method:  "PUT",
@@ -1160,6 +1229,18 @@ function SettingsPage({ userRole, token }) {
         body:    JSON.stringify(d),
       });
       if (res.ok) {
+        if (d.role !== u.role) {
+          addLog({
+            station: "System", type: "system",
+            message: `${u.name}'s role has been changed from ${u.role} to ${d.role}`,
+          });
+        }
+        if (d.department !== u.department) {
+          addLog({
+            station: "System", type: "system",
+            message: `${u.name}'s department has been changed from ${u.department} to ${d.department}`,
+          });
+        }
         setUsers(prev => prev.map(x => x.id === u.id ? { ...x, ...d } : x));
         setDrafts(prev => { const n={...prev}; delete n[u.id]; return n; });
         setSavedIds(prev => ({ ...prev, [u.id]: true }));
@@ -1170,27 +1251,41 @@ function SettingsPage({ userRole, token }) {
   };
 
   const doRemove = async () => {
+    const u = confirmRemove;
     try {
-      await fetch(`${API_BASE}/users/${confirmRemove.id}`, {
+      await fetch(`${API_BASE}/users/${u.id}`, {
         method: "DELETE", headers: { Authorization: `Bearer ${token}` },
       });
-      setUsers(prev => prev.filter(x => x.id !== confirmRemove.id));
+      addLog({
+        station: "System", type: "system",
+        message: `User ${u.name} (${u.role}, ${u.department}) has been removed from the system`,
+      });
+      setUsers(prev => prev.filter(x => x.id !== u.id));
     } catch {}
     setConfirmRemove(null);
   };
 
   const doAdd = (newUser) => setUsers(prev => [...prev, newUser]);
 
+  const handleNotifToggle = (key) => {
+    const newVal = !notifs[key];
+    setNotifs(n => ({ ...n, [key]: newVal }));
+    addLog({
+      station: "System", type: "system",
+      message: `${NOTIF_LABELS[key]} has been ${newVal ? "enabled" : "disabled"}`,
+    });
+  };
+
   return (
     <>
-      {showAddUser  && <AddUserModal onAdd={doAdd} onClose={() => setShowAddUser(false)} token={token} />}
+      {showAddUser  && <AddUserModal onAdd={doAdd} onClose={() => setShowAddUser(false)} token={token} addLog={addLog} />}
       {showEmail    && <ChangeEmailModal    onClose={() => setShowEmail(false)} />}
       {showPassword && <ChangePasswordModal onClose={() => setShowPassword(false)} />}
       {confirmSave   && <ConfirmModal icon="👤" iconColor="var(--blue)" title={`Save Changes for ${confirmSave.name}?`} message={`Role → ${getDraft(confirmSave).role} · Department → ${getDraft(confirmSave).department}`} confirmLabel="Yes, Save" onConfirm={doSave} onCancel={() => setConfirmSave(null)} />}
       {confirmRemove && <ConfirmModal icon="🗑" iconColor="var(--red)" title={`Remove ${confirmRemove.name}?`} message={`This will permanently remove ${confirmRemove.name} from the system.`} confirmLabel="Yes, Remove" confirmColor="var(--red)" onConfirm={doRemove} onCancel={() => setConfirmRemove(null)} />}
       <div className="page-body">
 
-        {/* Account — all roles */}
+        {/* Account */}
         <div className="page-card">
           <div className="page-card-title">Account</div>
           <div className="page-card-sub">Manage your login credentials.</div>
@@ -1224,12 +1319,12 @@ function SettingsPage({ userRole, token }) {
                   const d = getDraft(u); const changed = d.role !== u.role || d.department !== u.department;
                   return (
                     <div key={u.id} className="mu-row">
-                     <div className="mu-avatar">
-  {u.photo
-    ? <img src={u.photo} alt={u.name} style={{ width:"100%", height:"100%", borderRadius:"50%", objectFit:"cover" }} />
-    : u.name.split(" ").map(w=>w[0]).join("").slice(0,2)
-  }
-</div>
+                      <div className="mu-avatar">
+                        {u.photo
+                          ? <img src={u.photo} alt={u.name} style={{ width:"100%", height:"100%", borderRadius:"50%", objectFit:"cover" }} />
+                          : u.name.split(" ").map(w=>w[0]).join("").slice(0,2)
+                        }
+                      </div>
                       <div className="mu-info"><div className="mu-name">{u.name}</div><div className="mu-email">{u.email}</div></div>
                       <div className="mu-controls">
                         <select className="mu-select" value={d.role} onChange={e => handleDraft(u.id, "role", e.target.value)}>
@@ -1261,7 +1356,7 @@ function SettingsPage({ userRole, token }) {
             ].map(item => (
               <div key={item.key} className="settings-toggle-row">
                 <div className="settings-toggle-info"><div className="settings-toggle-label">{item.label}</div><div className="settings-toggle-sub">{item.sub}</div></div>
-                <button className={`settings-toggle ${notifs[item.key] ? "stoggle-on" : "stoggle-off"}`} onClick={() => setNotifs(n => ({ ...n, [item.key]: !n[item.key] }))}>{notifs[item.key] ? "ON" : "OFF"}</button>
+                <button className={`settings-toggle ${notifs[item.key] ? "stoggle-on" : "stoggle-off"}`} onClick={() => handleNotifToggle(item.key)}>{notifs[item.key] ? "ON" : "OFF"}</button>
               </div>
             ))}
           </div>
@@ -1287,7 +1382,6 @@ export default function App() {
   const [fews1Connected, setFews1Connected] = useState(false);
   const [lastUpdated, setLastUpdated]       = useState(null);
 
-  // Load user from sessionStorage on mount
   const [user, setUser] = useState(() => {
     try {
       const stored = sessionStorage.getItem("user");
@@ -1299,12 +1393,38 @@ export default function App() {
   const [token, setToken] = useState(() => sessionStorage.getItem("token") || "");
 
   const [sirens, setSirens] = useState({ 1: false });
+
+  // ─── CENTRAL addLog — POSTs to /logs, fire-and-forget ─────────────────────
+  const addLog = useCallback(async ({ station, type, message }) => {
+    const tok = sessionStorage.getItem("token") || token;
+    if (!tok) return;
+    try {
+      await fetch(`${API_BASE}/logs`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+        body:    JSON.stringify({ station, type, message }),
+      });
+    } catch {
+      // Silently ignore — logging should never break the UI
+    }
+  }, [token]);
+
   const toggleSiren = (id) => {
     if (!can(user.role, "sirenControl")) return;
+    const turningOn = !sirens[id];
     setSirens(prev => ({ ...prev, [id]: !prev[id] }));
+    const f = allFews.find(x => x.id === id);
+    if (f) {
+      addLog({
+        station: f.name,
+        type: turningOn ? "warning" : "system",
+        message: turningOn
+          ? `Siren for ${f.name} (${f.location}) has been manually activated`
+          : `Siren for ${f.name} (${f.location}) has been silenced`,
+      });
+    }
   };
 
-  // If token exists in sessionStorage, auto-login
   useEffect(() => {
     if (token && user.name) setIsLoggedIn(true);
   }, []);
@@ -1318,6 +1438,11 @@ export default function App() {
   };
 
   const handleLogout = () => {
+    // Fire logout log before clearing session
+    addLog({
+      station: "System", type: "system",
+      message: `${user.name} (${user.role}, ${user.department}) has logged out of the system`,
+    });
     sessionStorage.removeItem("token");
     sessionStorage.removeItem("user");
     setIsLoggedIn(false);
@@ -1326,7 +1451,6 @@ export default function App() {
     setShowLogoutModal(false);
   };
 
-  // Role-filtered nav items
   const navItems = useMemo(() =>
     ALL_NAV_ITEMS.filter(item => ROLE_ACCESS[user.role]?.includes(item.key)),
     [user.role]
@@ -1665,9 +1789,9 @@ export default function App() {
           </div>
         )}
 
-        {activeNav === "UnitControl" && <UnitControlPage allFews={allFews} fews1Connected={fews1Connected} userRole={user.role} />}
-        {activeNav === "Logs"        && <LogsPage />}
-        {activeNav === "Settings"    && <SettingsPage userRole={user.role} token={token} />}
+        {activeNav === "UnitControl" && <UnitControlPage allFews={allFews} fews1Connected={fews1Connected} userRole={user.role} addLog={addLog} />}
+        {activeNav === "Logs"        && <LogsPage token={token} />}
+        {activeNav === "Settings"    && <SettingsPage userRole={user.role} token={token} addLog={addLog} />}
       </div>
     </div>
   );

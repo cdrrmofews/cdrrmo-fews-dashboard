@@ -2,7 +2,6 @@ from fastapi import FastAPI, HTTPException, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
-import traceback
 
 from database import get_db, init_db
 from auth import hash_password, verify_password, create_token, decode_token
@@ -65,7 +64,13 @@ class UpdateUserRequest(BaseModel):
 
 class UpdateProfileRequest(BaseModel):
     name:  Optional[str] = None
-    photo: Optional[str] = None  # base64 data URL
+    photo: Optional[str] = None
+
+class CreateLogRequest(BaseModel):
+    station:   str = "System"
+    type:      str = "system"
+    message:   str
+    user_name: Optional[str] = None
 
 # ─── AUTH ─────────────────────────────────────────────────────────────────────
 
@@ -82,6 +87,18 @@ def login(req: LoginRequest):
         if not user or not verify_password(req.password, user["password"]):
             raise HTTPException(status_code=401, detail="Invalid credentials")
         token = create_token(user["id"], user["role"])
+
+        # Write login event to system_logs
+        cur.execute("""
+            INSERT INTO system_logs (station, type, message, user_name)
+            VALUES (%s, %s, %s, %s)
+        """, (
+            "System", "system",
+            f"{user['name']} ({user['role']}, {user['department']}) has logged in to the system",
+            user["name"]
+        ))
+        conn.commit()
+
         return {
             "token":      token,
             "username":   user["name"],
@@ -89,7 +106,7 @@ def login(req: LoginRequest):
             "department": user["department"],
             "email":      user["email"],
             "id":         user["id"],
-            "photo":      user.get("photo"),   # ← always return photo on login
+            "photo":      user.get("photo"),
         }
     finally:
         cur.close()
@@ -162,6 +179,40 @@ def latest():
         cur.close()
         conn.close()
 
+# ─── SYSTEM LOGS ──────────────────────────────────────────────────────────────
+
+@app.post("/logs")
+def create_log(req: CreateLogRequest, user=Depends(get_current_user)):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        cur.execute("""
+            INSERT INTO system_logs (station, type, message, user_name)
+            VALUES (%s, %s, %s, %s)
+            RETURNING id, station, type, message, user_name, timestamp
+        """, (req.station, req.type, req.message, req.user_name))
+        conn.commit()
+        return cur.fetchone()
+    finally:
+        cur.close()
+        conn.close()
+
+@app.get("/logs")
+def get_logs(user=Depends(get_current_user)):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT id, station, type, message, user_name, timestamp
+            FROM system_logs
+            ORDER BY timestamp DESC
+            LIMIT 500
+        """)
+        return cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+
 # ─── USER MANAGEMENT (Admin only) ────────────────────────────────────────────
 
 @app.get("/users")
@@ -169,7 +220,6 @@ def list_users(admin=Depends(require_admin)):
     conn = get_db()
     cur  = conn.cursor()
     try:
-        # ← include photo so Manage Users can show profile pictures
         cur.execute("SELECT id, name, email, role, department, photo, created_at FROM users ORDER BY id")
         return cur.fetchall()
     finally:
@@ -207,7 +257,10 @@ def update_user(user_id: int, req: UpdateUserRequest, admin=Depends(require_admi
         if not fields:
             raise HTTPException(status_code=400, detail="Nothing to update")
         values.append(user_id)
-        cur.execute(f"UPDATE users SET {', '.join(fields)} WHERE id = %s RETURNING id, name, email, role, department", values)
+        cur.execute(
+            f"UPDATE users SET {', '.join(fields)} WHERE id = %s RETURNING id, name, email, role, department",
+            values
+        )
         conn.commit()
         row = cur.fetchone()
         if not row:
