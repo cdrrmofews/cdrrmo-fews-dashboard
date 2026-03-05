@@ -1,4 +1,3 @@
-import os
 import httpx
 from fastapi import FastAPI, Request, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,6 +20,9 @@ async def relay(request: Request):
     if secret != ARDUINO_SECRET:
         raise HTTPException(status_code=401, detail="Invalid secret")
     body = await request.json()
+    # Remap station_id to device_id for the backend
+    if "station_id" in body and "device_id" not in body:
+        body["device_id"] = body.pop("station_id")
     async with httpx.AsyncClient() as client:
         resp = await client.post(RENDER_URL, json=body, timeout=30)
     return {"ok": True, "status": resp.status_code}
