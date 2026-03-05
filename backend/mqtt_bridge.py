@@ -1,4 +1,5 @@
 import json
+import uuid
 import threading
 import paho.mqtt.client as mqtt
 from database import get_db
@@ -10,8 +11,8 @@ MQTT_TOPIC  = "cdrrmo/fews1/data"
 def on_connect(client, userdata, flags, rc):
     if rc == 0:
         print("[BRIDGE] Connected to broker")
-        client.subscribe(MQTT_TOPIC)
-        print(f"[BRIDGE] Subscribed to {MQTT_TOPIC}")
+        result, mid = client.subscribe(MQTT_TOPIC, qos=0)
+        print(f"[BRIDGE] Subscribed to {MQTT_TOPIC} result={result} mid={mid}")
     else:
         print(f"[BRIDGE] Connection failed rc={rc}")
 
@@ -49,7 +50,9 @@ def on_disconnect(client, userdata, rc):
         print(f"[BRIDGE] Unexpected disconnect rc={rc}, will auto-reconnect")
 
 def start_bridge():
-    client = mqtt.Client(client_id="cdrrmo_render_bridge_01", protocol=mqtt.MQTTv311, clean_session=True)
+    unique_id = f"cdrrmo_bridge_{uuid.uuid4().hex[:8]}"
+    print(f"[BRIDGE] Client ID: {unique_id}")
+    client = mqtt.Client(client_id=unique_id, protocol=mqtt.MQTTv311, clean_session=True)
     client.on_connect    = on_connect
     client.on_message    = on_message
     client.on_disconnect = on_disconnect
