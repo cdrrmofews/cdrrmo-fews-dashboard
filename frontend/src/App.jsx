@@ -1,6 +1,5 @@
 import "./App.css";
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import annotationPlugin from "chartjs-plugin-annotation";
 import { Line, Bar } from "react-chartjs-2";
 import { createPortal } from "react-dom";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
@@ -21,8 +20,7 @@ import Login from "./Login";
 
 ChartJS.register(
   CategoryScale, LinearScale, PointElement,
-  LineElement, BarElement, Title, Tooltip, Legend,
-  annotationPlugin
+  LineElement, BarElement, Title, Tooltip, Legend
 );
 
 delete L.Icon.Default.prototype._getIconUrl;
@@ -1545,52 +1543,17 @@ export default function App() {
     })),
   };
 
- const waterChartOptions = {
-  responsive: true, maintainAspectRatio: false,
-  plugins: {
-    legend: { display: true, labels: { color: "#94a3b8", font: { size: 9 }, boxWidth: 10 } },
-    tooltip: { backgroundColor: "#1e293b", titleColor: "#fff", bodyColor: "#94a3b8", borderColor: "#334155", borderWidth: 1 },
-    annotation: {
-      annotations: {
-        safeZone: {
-          type: "box", yMin: 0, yMax: 200,
-          backgroundColor: "rgba(34,197,94,0.04)",
-          borderColor: "transparent",
-        },
-        warningZone: {
-          type: "box", yMin: 200, yMax: 300,
-          backgroundColor: "rgba(245,158,11,0.06)",
-          borderColor: "transparent",
-        },
-        criticalZone: {
-          type: "box", yMin: 300, yMax: 500,
-          backgroundColor: "rgba(239,68,68,0.06)",
-          borderColor: "transparent",
-        },
-        warningLine: {
-          type: "line", yMin: 200, yMax: 200,
-          borderColor: "rgba(245,158,11,0.5)",
-          borderWidth: 1, borderDash: [4, 4],
-          label: { content: "WARNING 200cm", display: true, position: "end", color: "#f59e0b", font: { size: 9 }, backgroundColor: "transparent" },
-        },
-        criticalLine: {
-          type: "line", yMin: 300, yMax: 300,
-          borderColor: "rgba(239,68,68,0.5)",
-          borderWidth: 1, borderDash: [4, 4],
-          label: { content: "CRITICAL 300cm", display: true, position: "end", color: "#ef4444", font: { size: 9 }, backgroundColor: "transparent" },
-        },
-      },
+  const waterChartOptions = {
+    responsive: true, maintainAspectRatio: false,
+    plugins: {
+      legend: { display: true, labels: { color: "#94a3b8", font: { size: 9 }, boxWidth: 10 } },
+      tooltip: { backgroundColor: "#1e293b", titleColor: "#fff", bodyColor: "#94a3b8", borderColor: "#334155", borderWidth: 1 },
     },
-  },
-  scales: {
-    y: {
-      min: 0, max: 500,
-      grid: { color: "rgba(255,255,255,0.05)" },
-      ticks: { color: "#64748b", font: { size: 10 }, stepSize: 100, callback: v => `${v}cm` },
+    scales: {
+      y: { beginAtZero: true, grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#64748b", font: { size: 10 } } },
+      x: { grid: { color: "rgba(255,255,255,0.04)" }, ticks: { color: "#64748b", maxRotation: 0, minRotation: 0, font: { size: 9 } } },
     },
-    x: { grid: { color: "rgba(255,255,255,0.04)" }, ticks: { color: "#64748b", maxRotation: 0, minRotation: 0, font: { size: 9 } } },
-  },
-};
+  };
 
   const batteryData = {
     labels: allFews.map(f => f.name),
