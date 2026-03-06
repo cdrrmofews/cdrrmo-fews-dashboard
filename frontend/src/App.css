@@ -97,9 +97,10 @@ body {
 
 .brand {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 10px;
-  height: 44px;
+  padding: 0 4px;
+  height: 64px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
