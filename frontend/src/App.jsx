@@ -1493,13 +1493,31 @@ export default function App() {
         if (!res.ok) throw new Error("non-200");
         const data = await res.json();
         if (data.fews_1) {
-          setFews1Live(data.fews_1);
-          setFews1Connected(true);
-          setLastUpdated(new Date());
+          // Check if the last reading is recent (within 30 seconds)
+          const rawTs = data.fews_1.timestamp;
+          const utcStr = typeof rawTs === "string"
+            ? rawTs.replace(" ", "T").replace(/Z?$/, "Z")
+            : null;
+          const lastSeen = utcStr ? new Date(utcStr) : null;
+          const isRecent = lastSeen && (Date.now() - lastSeen.getTime()) < 30000;
+
+          if (isRecent) {
+            setFews1Live(data.fews_1);
+            setFews1Connected(true);
+            setLastUpdated(new Date());
+          } else {
+            // Data exists but is stale — treat as disconnected
+            setFews1Live(null);
+            setFews1Connected(false);
+          }
+        } else {
+          // No sensor data at all
+          setFews1Live(null);
+          setFews1Connected(false);
         }
       } catch {
+        setFews1Live(null);
         setFews1Connected(false);
-        setFews1Live(null); 
       }
     };
     poll();
