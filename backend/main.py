@@ -1,5 +1,5 @@
 from fastapi import FastAPI, HTTPException, Depends, Header
-from mqtt_bridge import start_bridge_thread  
+from mqtt_bridge import start_bridge_thread
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from typing import Optional
@@ -16,6 +16,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Valid roles in the system
+VALID_ROLES = {"Admin", "Operator"}
 
 @app.on_event("startup")
 def startup():
@@ -57,7 +60,7 @@ class CreateUserRequest(BaseModel):
     name:       str
     email:      str
     password:   str
-    role:       str = "Viewer"
+    role:       str = "Operator"
     department: str = "Operations"
 
 class UpdateUserRequest(BaseModel):
@@ -232,7 +235,7 @@ def get_logs(user=Depends(get_current_user)):
         cur.close()
         conn.close()
 
-# ─── USER MANAGEMENT (Admin only) ────────────────────────────────────────────
+# ─── USER MANAGEMENT (Admin only) ─────────────────────────────────────────────
 
 @app.get("/users")
 def list_users(admin=Depends(require_admin)):
@@ -250,6 +253,9 @@ def create_user(req: CreateUserRequest, admin=Depends(require_admin)):
     conn = get_db()
     cur  = conn.cursor()
     try:
+        # Validate role
+        if req.role not in VALID_ROLES:
+            raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {', '.join(VALID_ROLES)}")
         cur.execute("SELECT id FROM users WHERE email = %s", (req.email,))
         if cur.fetchone():
             raise HTTPException(status_code=400, detail="Email already exists")
@@ -271,8 +277,15 @@ def update_user(user_id: int, req: UpdateUserRequest, admin=Depends(require_admi
     try:
         fields = []
         values = []
-        if req.role       is not None: fields.append("role = %s");       values.append(req.role)
-        if req.department is not None: fields.append("department = %s"); values.append(req.department)
+        if req.role is not None:
+            # Validate role
+            if req.role not in VALID_ROLES:
+                raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {', '.join(VALID_ROLES)}")
+            fields.append("role = %s")
+            values.append(req.role)
+        if req.department is not None:
+            fields.append("department = %s")
+            values.append(req.department)
         if not fields:
             raise HTTPException(status_code=400, detail="Nothing to update")
         values.append(user_id)

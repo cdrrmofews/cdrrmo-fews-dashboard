@@ -37,6 +37,8 @@ def seed():
     print(f"   Role:     {ADMIN_ROLE}")
     print()
     print("⚠️  Remember to change the password after your first login!")
+    print()
+    print("ℹ️  System roles: Admin (full access), Operator (Dashboard, Logs, Settings)")
 
     cur.close()
     conn.close()
