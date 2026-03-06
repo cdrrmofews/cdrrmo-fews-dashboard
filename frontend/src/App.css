@@ -100,7 +100,7 @@ body {
   align-items: center;
   gap: 10px;
   padding: 0 4px;
-  height: 64px;
+  height: 34px;
   border-bottom: 1px solid var(--border);
   flex-shrink: 0;
 }
