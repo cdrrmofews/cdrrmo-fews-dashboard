@@ -212,8 +212,8 @@ body {
 
 /* CDRRMO seal has more padding in the image so bump it up */
 .topbar-seal-img:last-child {
-  height: 54px;
-  width: 54px;
+  height: 50px;
+  width: 50px;
 }
 .top-left { display: flex; align-items: center; gap: 16px; }
 
