@@ -16,11 +16,13 @@ import {
   Tooltip,
   Legend,
 } from "chart.js";
+import annotationPlugin from "chartjs-plugin-annotation";
 import Login from "./Login";
 
 ChartJS.register(
   CategoryScale, LinearScale, PointElement,
-  LineElement, BarElement, Title, Tooltip, Legend
+  LineElement, BarElement, Title, Tooltip, Legend,
+  annotationPlugin
 );
 
 delete L.Icon.Default.prototype._getIconUrl;
@@ -33,8 +35,6 @@ L.Icon.Default.mergeOptions({
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 // ─── RBAC HELPERS ────────────────────────────────────────────────────────────
-// Roles: Admin (full access), Operator (Dashboard, Logs [no system], Settings [no manage users, but notifications yes])
-
 const ROLE_ACCESS = {
   Admin:    ["Dashboard", "UnitControl", "Logs", "Settings"],
   Operator: ["Dashboard", "Logs", "Settings"],
@@ -42,7 +42,6 @@ const ROLE_ACCESS = {
 
 function can(role, feature) {
   if (role === "Admin") return true;
-  // Operator restrictions
   if (role === "Operator") {
     if (feature === "unitControl")  return false;
     if (feature === "manageUsers")  return false;
@@ -52,8 +51,7 @@ function can(role, feature) {
   return false;
 }
 
-// ─── FEWS BASE DATA ──────────────────────────────────────────────────────────
-
+// ─── FEWS BASE DATA ───────────────────────────────────────────────────────────
 const FEWS1_BASE = {
   id: 1, name: "FEWS 1", location: "Bolbok",
   lat: 13.7703472, lng: 121.0525449,
@@ -104,7 +102,6 @@ const MONTHS     = ["January","February","March","April","May","June","July","Au
 const DAYS_SHORT = ["Su","Mo","Tu","We","Th","Fr","Sa"];
 
 // ─── LOG HELPERS ──────────────────────────────────────────────────────────────
-
 function _pad(n) { return String(n).padStart(2, "0"); }
 
 function _fmtDate(d) {
@@ -154,7 +151,6 @@ const LOG_TYPE_CFG = {
   system:  { label: "ACTIVITY", color: "#38bdf8", bg: "rgba(56,189,248,0.12)" },
 };
 
-// Types visible to each role
 const LOG_TYPES_BY_ROLE = {
   Admin:    ["info", "warning", "danger", "system"],
   Operator: ["info", "warning", "danger"],
@@ -163,7 +159,6 @@ const LOG_TYPES_BY_ROLE = {
 const ROWS_PER_PAGE = 30;
 
 // ─── EXPORT HELPERS ───────────────────────────────────────────────────────────
-
 function exportToXLSX(rows) {
   const header = ["Date", "Time", "Station", "Type", "Message"];
   const data   = [header, ...rows.map(r => [r.date, r.time, r.station, r.type.toUpperCase(), r.msg])];
@@ -219,7 +214,6 @@ function exportToPDF(rows) {
 }
 
 // ─── CUSTOM DATE PICKER ───────────────────────────────────────────────────────
-
 function CustomDatePicker({ value, onChange }) {
   const [open, setOpen]           = useState(false);
   const [view, setView]           = useState("day");
@@ -387,11 +381,9 @@ function CustomDatePicker({ value, onChange }) {
 }
 
 // ─── MAP HELPERS ──────────────────────────────────────────────────────────────
-
 function FlyToStation({ fews }) {
   const map    = useMap();
   const fewsId = fews?.id ?? null;
-  // Depend only on the station ID — prevents re-flying every 5s when live data updates
   useEffect(() => {
     if (!fews) return;
     map.setView([fews.lat, fews.lng], 16, { animate: true, duration: 0.6 });
@@ -413,7 +405,6 @@ function OpenPopup({ fews, markerRefs }) {
 }
 
 // ─── MODALS ───────────────────────────────────────────────────────────────────
-
 function ConfirmModal({ icon, iconColor, title, message, confirmLabel, confirmColor, onConfirm, onCancel }) {
   return (
     <div className="modal-overlay">
@@ -502,7 +493,6 @@ function ChangePasswordModal({ onClose }) {
 }
 
 // ─── ADD USER MODAL ───────────────────────────────────────────────────────────
-
 const EMPTY_ADD_FORM = { name: "", email: "", password: "", role: "Operator", department: "Operations" };
 
 function AddUserModal({ onAdd, onClose, token, addLog }) {
@@ -568,7 +558,6 @@ function AddUserModal({ onAdd, onClose, token, addLog }) {
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <div className="settings-field">
               <label className="settings-label">Role</label>
-              {/* Only Admin and Operator — Viewer removed */}
               <select className="settings-input" value={form.role} onChange={e => set("role", e.target.value)} style={{ cursor: "pointer" }}>
                 <option>Admin</option>
                 <option>Operator</option>
@@ -600,7 +589,6 @@ function AddUserModal({ onAdd, onClose, token, addLog }) {
 }
 
 // ─── PROFILE DROPDOWN ─────────────────────────────────────────────────────────
-
 function ProfileDropdown({ user, token, onSave, onClose }) {
   const ref                   = useRef();
   const fileRef               = useRef();
@@ -697,12 +685,11 @@ function ProfileDropdown({ user, token, onSave, onClose }) {
 }
 
 // ─── UNIT CONTROL PAGE ────────────────────────────────────────────────────────
-
 function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog }) {
   const [fewsData, setFewsData]           = useState(allFews.map(f => ({ ...f })));
   const [units, setUnits]                 = useState(Object.fromEntries(allFews.map(f => ([f.id, fews1Connected && f.isLive ? true : false]))));
-  const [thresholds, setThr]              = useState(Object.fromEntries(allFews.map(f => [f.id, { warning: 2.5, danger: 4.0 }])));
-  const [prevThresholds, setPrevThr]      = useState(Object.fromEntries(allFews.map(f => [f.id, { warning: 2.5, danger: 4.0 }])));
+  const [thresholds, setThr]              = useState(Object.fromEntries(allFews.map(f => [f.id, { warning: 200, danger: 300 }])));
+  const [prevThresholds, setPrevThr]      = useState(Object.fromEntries(allFews.map(f => [f.id, { warning: 200, danger: 300 }])));
   const [thrSaved, setThrSaved]           = useState({});
   const [editing, setEditing]             = useState({});
   const [infoSaved, setInfoSaved]         = useState({});
@@ -903,7 +890,6 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog }
 }
 
 // ─── FILTER DROPDOWN ──────────────────────────────────────────────────────────
-
 function FilterDropdown({ label, options, value, onChange }) {
   const [open, setOpen] = useState(false);
   const ref = useRef();
@@ -946,7 +932,6 @@ function FilterDropdown({ label, options, value, onChange }) {
 }
 
 // ─── DATE RANGE FILTER ────────────────────────────────────────────────────────
-
 function DateRangeFilter({ from, to, onChange }) {
   const [open, setOpen] = useState(false);
   const ref = useRef();
@@ -984,7 +969,7 @@ function DateRangeFilter({ from, to, onChange }) {
   const isSingle  = from && to && from === to;
   let displayLabel = "All Dates";
   if (isSingle) displayLabel = fmt(from);
-  else if (from && to) displayLabel = `${fmt(from)} – ${fmt(to)}`;
+  else if (from && to) displayLabel = `${fmt(from)} — ${fmt(to)}`;
 
   return (
     <div className="fdd-wrap drf-wrap" ref={ref}>
@@ -1026,7 +1011,7 @@ function DateRangeFilter({ from, to, onChange }) {
             })}
           </div>
           <div className="drf-footer">
-            <span className="drf-hint">{!hasFilter && "Pick a day"}{isSingle && "Pick another for range"}{from && to && !isSingle && `${fmt(from)} – ${fmt(to)}`}</span>
+            <span className="drf-hint">{!hasFilter && "Pick a day"}{isSingle && "Pick another for range"}{from && to && !isSingle && `${fmt(from)} — ${fmt(to)}`}</span>
             {hasFilter && <button className="cdp-clear" type="button" onClick={() => onChange({ from: "", to: "" })}>Clear</button>}
           </div>
         </div>
@@ -1036,7 +1021,6 @@ function DateRangeFilter({ from, to, onChange }) {
 }
 
 // ─── LOGS PAGE ────────────────────────────────────────────────────────────────
-
 function ExportMenu({ filtered, exporting, setExporting }) {
   const [open, setOpen] = useState(false);
   const ref = useRef();
@@ -1077,7 +1061,6 @@ function ExportMenu({ filtered, exporting, setExporting }) {
   );
 }
 
-// LogsPage — Operators only see info/warning/danger (no system logs)
 function LogsPage({ token, userRole }) {
   const [logs, setLogs]                       = useState([]);
   const [loading, setLoading]                 = useState(true);
@@ -1088,7 +1071,6 @@ function LogsPage({ token, userRole }) {
   const [page, setPage]                       = useState(1);
   const [exporting, setExporting]             = useState(null);
 
-  // Types this role is allowed to see
   const allowedTypes = LOG_TYPES_BY_ROLE[userRole] || LOG_TYPES_BY_ROLE["Operator"];
 
   const fetchLogs = useCallback(() => {
@@ -1097,7 +1079,6 @@ function LogsPage({ token, userRole }) {
       .then(r => r.json())
       .then(data => {
         if (Array.isArray(data)) {
-          // Filter out system logs for Operators before storing
           const parsed = data.map(parseLog).filter(l => allowedTypes.includes(l.type));
           setLogs(parsed);
         }
@@ -1126,7 +1107,6 @@ function LogsPage({ token, userRole }) {
     ...allStations.map(s => ({ value: s, label: s })),
   ], [allStations]);
 
-  // Type filter options — only show types allowed for this role
   const typeOptions = useMemo(() => [
     { value: "All", label: "All Types" },
     ...allowedTypes.map(t => ({ value: t, label: t.charAt(0).toUpperCase() + t.slice(1) })),
@@ -1148,7 +1128,6 @@ function LogsPage({ token, userRole }) {
   const safePage   = Math.min(page, totalPages);
   const pageRows   = filtered.slice((safePage - 1) * ROWS_PER_PAGE, safePage * ROWS_PER_PAGE);
 
-  // Stats only for allowed types
   const counts = useMemo(() => {
     const c = {};
     allowedTypes.forEach(t => { c[t] = 0; });
@@ -1238,7 +1217,6 @@ function LogsPage({ token, userRole }) {
 }
 
 // ─── SETTINGS PAGE ────────────────────────────────────────────────────────────
-
 function SettingsPage({ userRole, userName, token, addLog }) {
   const [showEmail, setShowEmail]           = useState(false);
   const [showPassword, setShowPassword]     = useState(false);
@@ -1338,7 +1316,6 @@ function SettingsPage({ userRole, userName, token, addLog }) {
       {confirmRemove && <ConfirmModal icon="🗑" iconColor="var(--red)" title={`Remove ${confirmRemove.name}?`} message={`This will permanently remove ${confirmRemove.name} from the system.`} confirmLabel="Yes, Remove" confirmColor="var(--red)" onConfirm={doRemove} onCancel={() => setConfirmRemove(null)} />}
       <div className="page-body">
 
-        {/* Account — all roles */}
         <div className="page-card">
           <div className="page-card-title">Account</div>
           <div className="page-card-sub">Manage your login credentials.</div>
@@ -1347,12 +1324,11 @@ function SettingsPage({ userRole, userName, token, addLog }) {
               <span className="sa-icon">✉</span><div className="sa-text"><div className="sa-label">Change Email</div><div className="sa-sub">Update your account email address</div></div><span className="sa-arrow">›</span>
             </button>
             <button className="settings-action-btn" onClick={() => setShowPassword(true)}>
-              <span className="sa-icon">🔒</span><div className="sa-text"><div className="sa-label">Change Password</div><div className="sa-sub">Update your login password</div></div><span className="sa-arrow">›</span>
+              <span className="sa-icon">🔑</span><div className="sa-text"><div className="sa-label">Change Password</div><div className="sa-sub">Update your login password</div></div><span className="sa-arrow">›</span>
             </button>
           </div>
         </div>
 
-        {/* Manage Users — Admin only */}
         {isAdmin && (
           <div className="page-card">
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
@@ -1380,7 +1356,6 @@ function SettingsPage({ userRole, userName, token, addLog }) {
                       </div>
                       <div className="mu-info"><div className="mu-name">{u.name}</div><div className="mu-email">{u.email}</div></div>
                       <div className="mu-controls">
-                        {/* Only Admin and Operator roles */}
                         <select className="mu-select" value={d.role} onChange={e => handleDraft(u.id, "role", e.target.value)}>
                           <option>Admin</option>
                           <option>Operator</option>
@@ -1399,7 +1374,6 @@ function SettingsPage({ userRole, userName, token, addLog }) {
           </div>
         )}
 
-        {/* Notifications — Admin and Operator */}
         <div className="page-card">
           <div className="page-card-title">Notification Preferences</div>
           <div className="page-card-sub">Choose how the system alerts operators during flood events.</div>
@@ -1421,7 +1395,6 @@ function SettingsPage({ userRole, userName, token, addLog }) {
 }
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
-
 export default function App() {
   const [isLoggedIn, setIsLoggedIn]                   = useState(false);
   const [showLogoutModal, setShowLogoutModal]         = useState(false);
@@ -1448,6 +1421,10 @@ export default function App() {
 
   const [sirens, setSirens] = useState({ 1: false });
 
+  // ─── Water level history state ───────────────────────────────────────────
+  const [historyData,   setHistoryData]   = useState([]);
+  const [historyLabels, setHistoryLabels] = useState([]);
+
   const addLog = useCallback(async ({ station, type, message }) => {
     const tok = sessionStorage.getItem("token") || token;
     if (!tok) return;
@@ -1458,7 +1435,7 @@ export default function App() {
         body: JSON.stringify({ station, type, message, user_name: user.name }),
       });
     } catch {
-      // Silently ignore — logging should never break the UI
+      // Silently ignore
     }
   }, [token]);
 
@@ -1508,6 +1485,7 @@ export default function App() {
     [user.role]
   );
 
+  // ─── Poll latest sensor data every 5s ────────────────────────────────────
   useEffect(() => {
     const poll = async () => {
       try {
@@ -1528,6 +1506,38 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
+  // ─── Fetch real water level history every 10s ─────────────────────────────
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/data/history`);
+        if (!res.ok) return;
+        const rows = await res.json();
+        if (!Array.isArray(rows) || rows.length === 0) return;
+
+        const labels = rows.map((r) => {
+          const utcStr = r.timestamp.replace(" ", "T").replace(/Z?$/, "Z");
+          const d = new Date(utcStr);
+          return new Intl.DateTimeFormat("en-PH", {
+            timeZone: "Asia/Manila",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+          }).format(d);
+        });
+
+        setHistoryLabels(labels);
+        setHistoryData(rows.map((r) => r.water_level_cm));
+      } catch {
+        // silently ignore
+      }
+    };
+
+    fetchHistory();
+    const interval = setInterval(fetchHistory, 10000);
+    return () => clearInterval(interval);
+  }, []);
+
   const allFews = useMemo(() => {
     let fews1 = { ...FEWS1_BASE };
     if (fews1Live) {
@@ -1545,42 +1555,154 @@ export default function App() {
 
   if (!isLoggedIn) return <Login onLogin={handleLogin} />;
 
-  const phNow = new Date(new Date().toLocaleString("en-US", { timeZone: "Asia/Manila" }));
-  phNow.setMinutes(Math.floor(phNow.getMinutes() / 5) * 5, 0, 0);
-  const timeLabels = Array.from({ length: 13 }, (_, i) => {
-    const t  = new Date(phNow.getTime() - (12 - i) * 5 * 60 * 1000);
-    const hh = String(t.getHours()).padStart(2, "0");
-    const mm = String(t.getMinutes()).padStart(2, "0");
-    return i === 12 ? "Now" : `${hh}:${mm}`;
-  });
-
+  // ─── WATER LEVEL CHART (fixed 0-500cm with threshold zones) ──────────────
   const waterChartData = {
-    labels: timeLabels,
-    datasets: allFews.map((f, i) => ({
-      label: f.name,
-      data: Array.from({ length: 13 }, (_, j) => {
-        if (!fews1Connected) return null;
-        const base = f.waterLevel || 0;
-        return +(base * (0.3 + j * 0.054) + Math.random() * 0.2).toFixed(2);
-      }),
-      borderColor: FEWS_COLORS[i],
-      backgroundColor: FEWS_COLORS[i].replace(")", ",0.08)").replace("rgb", "rgba"),
-      tension: 0.4, pointRadius: 3, pointHoverRadius: 6, borderWidth: 2,
-    })),
+    labels: historyLabels,
+    datasets: [{
+      label: "FEWS 1",
+      data: historyData,
+      borderColor: "#22c55e",
+      backgroundColor: "rgba(34,197,94,0.08)",
+      tension: 0.4,
+      pointRadius: 3,
+      pointHoverRadius: 6,
+      borderWidth: 2,
+      segment: {
+        borderColor: (ctx) => {
+          const v = ctx.p1.parsed.y;
+          if (v > 300) return "#ef4444";
+          if (v > 200) return "#f59e0b";
+          return "#22c55e";
+        },
+      },
+      pointBackgroundColor: (ctx) => {
+        const v = ctx.parsed?.y ?? 0;
+        if (v > 300) return "#ef4444";
+        if (v > 200) return "#f59e0b";
+        return "#22c55e";
+      },
+      pointBorderColor: (ctx) => {
+        const v = ctx.parsed?.y ?? 0;
+        if (v > 300) return "#ef4444";
+        if (v > 200) return "#f59e0b";
+        return "#22c55e";
+      },
+    }],
   };
 
   const waterChartOptions = {
-    responsive: true, maintainAspectRatio: false,
+    responsive: true,
+    maintainAspectRatio: false,
     plugins: {
-      legend: { display: true, labels: { color: "#94a3b8", font: { size: 9 }, boxWidth: 10 } },
-      tooltip: { backgroundColor: "#1e293b", titleColor: "#fff", bodyColor: "#94a3b8", borderColor: "#334155", borderWidth: 1 },
+      legend: {
+        display: true,
+        labels: { color: "#94a3b8", font: { size: 9 }, boxWidth: 10 },
+      },
+      tooltip: {
+        backgroundColor: "#1e293b",
+        titleColor: "#fff",
+        bodyColor: "#94a3b8",
+        borderColor: "#334155",
+        borderWidth: 1,
+        callbacks: {
+          label: (ctx) => {
+            const v = ctx.parsed.y;
+            const status = v > 300 ? "CRITICAL" : v > 200 ? "WARNING" : "SAFE";
+            return ` ${v} cm  [${status}]`;
+          },
+        },
+      },
+      annotation: {
+        annotations: {
+          zoneSafe: {
+            type: "box",
+            yMin: 0,
+            yMax: 200,
+            backgroundColor: "rgba(34,197,94,0.04)",
+            borderWidth: 0,
+          },
+          zoneWarning: {
+            type: "box",
+            yMin: 200,
+            yMax: 300,
+            backgroundColor: "rgba(245,158,11,0.05)",
+            borderWidth: 0,
+          },
+          zoneCritical: {
+            type: "box",
+            yMin: 300,
+            yMax: 500,
+            backgroundColor: "rgba(239,68,68,0.05)",
+            borderWidth: 0,
+          },
+          lineWarning: {
+            type: "line",
+            yMin: 200,
+            yMax: 200,
+            borderColor: "rgba(245,158,11,0.55)",
+            borderWidth: 1,
+            borderDash: [4, 4],
+            label: {
+              display: true,
+              content: "WARNING  200cm",
+              position: "end",
+              color: "#f59e0b",
+              backgroundColor: "rgba(245,158,11,0.12)",
+              font: { size: 9, weight: "700", family: "JetBrains Mono, monospace" },
+              padding: { x: 6, y: 3 },
+            },
+          },
+          lineCritical: {
+            type: "line",
+            yMin: 300,
+            yMax: 300,
+            borderColor: "rgba(239,68,68,0.55)",
+            borderWidth: 1,
+            borderDash: [4, 4],
+            label: {
+              display: true,
+              content: "CRITICAL  300cm",
+              position: "end",
+              color: "#ef4444",
+              backgroundColor: "rgba(239,68,68,0.12)",
+              font: { size: 9, weight: "700", family: "JetBrains Mono, monospace" },
+              padding: { x: 6, y: 3 },
+            },
+          },
+        },
+      },
     },
     scales: {
-      y: { beginAtZero: true, grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#64748b", font: { size: 10 } } },
-      x: { grid: { color: "rgba(255,255,255,0.04)" }, ticks: { color: "#64748b", maxRotation: 0, minRotation: 0, font: { size: 9 } } },
+      y: {
+        min: 0,
+        max: 500,
+        grid: { color: "rgba(255,255,255,0.05)" },
+        ticks: {
+          color: (ctx) => {
+            const v = ctx.tick.value;
+            if (v > 300) return "#ef4444";
+            if (v > 200) return "#f59e0b";
+            return "#22c55e";
+          },
+          font: { size: 10 },
+          callback: (v) => `${v}cm`,
+          stepSize: 100,
+        },
+      },
+      x: {
+        grid: { color: "rgba(255,255,255,0.04)" },
+        ticks: {
+          color: "#64748b",
+          maxRotation: 0,
+          minRotation: 0,
+          font: { size: 9 },
+          maxTicksLimit: 13,
+        },
+      },
     },
   };
 
+  // ─── BATTERY CHART ────────────────────────────────────────────────────────
   const batteryData = {
     labels: allFews.map(f => f.name),
     datasets: [{
@@ -1618,7 +1740,6 @@ export default function App() {
         ticks: { color: "#94a3b8", font: { size: 10 } },
       },
     },
-    // Align bars to the top (base at max, grows downward)
     layout: { padding: { top: 4 } },
   };
 
@@ -1641,13 +1762,11 @@ export default function App() {
 
       {/* ─── SIDEBAR ─── */}
       <aside className={`sidebar ${sidebarOpen ? "" : "collapsed"}`}>
-        {/* Brand row — logo + name + toggle button inline */}
         <div className="brand">
           {sidebarOpen && <div className="brand-icon">🌊</div>}
           <div className={`brand-text ${sidebarOpen ? "" : "hidden"}`}>
             <div className="brand-name">CDRRMO</div>
           </div>
-          {/* Toggle always visible in brand row, right-aligned */}
           <button
             className="nav-btn"
             style={{ marginLeft: sidebarOpen ? "auto" : "0", padding: "10px", flexShrink: 0 }}
@@ -1682,7 +1801,6 @@ export default function App() {
         <div className="sidebar-footer">
           <button className="logout-btn" onClick={() => setShowLogoutModal(true)}>
             <span className="nav-icon">
-              {/* Door with arrow-out icon */}
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M13 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h7" />
                 <polyline points="17 15 20 12 17 9" />
@@ -1703,7 +1821,6 @@ export default function App() {
               <div className="subtitle">{pageInfo.sub}</div>
             </div>
           </div>
-          {/* ─── CENTER SEALS ─── */}
           <div className="topbar-seals">
             <img src="/batscity-seal.png" alt="Batangas City Seal" className="topbar-seal-img" />
             <img src="/cdrrmo-seal.png"   alt="CDRRMO Seal"        className="topbar-seal-img" />
@@ -1786,22 +1903,34 @@ export default function App() {
                 </div>
               </div>
 
+              {/* ─── WATER LEVEL CHART ─── */}
               <div className="card card-water">
                 <div className="card-header">
                   <h2>Water Level</h2>
-                  <span className="card-tag">{fews1Connected ? "Last 1 Hour" : "Waiting for data"}</span>
+                  <span className="card-tag">
+                    {fews1Connected
+                      ? (historyData.length > 0 ? `${historyData.length} readings · Last 12h` : "Live")
+                      : "Waiting for data"}
+                  </span>
                 </div>
-                {fews1Connected ? (
-                  <div className="chart-wrap"><Line data={waterChartData} options={waterChartOptions} /></div>
+                {fews1Connected && historyData.length > 0 ? (
+                  <div className="chart-wrap">
+                    <Line data={waterChartData} options={waterChartOptions} />
+                  </div>
                 ) : (
                   <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:8 }}>
                     <div style={{ fontSize:24 }}>📡</div>
-                    <div style={{ color:"var(--text-3)", fontSize:12, fontWeight:600 }}>Waiting for FEWS 1 to come online</div>
-                    <div style={{ color:"var(--text-3)", fontSize:10, fontFamily:"var(--mono)" }}>Data will appear once the sensor starts transmitting</div>
+                    <div style={{ color:"var(--text-3)", fontSize:12, fontWeight:600 }}>
+                      {fews1Connected ? "Loading history…" : "Waiting for FEWS 1 to come online"}
+                    </div>
+                    <div style={{ color:"var(--text-3)", fontSize:10, fontFamily:"var(--mono)" }}>
+                      Data will appear once the sensor starts transmitting
+                    </div>
                   </div>
                 )}
               </div>
 
+              {/* ─── BATTERY CHART ─── */}
               <div className="card card-battery">
                 <div className="card-header">
                   <h2>Battery Level</h2>
