@@ -1499,7 +1499,7 @@ export default function App() {
             ? rawTs.replace(" ", "T").replace(/Z?$/, "Z")
             : null;
           const lastSeen = utcStr ? new Date(utcStr) : null;
-          const isRecent = lastSeen && (Date.now() - lastSeen.getTime()) < 30000;
+          const isRecent = lastSeen && (Date.now() - lastSeen.getTime()) < 360000;
 
           if (isRecent) {
             setFews1Live(data.fews_1);
@@ -1582,7 +1582,7 @@ export default function App() {
       data: historyData,
       borderColor: "#22c55e",
       backgroundColor: "rgba(34,197,94,0.08)",
-      tension: 0.4,
+      tension: 0,
       pointRadius: 3,
       pointHoverRadius: 6,
       borderWidth: 2,

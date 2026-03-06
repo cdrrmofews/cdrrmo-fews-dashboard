@@ -8,6 +8,26 @@ MQTT_BROKER = "broker.emqx.io"
 MQTT_PORT   = 1883
 MQTT_TOPIC  = "cdrrmo/fews1/data"
 
+def water_level_to_type(water_level_cm):
+    if water_level_cm is None:
+        return "info"
+    if water_level_cm > 300:
+        return "danger"
+    if water_level_cm > 200:
+        return "warning"
+    return "info"
+
+def water_level_to_status_label(water_level_cm):
+    if water_level_cm is None:
+        return "UNKNOWN"
+    if water_level_cm > 300:
+        return "CRITICAL"
+    if water_level_cm > 200:
+        return "WARNING"
+    if water_level_cm > 0:
+        return "SAFE"
+    return "NORMAL"
+
 def on_connect(client, userdata, flags, rc):
     if rc == 0:
         print("[BRIDGE] Connected to broker")
@@ -21,23 +41,55 @@ def on_message(client, userdata, msg):
         data = json.loads(msg.payload.decode())
         print(f"[BRIDGE] Received: {data}")
 
+        station_id     = data.get("station_id")
+        water_level_cm = data.get("water_level_cm")
+        battery_pct    = data.get("battery_pct")
+        status         = data.get("status")
+        latitude       = data.get("latitude")
+        longitude      = data.get("longitude")
+
         conn = get_db()
         cur  = conn.cursor()
         try:
+            # Save sensor reading
             cur.execute("""
                 INSERT INTO sensor_readings
                     (device_id, water_level_cm, battery_pct, status, latitude, longitude)
                 VALUES (%s, %s, %s, %s, %s, %s)
             """, (
-                data.get("station_id"),
-                data.get("water_level_cm"),
-                data.get("battery_pct"),
-                data.get("status"),
-                data.get("latitude"),
-                data.get("longitude"),
+                station_id,
+                water_level_cm,
+                battery_pct,
+                status,
+                latitude,
+                longitude,
             ))
+
+            # Auto-log the reading to system_logs
+            log_type         = water_level_to_type(water_level_cm)
+            status_label     = water_level_to_status_label(water_level_cm)
+            station_name     = "FEWS 1"
+            battery_str      = f"{battery_pct}%" if battery_pct is not None else "N/A"
+            water_str        = f"{water_level_cm} cm" if water_level_cm is not None else "N/A"
+
+            log_message = (
+                f"{station_name} reading — "
+                f"Water Level: {water_str} [{status_label}] · "
+                f"Battery: {battery_str}"
+            )
+
+            cur.execute("""
+                INSERT INTO system_logs (station, type, message, user_name)
+                VALUES (%s, %s, %s, %s)
+            """, (
+                station_name,
+                log_type,
+                log_message,
+                "System",
+            ))
+
             conn.commit()
-            print(f"[BRIDGE] Saved → {data.get('station_id')} {data.get('water_level_cm')}cm {data.get('status')}")
+            print(f"[BRIDGE] Saved → {station_id} {water_level_cm}cm {status} | Logged as [{log_type.upper()}]")
         finally:
             cur.close()
             conn.close()
