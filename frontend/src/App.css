@@ -68,7 +68,7 @@ body {
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  padding: 24px 16px;
+  padding: 0 16px 24px;
   transition: width 0.3s ease, min-width 0.3s ease;
   overflow: hidden;
 }
@@ -76,7 +76,7 @@ body {
 .sidebar.collapsed {
   width: 60px;
   min-width: 60px;
-  padding: 20px 10px;
+  padding: 0 10px 20px;
 }
 
 .sidebar.collapsed .nav-btn {
