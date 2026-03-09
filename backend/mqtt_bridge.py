@@ -1,8 +1,45 @@
 import json
 import uuid
 import threading
+import requests
 import paho.mqtt.client as mqtt
 from database import get_db
+
+# ─── SEMAPHORE SMS ────────────────────────────────────────────────────────────
+SEMAPHORE_API_KEY = "9a340cae60906c4fc591a20a24ace1b7"   # replace with real key
+SEMAPHORE_SENDER  = "CDRRMO"                    # approved sender name
+
+def send_sms_to_all():
+    """Send CRITICAL alert SMS to all users with sms_enabled=True and a phone number."""
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        cur.execute("SELECT name, phone FROM users WHERE sms_enabled = TRUE AND phone IS NOT NULL AND phone != ''")
+        recipients = cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+
+    if not recipients:
+        return
+
+    message = "CDRRMO ALERT: Water level has reached CRITICAL status. Immediate action may be required."
+    for row in recipients:
+        name, phone = row["name"], row["phone"]
+        try:
+            resp = requests.post(
+                "https://api.semaphore.co/api/v4/messages",
+                data={
+                    "apikey":     SEMAPHORE_API_KEY,
+                    "number":     phone,
+                    "message":    message,
+                    "sendername": SEMAPHORE_SENDER,
+                },
+                timeout=10,
+            )
+            print(f"[SMS] Sent to {name} ({phone}): HTTP {resp.status_code}")
+        except Exception as e:
+            print(f"[SMS] Failed to send to {name} ({phone}): {e}")
 
 MQTT_BROKER = "broker.emqx.io"
 MQTT_PORT   = 1883
@@ -90,6 +127,10 @@ def on_message(client, userdata, msg):
 
             conn.commit()
             print(f"[BRIDGE] Saved → {station_id} {water_level_cm}cm {status} | Logged as [{log_type.upper()}]")
+
+            # Fire SMS in background if CRITICAL
+            if log_type == "danger":
+                threading.Thread(target=send_sms_to_all, daemon=True).start()
         finally:
             cur.close()
             conn.close()

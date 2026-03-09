@@ -22,6 +22,18 @@ VALID_ROLES = {"Admin", "Operator"}
 @app.on_event("startup")
 def startup():
     init_db()
+    # Migrate: add phone and sms_enabled columns if they don't exist yet
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(20)")
+        cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS sms_enabled BOOLEAN NOT NULL DEFAULT FALSE")
+        conn.commit()
+    except Exception:
+        conn.rollback()
+    finally:
+        cur.close()
+        conn.close()
     start_bridge_thread()
 
 # ─── AUTH HELPERS ─────────────────────────────────────────────────────────────
@@ -76,6 +88,12 @@ class ChangeEmailRequest(BaseModel):
 class ChangePasswordRequest(BaseModel):
     current_password: str
     new_password:     str
+
+class ChangePhoneRequest(BaseModel):
+    phone: str
+
+class SmsEnabledRequest(BaseModel):
+    sms_enabled: bool
 
 class CreateLogRequest(BaseModel):
     station:   str = "System"
@@ -197,6 +215,45 @@ def change_password(req: ChangePasswordRequest, user=Depends(get_current_user)):
         cur.close()
         conn.close()
 
+@app.put("/users/me/phone")
+def change_phone(req: ChangePhoneRequest, user=Depends(get_current_user)):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        user_id = int(user["sub"])
+        cur.execute(
+            "UPDATE users SET phone = %s WHERE id = %s RETURNING id, name, email, role, department, photo, phone",
+            (req.phone, user_id)
+        )
+        conn.commit()
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="User not found")
+        return row
+    finally:
+        cur.close()
+        conn.close()
+
+@app.put("/users/{user_id}/sms")
+def update_sms_enabled(user_id: int, req: SmsEnabledRequest, user=Depends(get_current_user)):
+    # Admin can toggle anyone, operators can only toggle themselves
+    if user.get("role") != "Admin" and int(user["sub"]) != user_id:
+        raise HTTPException(status_code=403, detail="Not authorized")
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        cur.execute(
+            "UPDATE users SET sms_enabled = %s WHERE id = %s RETURNING id",
+            (req.sms_enabled, user_id)
+        )
+        conn.commit()
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="User not found")
+        return {"ok": True}
+    finally:
+        cur.close()
+        conn.close()
+
 # ─── SENSOR DATA ──────────────────────────────────────────────────────────────
 
 @app.post("/data/ingest")
@@ -295,7 +352,7 @@ def list_users(admin=Depends(require_admin)):
     conn = get_db()
     cur  = conn.cursor()
     try:
-        cur.execute("SELECT id, name, email, role, department, photo, created_at FROM users ORDER BY id")
+        cur.execute("SELECT id, name, email, role, department, photo, phone, sms_enabled, created_at FROM users ORDER BY id")
         return cur.fetchall()
     finally:
         cur.close()
