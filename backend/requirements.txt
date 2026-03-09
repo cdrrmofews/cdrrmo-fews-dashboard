@@ -5,3 +5,4 @@ bcrypt
 pyjwt
 python-multipart
 paho-mqtt
+requests
