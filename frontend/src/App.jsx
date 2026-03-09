@@ -425,46 +425,91 @@ function ConfirmModal({ icon, iconColor, title, message, confirmLabel, confirmCo
   );
 }
 
-function ChangeEmailModal({ onClose }) {
+function ChangeEmailModal({ onClose, token, user, onEmailChanged, addLog }) {
   const [email, setEmail]     = useState("");
   const [confirm, setConfirm] = useState("");
+  const [error, setError]     = useState("");
+  const [saving, setSaving]   = useState(false);
   const [saved, setSaved]     = useState(false);
-  const handle = () => {
-    if (!email || email !== confirm) return;
-    setSaved(true);
-    setTimeout(() => { setSaved(false); onClose(); }, 1200);
+
+  const handle = async () => {
+    if (!email.trim())        { setError("New email is required."); return; }
+    if (email !== confirm)    { setError("Emails do not match."); return; }
+    if (email === user.email) { setError("New email must be different from current."); return; }
+    setSaving(true); setError("");
+    try {
+      const res  = await fetch(`${API_BASE}/users/me/email`, {
+        method:  "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ email }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.detail || "Failed to update email."); setSaving(false); return; }
+      addLog({ station: "System", type: "system",
+        message: `${user.name} changed their email address` });
+      onEmailChanged(email);
+      setSaved(true);
+      setTimeout(() => onClose(), 1200);
+    } catch { setError("Network error. Try again."); setSaving(false); }
   };
+
   return (
     <div className="modal-overlay">
       <div className="modal-box" style={{ alignItems: "stretch", gap: 14 }}>
         <div className="modal-title" style={{ textAlign: "left" }}>Change Email</div>
-        <div className="modal-msg" style={{ textAlign: "left", marginBottom: 0 }}>Enter your new email address.</div>
+        <div className="modal-msg" style={{ textAlign: "left", marginBottom: 0 }}>
+          Current: <span style={{ color: "var(--blue)", fontSize: 12 }}>{user.email}</span>
+        </div>
         <div className="settings-field">
           <label className="settings-label">New Email</label>
-          <input className="settings-input" type="email" placeholder="you@example.com" value={email} onChange={e => setEmail(e.target.value)} />
+          <input className="settings-input" type="email" placeholder="you@cdrrmo.gov.ph"
+            value={email} onChange={e => { setEmail(e.target.value); setError(""); }} autoFocus />
         </div>
         <div className="settings-field">
-          <label className="settings-label">Confirm Email</label>
-          <input className="settings-input" type="email" placeholder="you@example.com" value={confirm} onChange={e => setConfirm(e.target.value)} />
+          <label className="settings-label">Confirm New Email</label>
+          <input className="settings-input" type="email" placeholder="you@cdrrmo.gov.ph"
+            value={confirm} onChange={e => { setConfirm(e.target.value); setError(""); }} />
         </div>
-        {email && confirm && email !== confirm && <div className="settings-error">Emails do not match.</div>}
+        {error && <div className="settings-error">{error}</div>}
         <div className="modal-actions" style={{ marginTop: 4 }}>
-          <button className="modal-btn modal-cancel" onClick={onClose}>Cancel</button>
-          <button className="modal-btn modal-confirm" onClick={handle}>{saved ? "✓ Saved" : "Save"}</button>
+          <button className="modal-btn modal-cancel" onClick={onClose} disabled={saving}>Cancel</button>
+          <button className="modal-btn modal-confirm" onClick={handle} disabled={saving || saved}>
+            {saved ? "✓ Saved" : saving ? "Saving…" : "Save"}
+          </button>
         </div>
       </div>
     </div>
   );
 }
 
-function ChangePasswordModal({ onClose }) {
+function ChangePasswordModal({ onClose, token, user, addLog }) {
   const [pw, setPw]       = useState({ current: "", next: "", confirm: "" });
-  const [saved, setSaved] = useState(false);
-  const handle = () => {
-    if (!pw.current || !pw.next || pw.next !== pw.confirm) return;
-    setSaved(true);
-    setTimeout(() => { setSaved(false); onClose(); }, 1200);
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [saved, setSaved]   = useState(false);
+
+  const handle = async () => {
+    if (!pw.current)             { setError("Current password is required."); return; }
+    if (!pw.next)                { setError("New password is required."); return; }
+    if (pw.next.length < 6)      { setError("New password must be at least 6 characters."); return; }
+    if (pw.next !== pw.confirm)  { setError("New passwords do not match."); return; }
+    if (pw.next === pw.current)  { setError("New password must be different from current."); return; }
+    setSaving(true); setError("");
+    try {
+      const res  = await fetch(`${API_BASE}/users/me/password`, {
+        method:  "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ current_password: pw.current, new_password: pw.next }),
+      });
+      const data = await res.json();
+      if (!res.ok) { setError(data.detail || "Failed to update password."); setSaving(false); return; }
+      addLog({ station: "System", type: "system",
+        message: `${user.name} changed their password` });
+      setSaved(true);
+      setTimeout(() => onClose(), 1200);
+    } catch { setError("Network error. Try again."); setSaving(false); }
   };
+
   return (
     <div className="modal-overlay">
       <div className="modal-box" style={{ alignItems: "stretch", gap: 14 }}>
@@ -472,20 +517,25 @@ function ChangePasswordModal({ onClose }) {
         <div className="modal-msg" style={{ textAlign: "left", marginBottom: 0 }}>Update your login credentials.</div>
         <div className="settings-field">
           <label className="settings-label">Current Password</label>
-          <input className="settings-input" type="password" placeholder="••••••••" value={pw.current} onChange={e => setPw(p => ({...p, current: e.target.value}))} />
+          <input className="settings-input" type="password" placeholder="••••••••"
+            value={pw.current} onChange={e => { setPw(p => ({...p, current: e.target.value})); setError(""); }} autoFocus />
         </div>
         <div className="settings-field">
           <label className="settings-label">New Password</label>
-          <input className="settings-input" type="password" placeholder="••••••••" value={pw.next} onChange={e => setPw(p => ({...p, next: e.target.value}))} />
+          <input className="settings-input" type="password" placeholder="••••••••"
+            value={pw.next} onChange={e => { setPw(p => ({...p, next: e.target.value})); setError(""); }} />
         </div>
         <div className="settings-field">
           <label className="settings-label">Confirm New Password</label>
-          <input className="settings-input" type="password" placeholder="••••••••" value={pw.confirm} onChange={e => setPw(p => ({...p, confirm: e.target.value}))} />
+          <input className="settings-input" type="password" placeholder="••••••••"
+            value={pw.confirm} onChange={e => { setPw(p => ({...p, confirm: e.target.value})); setError(""); }} />
         </div>
-        {pw.next && pw.confirm && pw.next !== pw.confirm && <div className="settings-error">Passwords do not match.</div>}
+        {error && <div className="settings-error">{error}</div>}
         <div className="modal-actions" style={{ marginTop: 4 }}>
-          <button className="modal-btn modal-cancel" onClick={onClose}>Cancel</button>
-          <button className="modal-btn modal-confirm" onClick={handle}>{saved ? "✓ Updated" : "Update"}</button>
+          <button className="modal-btn modal-cancel" onClick={onClose} disabled={saving}>Cancel</button>
+          <button className="modal-btn modal-confirm" onClick={handle} disabled={saving || saved}>
+            {saved ? "✓ Updated" : saving ? "Updating…" : "Update"}
+          </button>
         </div>
       </div>
     </div>
@@ -1217,7 +1267,7 @@ function LogsPage({ token, userRole }) {
 }
 
 // ─── SETTINGS PAGE ────────────────────────────────────────────────────────────
-function SettingsPage({ userRole, userName, token, addLog }) {
+function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog }) {
   const [showEmail, setShowEmail]           = useState(false);
   const [showPassword, setShowPassword]     = useState(false);
   const [showAddUser, setShowAddUser]       = useState(false);
@@ -1310,8 +1360,16 @@ function SettingsPage({ userRole, userName, token, addLog }) {
   return (
     <>
       {showAddUser  && <AddUserModal onAdd={doAdd} onClose={() => setShowAddUser(false)} token={token} addLog={addLog} />}
-      {showEmail    && <ChangeEmailModal    onClose={() => setShowEmail(false)} />}
-      {showPassword && <ChangePasswordModal onClose={() => setShowPassword(false)} />}
+      {showEmail    && <ChangeEmailModal
+        onClose={() => setShowEmail(false)}
+        token={token} user={user} addLog={addLog}
+        onEmailChanged={(newEmail) => {
+          onUserUpdate({ ...user, email: newEmail });
+          setUsers(prev => prev.map(u => u.id === user.id ? { ...u, email: newEmail } : u));
+        }} />}
+      {showPassword && <ChangePasswordModal
+        onClose={() => setShowPassword(false)}
+        token={token} user={user} addLog={addLog} />}
       {confirmSave   && <ConfirmModal icon="👤" iconColor="var(--blue)" title={`Save Changes for ${confirmSave.name}?`} message={`Role → ${getDraft(confirmSave).role} · Department → ${getDraft(confirmSave).department}`} confirmLabel="Yes, Save" onConfirm={doSave} onCancel={() => setConfirmSave(null)} />}
       {confirmRemove && <ConfirmModal icon="🗑" iconColor="var(--red)" title={`Remove ${confirmRemove.name}?`} message={`This will permanently remove ${confirmRemove.name} from the system.`} confirmLabel="Yes, Remove" confirmColor="var(--red)" onConfirm={doRemove} onCancel={() => setConfirmRemove(null)} />}
       <div className="page-body">
@@ -2048,7 +2106,7 @@ export default function App() {
 
         {activeNav === "UnitControl" && <UnitControlPage allFews={allFews} fews1Connected={fews1Connected} userRole={user.role} userName={user.name} addLog={addLog} />}
         {activeNav === "Logs"        && <LogsPage token={token} userRole={user.role} />}
-        {activeNav === "Settings"    && <SettingsPage userRole={user.role} userName={user.name} token={token} addLog={addLog} />}
+        {activeNav === "Settings"    && <SettingsPage userRole={user.role} userName={user.name} user={user} onUserUpdate={(u) => { setUser(u); sessionStorage.setItem("user", JSON.stringify(u)); }} token={token} addLog={addLog} />}
       </div>
     </div>
   );

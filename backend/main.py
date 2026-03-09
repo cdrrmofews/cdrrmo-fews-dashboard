@@ -17,7 +17,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Valid roles in the system
 VALID_ROLES = {"Admin", "Operator"}
 
 @app.on_event("startup")
@@ -70,6 +69,13 @@ class UpdateUserRequest(BaseModel):
 class UpdateProfileRequest(BaseModel):
     name:  Optional[str] = None
     photo: Optional[str] = None
+
+class ChangeEmailRequest(BaseModel):
+    email: str
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password:     str
 
 class CreateLogRequest(BaseModel):
     station:   str = "System"
@@ -140,6 +146,53 @@ def update_profile(req: UpdateProfileRequest, user=Depends(get_current_user)):
         if not row:
             raise HTTPException(status_code=404, detail="User not found")
         return row
+    finally:
+        cur.close()
+        conn.close()
+
+@app.put("/users/me/email")
+def change_email(req: ChangeEmailRequest, user=Depends(get_current_user)):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        user_id = int(user["sub"])
+        # Check email not already taken by another user
+        cur.execute("SELECT id FROM users WHERE email = %s AND id != %s", (req.email, user_id))
+        if cur.fetchone():
+            raise HTTPException(status_code=400, detail="Email already in use by another account.")
+        cur.execute(
+            "UPDATE users SET email = %s WHERE id = %s RETURNING id, name, email, role, department, photo",
+            (req.email, user_id)
+        )
+        conn.commit()
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="User not found")
+        return row
+    finally:
+        cur.close()
+        conn.close()
+
+@app.put("/users/me/password")
+def change_password(req: ChangePasswordRequest, user=Depends(get_current_user)):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        user_id = int(user["sub"])
+        cur.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="User not found")
+        if not verify_password(req.current_password, row["password"]):
+            raise HTTPException(status_code=400, detail="Current password is incorrect.")
+        if len(req.new_password) < 6:
+            raise HTTPException(status_code=400, detail="New password must be at least 6 characters.")
+        cur.execute(
+            "UPDATE users SET password = %s WHERE id = %s RETURNING id",
+            (hash_password(req.new_password), user_id)
+        )
+        conn.commit()
+        return {"ok": True}
     finally:
         cur.close()
         conn.close()
@@ -253,7 +306,6 @@ def create_user(req: CreateUserRequest, admin=Depends(require_admin)):
     conn = get_db()
     cur  = conn.cursor()
     try:
-        # Validate role
         if req.role not in VALID_ROLES:
             raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {', '.join(VALID_ROLES)}")
         cur.execute("SELECT id FROM users WHERE email = %s", (req.email,))
@@ -278,7 +330,6 @@ def update_user(user_id: int, req: UpdateUserRequest, admin=Depends(require_admi
         fields = []
         values = []
         if req.role is not None:
-            # Validate role
             if req.role not in VALID_ROLES:
                 raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {', '.join(VALID_ROLES)}")
             fields.append("role = %s")
