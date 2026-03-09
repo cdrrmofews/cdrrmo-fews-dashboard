@@ -448,11 +448,12 @@ function OpenPopup({ fews, markerRefs }) {
 }
 
 // ─── MODALS ───────────────────────────────────────────────────────────────────
-function ConfirmModal({ icon, iconColor, title, message, confirmLabel, confirmColor, onConfirm, onCancel }) {
-  const [status, setStatus] = useState("idle"); // idle | saving | saved
+function ConfirmModal({ icon, iconColor, title, message, confirmLabel, confirmColor, onConfirm, onCancel, noSaved }) {
+  const [status, setStatus] = useState("idle");
   const handle = async () => {
     setStatus("saving");
     await new Promise(r => setTimeout(r, 700));
+    if (noSaved) { onConfirm(); return; }
     setStatus("saved");
     await new Promise(r => setTimeout(r, 900));
     onConfirm();
@@ -1532,8 +1533,13 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
         body:    JSON.stringify({ sms_enabled: newVal }),
       });
       if (res.ok) {
+        const target = users.find(u => u.id === userId);
         setUsers(prev => prev.map(u => u.id === userId ? { ...u, sms_enabled: newVal } : u));
         if (userId === user.id) onUserUpdate({ ...user, sms_enabled: newVal });
+        addLog({
+          station: "System", type: "system",
+          message: `SMS alerts for ${target?.name || "user"} have been ${newVal ? "enabled" : "disabled"} by ${userName}`,
+        });
       }
     } catch {}
     setSmsSaving(p => ({ ...p, [userId]: false }));
@@ -2099,7 +2105,8 @@ export default function App() {
         <ConfirmModal title="Logout" message="Are you sure you want to log out of the CDRRMO dashboard?"
           confirmLabel="Yes, Logout" confirmColor="var(--red)"
           onConfirm={handleLogout}
-          onCancel={() => setShowLogoutModal(false)} />
+          onCancel={() => setShowLogoutModal(false)}
+          noSaved />
       )}
 
       {/* ─── SIDEBAR ─── */}
