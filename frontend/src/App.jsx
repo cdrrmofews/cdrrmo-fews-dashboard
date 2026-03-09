@@ -1,4 +1,23 @@
 import "./App.css";
+
+// ─── SPINNER STYLE ────────────────────────────────────────────────────────────
+const spinnerStyle = document.createElement("style");
+spinnerStyle.textContent = `
+  .btn-spinner {
+    display: inline-block;
+    width: 14px; height: 14px;
+    border: 2px solid rgba(255,255,255,0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: btn-spin 0.6s linear infinite;
+    vertical-align: middle;
+  }
+  @keyframes btn-spin { to { transform: rotate(360deg); } }
+`;
+if (!document.head.querySelector("#btn-spinner-style")) {
+  spinnerStyle.id = "btn-spinner-style";
+  document.head.appendChild(spinnerStyle);
+}
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Line, Bar } from "react-chartjs-2";
 import { createPortal } from "react-dom";
@@ -474,7 +493,7 @@ function ChangeEmailModal({ onClose, token, user, onEmailChanged, addLog }) {
         <div className="modal-actions" style={{ marginTop: 4 }}>
           <button className="modal-btn modal-cancel" onClick={onClose} disabled={saving}>Cancel</button>
           <button className="modal-btn modal-confirm" onClick={handle} disabled={saving || saved}>
-            {saved ? "✓ Saved" : saving ? "Saving…" : "Save"}
+            {saved ? "Saved" : saving ? <span className="btn-spinner" /> : "Save"}
           </button>
         </div>
       </div>
@@ -534,7 +553,7 @@ function ChangePasswordModal({ onClose, token, user, addLog }) {
         <div className="modal-actions" style={{ marginTop: 4 }}>
           <button className="modal-btn modal-cancel" onClick={onClose} disabled={saving}>Cancel</button>
           <button className="modal-btn modal-confirm" onClick={handle} disabled={saving || saved}>
-            {saved ? "✓ Updated" : saving ? "Updating…" : "Update"}
+            {saved ? "Updated" : saving ? <span className="btn-spinner" /> : "Update"}
           </button>
         </div>
       </div>
@@ -726,7 +745,7 @@ function ProfileDropdown({ user, token, onSave, onClose }) {
           {error && <div className="settings-error" style={{ fontSize: 11 }}>{error}</div>}
           <div className="pd-edit-actions">
             <button className="pd-btn" onClick={() => { setEditing(false); setError(""); }}>Cancel</button>
-            <button className="pd-save-btn" onClick={handleSave} disabled={saving}>{saving ? "Saving…" : saved ? "✓ Saved" : "Save"}</button>
+            <button className="pd-save-btn" onClick={handleSave} disabled={saving}>{saving ? <span className="btn-spinner" /> : saved ? "Saved" : "Save"}</button>
           </div>
         </>
       )}
@@ -741,8 +760,10 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog }
   const [thresholds, setThr]              = useState(Object.fromEntries(allFews.map(f => [f.id, { warning: 200, danger: 300 }])));
   const [prevThresholds, setPrevThr]      = useState(Object.fromEntries(allFews.map(f => [f.id, { warning: 200, danger: 300 }])));
   const [thrSaved, setThrSaved]           = useState({});
+  const [thrSaving, setThrSaving]         = useState({});
   const [editing, setEditing]             = useState({});
   const [infoSaved, setInfoSaved]         = useState({});
+  const [infoSaving, setInfoSaving]       = useState({});
   const [pendingToggle, setPendingToggle] = useState(null);
 
   const canControl = can(userRole, "unitControl");
@@ -780,8 +801,12 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog }
       });
     }
     setPrevThr(p => ({ ...p, [id]: { ...thr } }));
-    setThrSaved(prev => ({ ...prev, [id]: true }));
-    setTimeout(() => setThrSaved(prev => ({ ...prev, [id]: false })), 2000);
+    setThrSaving(prev => ({ ...prev, [id]: true }));
+    setTimeout(() => {
+      setThrSaving(prev => ({ ...prev, [id]: false }));
+      setThrSaved(prev => ({ ...prev, [id]: true }));
+      setTimeout(() => setThrSaved(prev => ({ ...prev, [id]: false })), 2000);
+    }, 600);
   };
 
   const startEdit = (id) => {
@@ -798,8 +823,12 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog }
       station: f.name, type: "info",
       message: `${f.name} (${f.location}) station information updated by ${userName}`,
     });
-    setInfoSaved(prev => ({ ...prev, [id]: true }));
-    setTimeout(() => setInfoSaved(prev => ({ ...prev, [id]: false })), 2000);
+    setInfoSaving(prev => ({ ...prev, [id]: true }));
+    setTimeout(() => {
+      setInfoSaving(prev => ({ ...prev, [id]: false }));
+      setInfoSaved(prev => ({ ...prev, [id]: true }));
+      setTimeout(() => setInfoSaved(prev => ({ ...prev, [id]: false })), 2000);
+    }, 600);
   };
 
   const cancelEdit = (id) => setEditing(prev => { const n = {...prev}; delete n[id]; return n; });
@@ -903,7 +932,7 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog }
                   {canControl && ed && (
                     <div style={{ display:"flex", gap:6 }}>
                       <button className="uc-edit-btn" onClick={() => cancelEdit(f.id)}>Cancel</button>
-                      <button className="uc-save-info-btn" onClick={() => saveInfo(f.id)}>{infoSaved[f.id] ? "✓ Saved" : "Save"}</button>
+                      <button className="uc-save-info-btn" onClick={() => saveInfo(f.id)}>{infoSaving[f.id] ? <span className="btn-spinner" /> : infoSaved[f.id] ? "Saved" : "Save"}</button>
                     </div>
                   )}
                 </div>
@@ -927,7 +956,7 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog }
                       <input className="settings-input" type="number" step="1" value={thr.danger}
                         onChange={e => setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], danger: parseFloat(e.target.value) } }))} />
                     </div>
-                    <button className="uc-thr-save" onClick={() => saveThr(f.id)}>{thrSaved[f.id] ? "✓ Saved" : "Save"}</button>
+                    <button className="uc-thr-save" onClick={() => saveThr(f.id)}>{thrSaving[f.id] ? <span className="btn-spinner" /> : thrSaved[f.id] ? "Saved" : "Save"}</button>
                   </div>
                 </div>
               )}
@@ -1275,7 +1304,7 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
   const [users, setUsers]                   = useState([]);
   const [loadingUsers, setLoadingUsers]     = useState(false);
   const [drafts, setDrafts]                 = useState({});
-  const [confirmSave, setConfirmSave]       = useState(null);
+  const [savingIds, setSavingIds]           = useState({});
   const [confirmRemove, setConfirmRemove]   = useState(null);
   const [savedIds, setSavedIds]             = useState({});
 
@@ -1300,9 +1329,9 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
   const getDraft    = (u) => drafts[u.id] || { role: u.role, department: u.department };
   const handleDraft = (id, key, val) => setDrafts(prev => ({ ...prev, [id]: { ...getDraft(users.find(u => u.id === id)), [key]: val } }));
 
-  const doSave = async () => {
-    const u = confirmSave;
+  const doSave = async (u) => {
     const d = getDraft(u);
+    setSavingIds(prev => ({ ...prev, [u.id]: true }));
     try {
       const res = await fetch(`${API_BASE}/users/${u.id}`, {
         method:  "PUT",
@@ -1328,7 +1357,7 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
         setTimeout(() => setSavedIds(prev => ({ ...prev, [u.id]: false })), 2000);
       }
     } catch {}
-    setConfirmSave(null);
+    setSavingIds(prev => ({ ...prev, [u.id]: false }));
   };
 
   const doRemove = async () => {
@@ -1370,7 +1399,6 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
       {showPassword && <ChangePasswordModal
         onClose={() => setShowPassword(false)}
         token={token} user={user} addLog={addLog} />}
-      {confirmSave   && <ConfirmModal icon="👤" iconColor="var(--blue)" title={`Save Changes for ${confirmSave.name}?`} message={`Role → ${getDraft(confirmSave).role} · Department → ${getDraft(confirmSave).department}`} confirmLabel="Yes, Save" onConfirm={doSave} onCancel={() => setConfirmSave(null)} />}
       {confirmRemove && <ConfirmModal icon="🗑" iconColor="var(--red)" title={`Remove ${confirmRemove.name}?`} message={`This will permanently remove ${confirmRemove.name} from the system.`} confirmLabel="Yes, Remove" confirmColor="var(--red)" onConfirm={doRemove} onCancel={() => setConfirmRemove(null)} />}
       <div className="page-body">
 
@@ -1421,7 +1449,9 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
                         <select className="mu-select" value={d.department} onChange={e => handleDraft(u.id, "department", e.target.value)}>
                           <option>Operations</option><option>Field Unit A</option><option>Field Unit B</option><option>Command Post</option><option>Admin Office</option>
                         </select>
-                        <button className="mu-save-btn" disabled={!changed} onClick={() => setConfirmSave(u)}>{savedIds[u.id] ? "Saved" : "Save"}</button>
+                        <button className="mu-save-btn" disabled={!changed || savingIds[u.id]} onClick={() => doSave(u)}>
+                          {savingIds[u.id] ? <span className="btn-spinner" /> : savedIds[u.id] ? "Saved" : "Save"}
+                        </button>
                         <button className="mu-remove-btn" onClick={() => setConfirmRemove(u)}>✕</button>
                       </div>
                     </div>
