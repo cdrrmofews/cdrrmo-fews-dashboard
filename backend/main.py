@@ -22,14 +22,41 @@ VALID_ROLES = {"Admin", "Operator"}
 @app.on_event("startup")
 def startup():
     init_db()
-    # Migrate: add phone and sms_enabled columns if they don't exist yet
     conn = get_db()
     cur  = conn.cursor()
     try:
+        # users columns
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(20)")
         cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS sms_enabled BOOLEAN NOT NULL DEFAULT FALSE")
+        # fews_units table
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS fews_units (
+                id               SERIAL PRIMARY KEY,
+                device_id        VARCHAR(50) UNIQUE NOT NULL,
+                name             VARCHAR(100) NOT NULL,
+                location         VARCHAR(100),
+                installed_date   VARCHAR(50),
+                technician       VARCHAR(100),
+                description      TEXT,
+                threshold_warning INT NOT NULL DEFAULT 200,
+                threshold_danger  INT NOT NULL DEFAULT 300,
+                updated_at        TIMESTAMPTZ DEFAULT NOW()
+            )
+        """)
+        # Seed FEWS 1 if not already present
+        cur.execute("SELECT id FROM fews_units WHERE device_id = 'fews1'")
+        if not cur.fetchone():
+            cur.execute("""
+                INSERT INTO fews_units (device_id, name, location, installed_date, technician, description, threshold_warning, threshold_danger)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+            """, (
+                "fews1", "FEWS 1", "Bolbok", "—", "Engr. Andrew Van Ryan",
+                "Deployed along the upper tributary of Sta. Rita River. Monitors early upstream surge from heavy rainfall in the Mataas na Gulod watershed.",
+                200, 300
+            ))
         conn.commit()
-    except Exception:
+    except Exception as e:
+        print(f"[STARTUP] Migration error: {e}")
         conn.rollback()
     finally:
         cur.close()
@@ -428,3 +455,50 @@ def delete_user(user_id: int, admin=Depends(require_admin)):
 @app.get("/")
 def root():
     return {"status": "CDRRMO FEWS API online"}
+
+# ─── FEWS UNITS ───────────────────────────────────────────────────────────────
+
+class UpdateUnitRequest(BaseModel):
+    installed_date:    Optional[str] = None
+    technician:        Optional[str] = None
+    description:       Optional[str] = None
+    threshold_warning: Optional[int] = None
+    threshold_danger:  Optional[int] = None
+
+@app.get("/units")
+def get_units(user=Depends(get_current_user)):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        cur.execute("SELECT * FROM fews_units ORDER BY id")
+        return cur.fetchall()
+    finally:
+        cur.close()
+        conn.close()
+
+@app.put("/units/{device_id}")
+def update_unit(device_id: str, req: UpdateUnitRequest, user=Depends(get_current_user)):
+    if user["role"] not in ("Admin", "Operator"):
+        raise HTTPException(status_code=403, detail="Not authorized")
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        fields, values = [], []
+        if req.installed_date    is not None: fields.append("installed_date = %s");    values.append(req.installed_date)
+        if req.technician        is not None: fields.append("technician = %s");        values.append(req.technician)
+        if req.description       is not None: fields.append("description = %s");       values.append(req.description)
+        if req.threshold_warning is not None: fields.append("threshold_warning = %s"); values.append(req.threshold_warning)
+        if req.threshold_danger  is not None: fields.append("threshold_danger = %s");  values.append(req.threshold_danger)
+        if not fields:
+            raise HTTPException(status_code=400, detail="No fields to update")
+        fields.append("updated_at = NOW()")
+        values.append(device_id)
+        cur.execute(f"UPDATE fews_units SET {', '.join(fields)} WHERE device_id = %s RETURNING *", values)
+        conn.commit()
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Unit not found")
+        return row
+    finally:
+        cur.close()
+        conn.close()

@@ -858,7 +858,7 @@ function ProfileDropdown({ user, token, onSave, onClose }) {
 }
 
 // ─── UNIT CONTROL PAGE ────────────────────────────────────────────────────────
-function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog }) {
+function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, token }) {
   const [fewsData, setFewsData]           = useState(allFews.map(f => ({ ...f })));
   const [units, setUnits]                 = useState(Object.fromEntries(allFews.map(f => ([f.id, fews1Connected && f.isLive ? true : false]))));
   const [thresholds, setThr]              = useState(Object.fromEntries(allFews.map(f => [f.id, { warning: 200, danger: 300 }])));
@@ -872,6 +872,44 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog }
   const [powerSaving, setPowerSaving]     = useState({});
 
   const canControl = can(userRole, "unitControl");
+
+  // Load unit data from DB on mount
+  useEffect(() => {
+    fetch(`${API_BASE}/units`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(rows => {
+        if (!Array.isArray(rows)) return;
+        setFewsData(prev => prev.map(f => {
+          const row = rows.find(r => r.device_id === (f.deviceId || "fews" + f.id));
+          if (!row) return f;
+          return {
+            ...f,
+            installedDate: row.installed_date || f.installedDate,
+            technician:    row.technician     || f.technician,
+            description:   row.description    || f.description,
+          };
+        }));
+        setThr(prev => {
+          const next = { ...prev };
+          rows.forEach(row => {
+            const f = allFews.find(f => "fews" + f.id === row.device_id);
+            if (f) next[f.id] = { warning: row.threshold_warning, danger: row.threshold_danger };
+          });
+          return next;
+        });
+        setPrevThr(prev => {
+          const next = { ...prev };
+          rows.forEach(row => {
+            const f = allFews.find(f => "fews" + f.id === row.device_id);
+            if (f) next[f.id] = { warning: row.threshold_warning, danger: row.threshold_danger };
+          });
+          return next;
+        });
+      })
+      .catch(() => {});
+  }, [token]);
+
+  const getDeviceId = (id) => "fews" + id;
 
   const requestToggle = (f) => {
     if (!canControl) return;
@@ -892,30 +930,25 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog }
     }, 700);
   };
 
-  const saveThr = (id) => {
+  const saveThr = async (id) => {
     if (!canControl) return;
     const f    = fewsData.find(x => x.id === id);
     const thr  = thresholds[id];
     const prev = prevThresholds[id];
-    if (thr.warning !== prev.warning) {
-      addLog({
-        station: f.name, type: "info",
-        message: `${f.name} (${f.location}) warning threshold updated from ${prev.warning} cm to ${thr.warning} cm by ${userName}`,
+    setThrSaving(p => ({ ...p, [id]: true }));
+    try {
+      await fetch(`${API_BASE}/units/${getDeviceId(id)}`, {
+        method:  "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ threshold_warning: thr.warning, threshold_danger: thr.danger }),
       });
-    }
-    if (thr.danger !== prev.danger) {
-      addLog({
-        station: f.name, type: "info",
-        message: `${f.name} (${f.location}) danger threshold updated from ${prev.danger} cm to ${thr.danger} cm by ${userName}`,
-      });
-    }
-    setPrevThr(p => ({ ...p, [id]: { ...thr } }));
-    setThrSaving(prev => ({ ...prev, [id]: true }));
-    setTimeout(() => {
-      setThrSaving(prev => ({ ...prev, [id]: false }));
-      setThrSaved(prev => ({ ...prev, [id]: true }));
-      setTimeout(() => setThrSaved(prev => ({ ...prev, [id]: false })), 2000);
-    }, 600);
+      if (thr.warning !== prev.warning) addLog({ station: f.name, type: "info", message: `${f.name} (${f.location}) warning threshold updated from ${prev.warning} cm to ${thr.warning} cm by ${userName}` });
+      if (thr.danger  !== prev.danger)  addLog({ station: f.name, type: "info", message: `${f.name} (${f.location}) danger threshold updated from ${prev.danger} cm to ${thr.danger} cm by ${userName}` });
+      setPrevThr(p => ({ ...p, [id]: { ...thr } }));
+      setThrSaved(p => ({ ...p, [id]: true }));
+      setTimeout(() => setThrSaved(p => ({ ...p, [id]: false })), 2000);
+    } catch {}
+    setThrSaving(p => ({ ...p, [id]: false }));
   };
 
   const startEdit = (id) => {
@@ -924,25 +957,29 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog }
     setEditing(prev => ({ ...prev, [id]: { installedDate: f.installedDate, technician: f.technician, description: f.description } }));
   };
 
-  const saveInfo = (id) => {
-    const f = fewsData.find(x => x.id === id);
+  const saveInfo = async (id) => {
+    const f        = fewsData.find(x => x.id === id);
     const snapshot = editing[id];
     setInfoSaving(prev => ({ ...prev, [id]: true }));
-    setTimeout(() => {
-      // spinner done → show "Saved"
-      setFewsData(prev => prev.map(x => x.id === id ? { ...x, ...snapshot } : x));
-      setInfoSaving(prev => ({ ...prev, [id]: false }));
-      setInfoSaved(prev => ({ ...prev, [id]: true }));
-      addLog({
-        station: f.name, type: "info",
-        message: `${f.name} (${f.location}) station information updated by ${userName}`,
+    try {
+      await fetch(`${API_BASE}/units/${getDeviceId(id)}`, {
+        method:  "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({
+          installed_date: snapshot.installedDate,
+          technician:     snapshot.technician,
+          description:    snapshot.description,
+        }),
       });
-      // close edit mode after "Saved" is visible for 1.2s
-      setTimeout(() => {
-        setInfoSaved(prev => ({ ...prev, [id]: false }));
-        setEditing(prev => { const n = {...prev}; delete n[id]; return n; });
-      }, 1200);
-    }, 700);
+      setFewsData(prev => prev.map(x => x.id === id ? { ...x, ...snapshot } : x));
+      addLog({ station: f.name, type: "info", message: `${f.name} (${f.location}) station information updated by ${userName}` });
+    } catch {}
+    setInfoSaving(prev => ({ ...prev, [id]: false }));
+    setInfoSaved(prev => ({ ...prev, [id]: true }));
+    setTimeout(() => {
+      setInfoSaved(prev => ({ ...prev, [id]: false }));
+      setEditing(prev => { const n = {...prev}; delete n[id]; return n; });
+    }, 1200);
   };
 
   const cancelEdit = (id) => setEditing(prev => { const n = {...prev}; delete n[id]; return n; });
@@ -2333,7 +2370,7 @@ export default function App() {
           </div>
         )}
 
-        {activeNav === "UnitControl" && <UnitControlPage allFews={allFews} fews1Connected={fews1Connected} userRole={user.role} userName={user.name} addLog={addLog} />}
+        {activeNav === "UnitControl" && <UnitControlPage allFews={allFews} fews1Connected={fews1Connected} userRole={user.role} userName={user.name} addLog={addLog} token={token} />}
         {activeNav === "Logs"        && <LogsPage token={token} userRole={user.role} />}
         {activeNav === "Settings"    && <SettingsPage userRole={user.role} userName={user.name} user={user} onUserUpdate={(u) => { setUser(u); sessionStorage.setItem("user", JSON.stringify(u)); }} token={token} addLog={addLog} />}
       </div>
