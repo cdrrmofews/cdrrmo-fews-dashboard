@@ -449,13 +449,10 @@ function OpenPopup({ fews, markerRefs }) {
 
 // ─── MODALS ───────────────────────────────────────────────────────────────────
 function ConfirmModal({ icon, iconColor, title, message, confirmLabel, confirmColor, onConfirm, onCancel, noSaved }) {
-  const [status, setStatus] = useState("idle");
+  const [saving, setSaving] = useState(false);
   const handle = async () => {
-    setStatus("saving");
+    setSaving(true);
     await new Promise(r => setTimeout(r, 700));
-    if (noSaved) { onConfirm(); return; }
-    setStatus("saved");
-    await new Promise(r => setTimeout(r, 900));
     onConfirm();
   };
   return (
@@ -467,12 +464,12 @@ function ConfirmModal({ icon, iconColor, title, message, confirmLabel, confirmCo
         </div>
         <div className="modal-msg">{message}</div>
         <div className="modal-actions">
-          <button className="modal-btn modal-cancel" onClick={onCancel} disabled={status !== "idle"}>Cancel</button>
+          <button className="modal-btn modal-cancel" onClick={onCancel} disabled={saving}>Cancel</button>
           <button className="modal-btn" style={{ background: confirmColor || "var(--blue)", color: "#fff", minWidth: 90 }}
-            onClick={handle} disabled={status !== "idle"}>
-            {status === "saving"
+            onClick={handle} disabled={saving}>
+            {saving
               ? <span className="btn-spinner" style={{ borderTopColor: "#fff", borderColor: "rgba(255,255,255,0.25)" }} />
-              : status === "saved" ? "Saved" : confirmLabel}
+              : confirmLabel}
           </button>
         </div>
       </div>
@@ -864,10 +861,8 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, 
   const [units, setUnits]                 = useState(Object.fromEntries(allFews.map(f => ([f.id, fews1Connected && f.isLive ? true : false]))));
   const [thresholds, setThr]              = useState(Object.fromEntries(allFews.map(f => [f.id, { warning: 200, danger: 300 }])));
   const [prevThresholds, setPrevThr]      = useState(Object.fromEntries(allFews.map(f => [f.id, { warning: 200, danger: 300 }])));
-  const [thrSaved, setThrSaved]           = useState({});
   const [thrSaving, setThrSaving]         = useState({});
   const [editing, setEditing]             = useState({});
-  const [infoSaved, setInfoSaved]         = useState({});
   const [infoSaving, setInfoSaving]       = useState({});
   const [pendingToggle, setPendingToggle] = useState(null);
   const [powerSaving, setPowerSaving]     = useState({});
@@ -946,8 +941,6 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, 
       if (thr.warning !== prev.warning) addLog({ station: f.name, type: "info", message: `${f.name} (${f.location}) warning threshold updated from ${prev.warning} cm to ${thr.warning} cm by ${userName}` });
       if (thr.danger  !== prev.danger)  addLog({ station: f.name, type: "info", message: `${f.name} (${f.location}) danger threshold updated from ${prev.danger} cm to ${thr.danger} cm by ${userName}` });
       setPrevThr(p => ({ ...p, [id]: { ...thr } }));
-      setThrSaved(p => ({ ...p, [id]: true }));
-      setTimeout(() => setThrSaved(p => ({ ...p, [id]: false })), 2000);
     } catch {}
     setThrSaving(p => ({ ...p, [id]: false }));
   };
@@ -976,11 +969,7 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, 
       addLog({ station: f.name, type: "info", message: `${f.name} (${f.location}) station information updated by ${userName}` });
     } catch {}
     setInfoSaving(prev => ({ ...prev, [id]: false }));
-    setInfoSaved(prev => ({ ...prev, [id]: true }));
-    setTimeout(() => {
-      setInfoSaved(prev => ({ ...prev, [id]: false }));
-      setEditing(prev => { const n = {...prev}; delete n[id]; return n; });
-    }, 1200);
+    setEditing(prev => { const n = {...prev}; delete n[id]; return n; });
   };
 
   const cancelEdit = (id) => setEditing(prev => { const n = {...prev}; delete n[id]; return n; });
@@ -1086,7 +1075,7 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, 
                   {canControl && ed && (
                     <div style={{ display:"flex", gap:6 }}>
                       <button className="uc-edit-btn" onClick={() => cancelEdit(f.id)}>Cancel</button>
-                      <button className="uc-save-info-btn" onClick={() => saveInfo(f.id)}>{infoSaving[f.id] ? <span className="btn-spinner" /> : infoSaved[f.id] ? "Saved" : "Save"}</button>
+                      <button className="uc-save-info-btn" onClick={() => saveInfo(f.id)}>{infoSaving[f.id] ? <span className="btn-spinner" /> : "Save"}</button>
                     </div>
                   )}
                 </div>
@@ -1110,7 +1099,7 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, 
                       <input className="settings-input" type="number" step="1" value={thr.danger}
                         onChange={e => setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], danger: parseFloat(e.target.value) } }))} />
                     </div>
-                    <button className="uc-thr-save" onClick={() => saveThr(f.id)}>{thrSaving[f.id] ? <span className="btn-spinner" /> : thrSaved[f.id] ? "Saved" : "Save"}</button>
+                    <button className="uc-thr-save" onClick={() => saveThr(f.id)}>{thrSaving[f.id] ? <span className="btn-spinner" /> : "Save"}</button>
                   </div>
                 </div>
               )}
