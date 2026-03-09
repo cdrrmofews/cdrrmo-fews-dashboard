@@ -193,7 +193,6 @@ body {
   z-index: 500;
 }
 
-/* Seals — centered absolutely so left/right sides stay balanced */
 .topbar-seals {
   position: absolute;
   left: 50%;
@@ -212,7 +211,6 @@ body {
   opacity: 0.92;
 }
 
-/* CDRRMO seal has more padding in the image so bump it up */
 .topbar-seal-img:last-child {
   height: 50px;
   width: 50px;
@@ -840,6 +838,27 @@ body {
 }
 .mu-remove-btn:hover { background: rgba(239,68,68,0.12); color: var(--red); border-color: rgba(239,68,68,0.3); }
 
+.mu-add-btn {
+  display: flex;
+  align-items: center;
+  background: rgba(56,189,248,0.12);
+  color: var(--blue);
+  border: 1px solid rgba(56,189,248,0.28);
+  border-radius: 10px;
+  padding: 7px 14px;
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, border-color 0.15s;
+  white-space: nowrap;
+}
+.mu-add-btn:hover {
+  background: rgba(56,189,248,0.22);
+  border-color: rgba(56,189,248,0.45);
+}
+
 /* ================================
    UNIT CONTROL
 ================================ */
@@ -1226,7 +1245,6 @@ body {
 /* ================================
    LOGS PAGE
 ================================ */
-
 .logs-stat-bar {
   display: flex;
   align-items: stretch;
@@ -1280,10 +1298,7 @@ body {
 
 .logs-stat-total .logs-stat-count { color: var(--text-2); }
 
-/* ─── Export menu ─── */
-.export-menu-wrap {
-  position: relative;
-}
+.export-menu-wrap { position: relative; }
 
 .export-menu-trigger {
   width: 36px;
@@ -1346,7 +1361,6 @@ body {
 .export-menu-item-icon  { font-size: 14px; flex-shrink: 0; }
 .export-menu-item-label { flex: 1; }
 
-/* Reset icon button */
 .logs-reset-icon-btn {
   width: 36px;
   height: 36px;
@@ -1366,7 +1380,6 @@ body {
 }
 .logs-reset-icon-btn:hover { background: rgba(239,68,68,0.18); border-color: rgba(239,68,68,0.4); }
 
-/* ─── Filters row ─── */
 .logs-filters-row {
   display: flex;
   align-items: flex-end;
@@ -1421,7 +1434,6 @@ body {
 }
 .logs-search-clear:hover { color: var(--red); }
 
-/* Table card */
 .logs-table-card {
   flex: 1;
   min-height: 0;
@@ -1545,15 +1557,10 @@ body {
 .logs-page-ellipsis { color: var(--text-3); font-size: 13px; padding: 0 4px; line-height: 30px; }
 
 /* ================================
-   CUSTOM FILTER DROPDOWN  (fdd-*)
-   Matches the export-menu card style.
+   CUSTOM FILTER DROPDOWN
 ================================ */
-.fdd-wrap {
-  position: relative;
-  flex-shrink: 0;
-}
+.fdd-wrap { position: relative; flex-shrink: 0; }
 
-/* The trigger button — same height as search bar (36px) */
 .fdd-trigger {
   height: 36px;
   display: flex;
@@ -1573,34 +1580,16 @@ body {
   min-width: 130px;
 }
 
-.fdd-trigger:hover {
-  border-color: rgba(255,255,255,0.22);
-  color: var(--text-1);
-}
-
-/* Active = a filter value is actually selected (not "All") */
-.fdd-trigger-active {
-  background: rgba(56,189,248,0.10);
-  border-color: rgba(56,189,248,0.35) !important;
-  color: var(--blue) !important;
-}
-
-.fdd-trigger-open {
-  border-color: var(--blue) !important;
-  color: var(--text-1);
-}
+.fdd-trigger:hover { border-color: rgba(255,255,255,0.22); color: var(--text-1); }
+.fdd-trigger-active { background: rgba(56,189,248,0.10); border-color: rgba(56,189,248,0.35) !important; color: var(--blue) !important; }
+.fdd-trigger-open  { border-color: var(--blue) !important; color: var(--text-1); }
 
 .fdd-icon   { font-size: 12px; flex-shrink: 0; }
 .fdd-label  { flex: 1; text-align: left; overflow: hidden; text-overflow: ellipsis; }
-.fdd-chevron {
-  flex-shrink: 0;
-  color: var(--text-3);
-  transition: transform 0.15s;
-}
+.fdd-chevron { flex-shrink: 0; color: var(--text-3); transition: transform 0.15s; }
 .fdd-trigger:focus .fdd-chevron,
 .fdd-trigger:hover .fdd-chevron { color: var(--text-2); }
 
-/* Dropdown panel — same card style as date picker */
 .fdd-menu {
   position: absolute;
   top: calc(100% + 6px);
@@ -1617,7 +1606,6 @@ body {
   animation: cdp-fade 0.12s ease;
 }
 
-/* Each option row */
 .fdd-item {
   display: block;
   width: 100%;
@@ -1634,22 +1622,14 @@ body {
   transition: background 0.12s, color 0.12s;
 }
 
-.fdd-item:hover { background: var(--bg-raised); color: var(--text-1); }
-
-.fdd-item-selected {
-  color: var(--blue) !important;
-  background: rgba(56,189,248,0.08) !important;
-}
+.fdd-item:hover       { background: var(--bg-raised); color: var(--text-1); }
+.fdd-item-selected    { color: var(--blue) !important; background: rgba(56,189,248,0.08) !important; }
 
 /* ================================
-   SMART DATE FILTER  (drf-* / mc-*)
-   One calendar, click=single day,
-   second click=range, third=reset.
+   DATE RANGE FILTER
 ================================ */
-
 .drf-wrap { position: relative; }
 
-/* Panel — right-aligned, single calendar width */
 .drf-panel {
   position: absolute;
   top: calc(100% + 6px);
@@ -1666,7 +1646,6 @@ body {
 
 .drf-panel-single { width: 234px; }
 
-/* Calendar header */
 .mc-header {
   display: flex;
   align-items: center;
@@ -1674,14 +1653,8 @@ body {
   margin-bottom: 10px;
 }
 
-.mc-month-label {
-  font-size: 12px;
-  font-weight: 700;
-  color: var(--text-1);
-  letter-spacing: -0.01em;
-}
+.mc-month-label { font-size: 12px; font-weight: 700; color: var(--text-1); letter-spacing: -0.01em; }
 
-/* Footer: hint text + clear button */
 .drf-footer {
   display: flex;
   justify-content: space-between;
@@ -1702,45 +1675,89 @@ body {
   text-overflow: ellipsis;
 }
 
-/* In-range day highlight */
-.mc-in-range {
-  background: rgba(56,189,248,0.13) !important;
-  color: var(--blue) !important;
-  border-radius: 0 !important;
+.mc-in-range    { background: rgba(56,189,248,0.13) !important; color: var(--blue) !important; border-radius: 0 !important; }
+.mc-range-from  { border-radius: 6px 0 0 6px !important; }
+.mc-range-to    { border-radius: 0 6px 6px 0 !important; }
+.mc-range-from.mc-range-to { border-radius: 6px !important; }
+.mc-disabled    { opacity: 0.22; cursor: not-allowed !important; pointer-events: none; }
+
+/* ================================
+   BUTTON SPINNER
+================================ */
+.btn-spinner {
+  display: inline-block;
+  width: 14px;
+  height: 14px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-top-color: #fff;
+  border-radius: 50%;
+  animation: btn-spin 0.6s linear infinite;
+  vertical-align: middle;
 }
 
-/* Range endpoints */
-.mc-range-from { border-radius: 6px 0 0 6px !important; }
-.mc-range-to   { border-radius: 0 6px 6px 0 !important; }
-
-/* When from === to (single day), keep full radius */
-.mc-range-from.mc-range-to {
-  border-radius: 6px !important;
+@keyframes btn-spin {
+  to { transform: rotate(360deg); }
 }
 
-.mc-disabled {
-  opacity: 0.22;
-  cursor: not-allowed !important;
-  pointer-events: none;
-}
-
-.mu-add-btn {
-  display: flex;
-  align-items: center;
-  background: rgba(56,189,248,0.12);
-  color: var(--blue);
-  border: 1px solid rgba(56,189,248,0.28);
+/* ================================
+   SMS NOTIFICATIONS TABLE
+================================ */
+.sms-table {
+  width: 100%;
   border-radius: 10px;
-  padding: 7px 14px;
-  font-family: var(--font);
-  font-size: 12px;
-  font-weight: 700;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: background 0.15s, border-color 0.15s;
-  white-space: nowrap;
+  overflow: hidden;
+  border: 1px solid var(--border);
 }
-.mu-add-btn:hover {
-  background: rgba(56,189,248,0.22);
-  border-color: rgba(56,189,248,0.45);
+
+.sms-table-header {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr 64px;
+  padding: 8px 16px;
+  font-size: 10px;
+  color: var(--text-3);
+  text-transform: uppercase;
+  letter-spacing: 0.07em;
+  background: var(--bg-raised);
+  border-bottom: 1px solid var(--border);
+  align-items: center;
+}
+
+.sms-table-row {
+  display: grid;
+  grid-template-columns: 2fr 1fr 1fr 1fr 64px;
+  padding: 11px 16px;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
+  transition: background 0.15s;
+}
+
+.sms-table-row:last-child { border-bottom: none; }
+.sms-table-row:hover      { background: var(--bg-raised); }
+
+.sms-name      { color: var(--text-1); font-weight: 600; font-size: 13px; }
+.sms-role-text { font-size: 12px; color: var(--text-2); }
+.sms-role-badge,
+.sms-role-admin,
+.sms-role-operator { all: unset; font-size: 12px; color: var(--text-2); }
+
+/* ================================
+   ALERT TRIGGERS TOGGLE ROWS
+================================ */
+.notif-toggle-row {
+  display: grid;
+  grid-template-columns: 1fr 64px;
+  padding: 11px 16px;
+  align-items: center;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-card);
+}
+
+.notif-toggle-row:last-child { border-bottom: none; }
+
+.notif-toggle-btn-wrap {
+  width: 64px;
+  display: flex;
+  justify-content: center;
+  flex-shrink: 0;
 }

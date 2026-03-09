@@ -1,47 +1,4 @@
 import "./App.css";
-
-// ─── INJECTED STYLES ──────────────────────────────────────────────────────────
-(function() {
-  const existing = document.head.querySelector("#fews-injected-style");
-  if (existing) existing.remove();
-  const s = document.createElement("style");
-  s.id = "fews-injected-style";
-  s.textContent = `
-  .btn-spinner {
-    display: inline-block; width: 14px; height: 14px;
-    border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff;
-    border-radius: 50%; animation: btn-spin 0.6s linear infinite; vertical-align: middle;
-  }
-  @keyframes btn-spin { to { transform: rotate(360deg); } }
-  .sms-table { width: 100%; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
-  .sms-table-header {
-    display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 64px;
-    padding: 8px 16px; font-size: 10px; color: var(--text-3);
-    text-transform: uppercase; letter-spacing: 0.07em;
-    background: var(--bg-raised); border-bottom: 1px solid var(--border); align-items: center;
-  }
-  .sms-table-row {
-    display: grid; grid-template-columns: 2fr 1fr 1fr 1fr 64px;
-    padding: 11px 16px; align-items: center;
-    border-bottom: 1px solid var(--border); background: var(--bg-card); transition: background 0.15s;
-  }
-  .sms-table-row:last-child { border-bottom: none; }
-  .sms-table-row:hover { background: var(--bg-raised); }
-  .sms-name { color: var(--text-1); font-weight: 600; font-size: 13px; }
-  .sms-role-text { font-size: 12px; color: var(--text-2); }
-  .sms-role-badge, .sms-role-admin, .sms-role-operator { all: unset; font-size: 12px; color: var(--text-2); }
-  .notif-toggles .settings-toggle-row:last-of-type { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
-  .notif-toggle-row {
-    display: grid; grid-template-columns: 1fr 64px;
-    padding: 11px 16px; align-items: center;
-    border-bottom: 1px solid var(--border);
-    background: var(--bg-card);
-  }
-  .notif-toggle-row:last-child { border-bottom: none; }
-  .notif-toggle-btn-wrap { width: 64px; display: flex; justify-content: center; flex-shrink: 0; }
-`;
-  document.head.appendChild(s);
-})();
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Line, Bar } from "react-chartjs-2";
 import { createPortal } from "react-dom";
