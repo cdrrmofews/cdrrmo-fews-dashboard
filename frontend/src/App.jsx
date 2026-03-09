@@ -13,11 +13,15 @@ spinnerStyle.textContent = `
     vertical-align: middle;
   }
   @keyframes btn-spin { to { transform: rotate(360deg); } }
-  .sms-table { width: 100%; border-collapse: collapse; margin-top: 4px; }
-  .sms-table-header { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 8px; padding: 6px 10px; font-size: 11px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 1px solid var(--border); }
-  .sms-table-row { display: grid; grid-template-columns: 1fr 1fr 1fr auto; gap: 8px; padding: 10px 10px; align-items: center; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text-2); }
+  .sms-table { width: 100%; margin-top: 8px; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
+  .sms-table-header { display: grid; grid-template-columns: 1.4fr 1.2fr 1.4fr 1fr auto; gap: 0; padding: 8px 14px; font-size: 10px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.07em; background: var(--bg-raised); border-bottom: 1px solid var(--border); }
+  .sms-table-row { display: grid; grid-template-columns: 1.4fr 1.2fr 1.4fr 1fr auto; gap: 0; padding: 11px 14px; align-items: center; border-bottom: 1px solid var(--border); font-size: 12.5px; color: var(--text-2); background: var(--bg-card); transition: background 0.15s; }
   .sms-table-row:last-child { border-bottom: none; }
-  .sms-name { color: var(--text-1); font-weight: 500; }
+  .sms-table-row:hover { background: var(--bg-raised); }
+  .sms-name { color: var(--text-1); font-weight: 600; font-size: 13px; }
+  .sms-role-badge { display: inline-block; font-size: 10px; font-weight: 700; padding: 2px 8px; border-radius: 999px; letter-spacing: 0.04em; }
+  .sms-role-admin { background: rgba(56,189,248,0.12); color: var(--blue); border: 1px solid rgba(56,189,248,0.25); }
+  .sms-role-operator { background: rgba(148,163,184,0.10); color: var(--text-2); border: 1px solid rgba(148,163,184,0.18); }
 `;
 if (!document.head.querySelector("#btn-spinner-style")) {
   spinnerStyle.id = "btn-spinner-style";
@@ -430,6 +434,11 @@ function OpenPopup({ fews, markerRefs }) {
 
 // ─── MODALS ───────────────────────────────────────────────────────────────────
 function ConfirmModal({ icon, iconColor, title, message, confirmLabel, confirmColor, onConfirm, onCancel }) {
+  const [saving, setSaving] = useState(false);
+  const handle = () => {
+    setSaving(true);
+    setTimeout(() => { onConfirm(); }, 600);
+  };
   return (
     <div className="modal-overlay">
       <div className="modal-box">
@@ -439,9 +448,10 @@ function ConfirmModal({ icon, iconColor, title, message, confirmLabel, confirmCo
         </div>
         <div className="modal-msg">{message}</div>
         <div className="modal-actions">
-          <button className="modal-btn modal-cancel" onClick={onCancel}>Cancel</button>
-          <button className="modal-btn" style={{ background: confirmColor || "var(--blue)", color: confirmColor ? "#fff" : "#000" }} onClick={onConfirm}>
-            {confirmLabel}
+          <button className="modal-btn modal-cancel" onClick={onCancel} disabled={saving}>Cancel</button>
+          <button className="modal-btn" style={{ background: confirmColor || "var(--blue)", color: confirmColor ? "#fff" : "#000", minWidth: 90 }}
+            onClick={handle} disabled={saving}>
+            {saving ? <span className="btn-spinner" style={{ borderTopColor: confirmColor ? "#fff" : "#000", borderColor: confirmColor ? "rgba(255,255,255,0.25)" : "rgba(0,0,0,0.2)" }} /> : confirmLabel}
           </button>
         </div>
       </div>
@@ -621,7 +631,7 @@ function ChangePhoneModal({ onClose, token, user, onPhoneChanged, addLog }) {
 }
 
 // ─── ADD USER MODAL ───────────────────────────────────────────────────────────
-const EMPTY_ADD_FORM = { name: "", email: "", password: "", role: "Operator", department: "Operations" };
+const EMPTY_ADD_FORM = { name: "", email: "", password: "", role: "Operator", department: "Operations", phone: "", phoneConfirm: "" };
 
 function AddUserModal({ onAdd, onClose, token, addLog }) {
   const [form, setForm]     = useState(EMPTY_ADD_FORM);
@@ -635,12 +645,15 @@ function AddUserModal({ onAdd, onClose, token, addLog }) {
     if (!form.email.trim())       { setError("Email is required."); return; }
     if (!form.password.trim())    { setError("Password is required."); return; }
     if (form.password.length < 6) { setError("Password must be at least 6 characters."); return; }
+    if (!form.phone.trim())       { setError("Phone number is required."); return; }
+    if (!/^\+?\d{10,15}$/.test(form.phone.trim().replace(/\s+/g,""))) { setError("Enter a valid phone number (e.g. +639XXXXXXXXX)."); return; }
+    if (form.phone.trim() !== form.phoneConfirm.trim()) { setError("Phone numbers do not match."); return; }
     setSaving(true);
     try {
       const res = await fetch(`${API_BASE}/users`, {
         method:  "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-        body:    JSON.stringify(form),
+        body:    JSON.stringify({ name: form.name, email: form.email, password: form.password, role: form.role, department: form.department, phone: form.phone.trim() }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.detail || "Failed to create user."); setSaving(false); return; }
@@ -703,6 +716,19 @@ function AddUserModal({ onAdd, onClose, token, addLog }) {
             </div>
           </div>
         </div>
+          <div style={{ height: 1, background: "var(--border)", margin: "4px 0" }} />
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+            <div className="settings-field">
+              <label className="settings-label">Phone Number</label>
+              <input className="settings-input" type="tel" placeholder="+639XXXXXXXXX"
+                value={form.phone} onChange={e => set("phone", e.target.value)} />
+            </div>
+            <div className="settings-field">
+              <label className="settings-label">Confirm Phone</label>
+              <input className="settings-input" type="tel" placeholder="+639XXXXXXXXX"
+                value={form.phoneConfirm} onChange={e => set("phoneConfirm", e.target.value)} />
+            </div>
+          </div>
         {error && <div className="settings-error">{error}</div>}
         <div className="modal-actions" style={{ marginTop: 4 }}>
           <button className="modal-btn modal-cancel" onClick={onClose} disabled={saving}>Cancel</button>
@@ -881,18 +907,23 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog }
 
   const saveInfo = (id) => {
     const f = fewsData.find(x => x.id === id);
-    setFewsData(prev => prev.map(x => x.id === id ? { ...x, ...editing[id] } : x));
-    setEditing(prev => { const n = {...prev}; delete n[id]; return n; });
-    addLog({
-      station: f.name, type: "info",
-      message: `${f.name} (${f.location}) station information updated by ${userName}`,
-    });
+    const snapshot = editing[id];
     setInfoSaving(prev => ({ ...prev, [id]: true }));
     setTimeout(() => {
+      // spinner done → show "Saved"
+      setFewsData(prev => prev.map(x => x.id === id ? { ...x, ...snapshot } : x));
       setInfoSaving(prev => ({ ...prev, [id]: false }));
       setInfoSaved(prev => ({ ...prev, [id]: true }));
-      setTimeout(() => setInfoSaved(prev => ({ ...prev, [id]: false })), 2000);
-    }, 600);
+      addLog({
+        station: f.name, type: "info",
+        message: `${f.name} (${f.location}) station information updated by ${userName}`,
+      });
+      // close edit mode after "Saved" is visible for 1.2s
+      setTimeout(() => {
+        setInfoSaved(prev => ({ ...prev, [id]: false }));
+        setEditing(prev => { const n = {...prev}; delete n[id]; return n; });
+      }, 1200);
+    }, 700);
   };
 
   const cancelEdit = (id) => setEditing(prev => { const n = {...prev}; delete n[id]; return n; });
@@ -1370,6 +1401,7 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
   const [notifs, setNotifs]                 = useState({ autoSiren: true, sms: true, email: false });
   const [notifSaving, setNotifSaving]       = useState({});
   const [smsSaving, setSmsSaving]           = useState({});
+  const [confirmNotif, setConfirmNotif]     = useState(null);
   const [users, setUsers]                   = useState([]);
   const [loadingUsers, setLoadingUsers]     = useState(false);
   const [drafts, setDrafts]                 = useState({});
@@ -1467,6 +1499,10 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
 
   const handleNotifToggle = (key) => {
     if (notifSaving[key]) return;
+    setConfirmNotif(key);
+  };
+
+  const doNotifToggle = (key) => {
     const newVal = !notifs[key];
     setNotifSaving(p => ({ ...p, [key]: true }));
     setTimeout(() => {
@@ -1499,6 +1535,17 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
           onUserUpdate({ ...user, phone: newPhone });
           setUsers(prev => prev.map(u => u.id === user.id ? { ...u, phone: newPhone } : u));
         }} />}
+      {confirmNotif && <ConfirmModal
+        icon={notifs[confirmNotif] ? "🔕" : "🔔"}
+        iconColor={notifs[confirmNotif] ? "var(--red)" : "var(--green)"}
+        title={notifs[confirmNotif] ? `Disable ${NOTIF_LABELS[confirmNotif]}?` : `Enable ${NOTIF_LABELS[confirmNotif]}?`}
+        message={notifs[confirmNotif]
+          ? `This will turn OFF ${NOTIF_LABELS[confirmNotif]} for the system.`
+          : `This will turn ON ${NOTIF_LABELS[confirmNotif]} for the system.`}
+        confirmLabel={notifs[confirmNotif] ? "Yes, Disable" : "Yes, Enable"}
+        confirmColor={notifs[confirmNotif] ? "var(--red)" : "var(--green)"}
+        onConfirm={() => { doNotifToggle(confirmNotif); setConfirmNotif(null); }}
+        onCancel={() => setConfirmNotif(null)} />}
       {confirmSave   && <ConfirmModal icon="👤" iconColor="var(--blue)" title={`Save Changes for ${confirmSave.name}?`} message={`Role → ${getDraft(confirmSave).role} · Department → ${getDraft(confirmSave).department}`} confirmLabel="Yes, Save" onConfirm={doSave} onCancel={() => setConfirmSave(null)} />}
       {confirmRemove && <ConfirmModal icon="🗑" iconColor="var(--red)" title={`Remove ${confirmRemove.name}?`} message={`This will permanently remove ${confirmRemove.name} from the system.`} confirmLabel="Yes, Remove" confirmColor="var(--red)" onConfirm={doRemove} onCancel={() => setConfirmRemove(null)} />}
       <div className="page-body">
@@ -1581,20 +1628,28 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
             </div>
           ))}
 
-          <div style={{ marginTop: 20, marginBottom: 8 }}>
-            <div className="settings-toggle-label">SMS Notifications</div>
-            <div className="settings-toggle-sub" style={{ marginTop: 2 }}>Send SMS alerts to registered operators on CRITICAL events</div>
+          <div style={{ marginTop: 20, borderTop: "1px solid var(--border)", paddingTop: 18, marginBottom: 10 }}>
+            <div className="settings-toggle-label" style={{ marginBottom: 3, fontSize: 13, color: "var(--text-1)", fontWeight: 600 }}>SMS Notifications</div>
+            <div className="settings-toggle-sub">Send SMS alerts to registered operators on CRITICAL events</div>
           </div>
           <div className="sms-table">
             <div className="sms-table-header">
-              <span>Name</span><span>Department</span><span>Phone Number</span><span>Alerts</span>
+              <span>Name</span><span>Department</span><span>Phone Number</span><span>Role</span><span>Alerts</span>
             </div>
             {(isAdmin ? users : users.filter(u => u.id === user.id)).map(u => (
               <div key={u.id} className="sms-table-row">
-                <span className="sms-name">{u.name}</span>
-                <span className="sms-dept">{u.department}</span>
-                <span className="sms-phone" style={{ color: u.phone ? "var(--text-1)" : "var(--text-3)", fontFamily: u.phone ? "var(--mono, monospace)" : "inherit", fontSize: u.phone ? 12 : 13 }}>
-                  {u.phone || "—"}
+                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
+                  <div style={{ width:28, height:28, borderRadius:"50%", background:"var(--bg-raised)", border:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:700, color:"var(--text-2)", flexShrink:0 }}>
+                    {u.name.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}
+                  </div>
+                  <span className="sms-name">{u.name}</span>
+                </div>
+                <span style={{ color:"var(--text-2)", fontSize:12 }}>{u.department}</span>
+                <span style={{ color: u.phone ? "var(--text-1)" : "var(--text-3)", fontFamily: u.phone ? "var(--mono, monospace)" : "inherit", fontSize: u.phone ? 11.5 : 12 }}>
+                  {u.phone || <span style={{ color:"var(--text-3)", fontSize:11 }}>No number set</span>}
+                </span>
+                <span className={`sms-role-badge ${u.role === "Admin" ? "sms-role-admin" : "sms-role-operator"}`}>
+                  {u.role}
                 </span>
                 <button
                   className={`settings-toggle ${u.sms_enabled ? "stoggle-on" : "stoggle-off"}`}

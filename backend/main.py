@@ -73,6 +73,7 @@ class CreateUserRequest(BaseModel):
     password:   str
     role:       str = "Operator"
     department: str = "Operations"
+    phone:      Optional[str] = None
 
 class UpdateUserRequest(BaseModel):
     role:       Optional[str] = None
@@ -369,10 +370,10 @@ def create_user(req: CreateUserRequest, admin=Depends(require_admin)):
         if cur.fetchone():
             raise HTTPException(status_code=400, detail="Email already exists")
         cur.execute("""
-            INSERT INTO users (name, email, password, role, department)
-            VALUES (%s, %s, %s, %s, %s)
-            RETURNING id, name, email, role, department
-        """, (req.name, req.email, hash_password(req.password), req.role, req.department))
+            INSERT INTO users (name, email, password, role, department, phone)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            RETURNING id, name, email, role, department, phone
+        """, (req.name, req.email, hash_password(req.password), req.role, req.department, req.phone))
         conn.commit()
         return cur.fetchone()
     finally:
