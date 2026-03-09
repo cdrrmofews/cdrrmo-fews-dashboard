@@ -471,7 +471,7 @@ function ConfirmModal({ icon, iconColor, title, message, confirmLabel, confirmCo
             onClick={handle} disabled={status !== "idle"}>
             {status === "saving"
               ? <span className="btn-spinner" style={{ borderTopColor: "#fff", borderColor: "rgba(255,255,255,0.25)" }} />
-              : status === "saved" ? "Saved ✓" : confirmLabel}
+              : status === "saved" ? "Saved" : confirmLabel}
           </button>
         </div>
       </div>
@@ -2198,7 +2198,7 @@ export default function App() {
                                 setCopiedId(f.id);
                                 setTimeout(() => setCopiedId(null), 1500);
                               }} style={{ marginTop:"7px", padding:"3px 8px", background: copiedId===f.id?"#22c55e":cfg.color, color:"#000", border:"none", outline:"none", boxShadow:"none", borderRadius:"4px", cursor:"pointer", fontWeight:"700", fontSize:"10px", width:"100%", transition:"background 0.2s" }}>
-                                {copiedId===f.id ? "✓ Copied!" : "📋 Copy Coordinates"}
+                                {copiedId===f.id ? "Copied!" : "📋 Copy Coordinates"}
                               </button>
                             </div>
                           </Popup>
