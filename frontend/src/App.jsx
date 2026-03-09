@@ -1,30 +1,41 @@
 import "./App.css";
 
-// ─── SPINNER STYLE ────────────────────────────────────────────────────────────
-const spinnerStyle = document.createElement("style");
-spinnerStyle.textContent = `
+// ─── INJECTED STYLES ──────────────────────────────────────────────────────────
+(function() {
+  const existing = document.head.querySelector("#fews-injected-style");
+  if (existing) existing.remove();
+  const s = document.createElement("style");
+  s.id = "fews-injected-style";
+  s.textContent = `
   .btn-spinner {
-    display: inline-block;
-    width: 14px; height: 14px;
-    border: 2px solid rgba(255,255,255,0.3);
-    border-top-color: #fff;
-    border-radius: 50%;
-    animation: btn-spin 0.6s linear infinite;
-    vertical-align: middle;
+    display: inline-block; width: 14px; height: 14px;
+    border: 2px solid rgba(255,255,255,0.3); border-top-color: #fff;
+    border-radius: 50%; animation: btn-spin 0.6s linear infinite; vertical-align: middle;
   }
   @keyframes btn-spin { to { transform: rotate(360deg); } }
   .sms-table { width: 100%; border-radius: 10px; overflow: hidden; border: 1px solid var(--border); }
-  .sms-table-header { display: grid; grid-template-columns: 2fr 100px 1.3fr 1.3fr 70px; padding: 8px 16px; font-size: 10px; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.07em; background: var(--bg-raised); border-bottom: 1px solid var(--border); align-items: center; }
-  .sms-table-row { display: grid; grid-template-columns: 2fr 100px 1.3fr 1.3fr 70px; padding: 11px 16px; align-items: center; border-bottom: 1px solid var(--border); background: var(--bg-card); transition: background 0.15s; }
+  .sms-table-header {
+    display: grid; grid-template-columns: 2fr 120px 1.4fr 1.6fr 64px;
+    padding: 8px 16px; font-size: 10px; color: var(--text-3);
+    text-transform: uppercase; letter-spacing: 0.07em;
+    background: var(--bg-raised); border-bottom: 1px solid var(--border); align-items: center;
+  }
+  .sms-table-row {
+    display: grid; grid-template-columns: 2fr 120px 1.4fr 1.6fr 64px;
+    padding: 11px 16px; align-items: center;
+    border-bottom: 1px solid var(--border); background: var(--bg-card); transition: background 0.15s;
+  }
   .sms-table-row:last-child { border-bottom: none; }
   .sms-table-row:hover { background: var(--bg-raised); }
   .sms-name { color: var(--text-1); font-weight: 600; font-size: 13px; }
   .sms-role-text { font-size: 12px; color: var(--text-2); }
+  .sms-role-badge, .sms-role-admin, .sms-role-operator {
+    all: unset; font-size: 12px; color: var(--text-2);
+  }
+  .notif-toggles .settings-toggle-row:last-of-type { border-bottom: none; margin-bottom: 0; padding-bottom: 0; }
 `;
-if (!document.head.querySelector("#btn-spinner-style")) {
-  spinnerStyle.id = "btn-spinner-style";
-  document.head.appendChild(spinnerStyle);
-}
+  document.head.appendChild(s);
+})();
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Line, Bar } from "react-chartjs-2";
 import { createPortal } from "react-dom";
@@ -1612,6 +1623,7 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
         <div className="page-card">
           <div className="page-card-title">Notification Preferences</div>
           <div className="page-card-sub">Choose how the system alerts operators during flood events.</div>
+          <div className="notif-toggles">
           {[
             { key:"autoSiren", label:"Auto-trigger siren on CRITICAL", sub:"Siren activates automatically when danger threshold is crossed" },
             { key:"email",     label:"Email Notifications",            sub:"Send email alerts to registered operators" },
@@ -1623,7 +1635,8 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
               </button>
             </div>
           ))}
-          <div style={{ marginTop: 16, marginBottom: 10 }}>
+          </div>
+          <div style={{ borderTop: "1px solid var(--border)", paddingTop: 12, marginBottom: 10 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-1)", marginBottom: 3 }}>SMS Notifications</div>
             <div className="settings-toggle-sub">Send SMS alerts to registered operators on CRITICAL events</div>
           </div>
@@ -1633,12 +1646,7 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
             </div>
             {(isAdmin ? users : users.filter(u => u.id === user.id)).map(u => (
               <div key={u.id} className="sms-table-row">
-                <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-                  <div style={{ width:28, height:28, borderRadius:"50%", background:"var(--bg-raised)", border:"1px solid var(--border)", display:"flex", alignItems:"center", justifyContent:"center", fontSize:11, fontWeight:700, color:"var(--text-2)", flexShrink:0 }}>
-                    {u.name.split(" ").map(w=>w[0]).join("").slice(0,2).toUpperCase()}
-                  </div>
-                  <span className="sms-name">{u.name}</span>
-                </div>
+                <span className="sms-name">{u.name}</span>
                 <span className="sms-role-text">{u.role}</span>
                 <span style={{ color:"var(--text-2)", fontSize:12 }}>{u.department}</span>
                 <span style={{ color: u.phone ? "var(--text-1)" : "var(--text-3)", fontSize: 12 }}>
