@@ -1623,7 +1623,7 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
               </button>
             </div>
           ))}
-          <div style={{ marginTop: 16, borderTop: "1px solid var(--border)", paddingTop: 14, marginBottom: 10 }}>
+          <div style={{ marginTop: 16, marginBottom: 10 }}>
             <div style={{ fontSize: 13, fontWeight: 600, color: "var(--text-1)", marginBottom: 3 }}>SMS Notifications</div>
             <div className="settings-toggle-sub">Send SMS alerts to registered operators on CRITICAL events</div>
           </div>
