@@ -700,7 +700,7 @@ function AddUserModal({ onAdd, onClose, token, addLog }) {
               <label className="settings-label">Department</label>
               <MuDropdown
                 value={form.department}
-                options={["C3", "MIAD", "Operations", "ITSD"]}
+                options={["C3", "MIAD", "OPS", "ITSD"]}
                 onChange={val => set("department", val)}
               />
             </div>
@@ -1495,6 +1495,7 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
         if (d.department !== u.department) addLog({ station: "System", type: "system", message: `${u.name}'s department has been changed from ${u.department} to ${d.department} by ${userName}` });
         setUsers(prev => prev.map(x => x.id === u.id ? { ...x, ...d } : x));
         setDrafts(prev => { const n={...prev}; delete n[u.id]; return n; });
+        if (u.id === user.id) onUserUpdate({ ...user, ...d });
       }
     } catch {}
     setConfirmSave(null);
@@ -1650,7 +1651,7 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
                         />
                         <MuDropdown
                           value={d.department}
-                          options={["C3", "MIAD", "Operations", "ITSD"]}
+                          options={["C3", "MIAD", "OPS", "ITSD"]}
                           onChange={val => handleDraft(u.id, "department", val)}
                         />
                         <button className="mu-save-btn" disabled={!changed} onClick={() => setConfirmSave(u)}>Save</button>

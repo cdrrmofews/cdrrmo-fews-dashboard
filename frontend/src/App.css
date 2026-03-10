@@ -856,10 +856,9 @@ select.settings-input {
 /* ── MU DROPDOWN (custom styled replace for native select) ── */
 .mu-dd-wrap { position: relative; flex: 0 0 auto; }
 
-/* Role dropdown — "Operator" is longest, ~90px */
-.mu-dd-wrap:nth-child(1) { min-width: 100px; }
-/* Department dropdown — "Field Unit A" is longest, ~130px */
-.mu-dd-wrap:nth-child(2) { min-width: 140px; }
+/* Role and Department — same fixed width on desktop */
+.mu-dd-wrap:nth-child(1),
+.mu-dd-wrap:nth-child(2) { min-width: 120px; }
 
 .mu-dd-trigger {
   display: flex; align-items: center; justify-content: space-between;
