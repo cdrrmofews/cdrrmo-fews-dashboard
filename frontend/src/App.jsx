@@ -782,7 +782,7 @@ function ProfileDropdown({ user, token, onSave, onClose }) {
           </div>
           <div className="pd-divider" />
           <button className="pd-btn" onClick={() => setEditing(true)}>✎  Edit Profile</button>
-          <button className="pd-btn pd-logout-mobile" onClick={() => { if(typeof window.__onMobileLogout === 'function') window.__onMobileLogout(); }}>⎋  Logout</button>
+          <button className="pd-btn pd-logout-mobile" onClick={() => { if(typeof window.__onMobileLogout === 'function') window.__onMobileLogout(); }}>Logout</button>
         </>
       ) : (
         <>
@@ -1578,7 +1578,7 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
                 <div className="page-card-sub" style={{ marginBottom: 0 }}>Update roles and departments for all system users.</div>
               </div>
               <button className="mu-add-btn" onClick={() => setShowAddUser(true)} title="Add new user">
-                <span style={{ fontSize: 16, lineHeight: 1, marginRight: 5 }}>+</span>Add User
+                <span style={{ fontSize: 16, lineHeight: 1, marginRight: 5 }}>+</span><span className="mu-add-label">Add User</span>
               </button>
             </div>
             {loadingUsers ? (
