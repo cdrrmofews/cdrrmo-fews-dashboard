@@ -1761,3 +1761,394 @@ body {
   justify-content: center;
   flex-shrink: 0;
 }
+
+/* ================================
+   MOBILE  (max-width: 768px)
+================================ */
+@media (max-width: 768px) {
+
+  /* ── Body ── */
+  body { overflow: auto; }
+
+  /* ── App shell: stack sidebar on top ── */
+  .app-shell {
+    flex-direction: column;
+    height: auto;
+    min-height: 100vh;
+  }
+
+  /* ── Sidebar: horizontal bottom nav bar ── */
+  .sidebar,
+  .sidebar.collapsed {
+    width: 100%;
+    min-width: 100%;
+    height: 56px;
+    flex-direction: row;
+    align-items: center;
+    padding: 0 12px;
+    border-right: none;
+    border-top: 1px solid var(--border);
+    order: 2; /* push to bottom */
+    overflow: hidden;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    z-index: 900;
+    background: var(--bg-panel);
+  }
+
+  .brand { display: none; }
+
+  .nav {
+    flex-direction: row;
+    margin-top: 0;
+    gap: 0;
+    flex: 1;
+    justify-content: space-around;
+  }
+
+  .nav-btn,
+  .sidebar.collapsed .nav-btn {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 6px 10px;
+    border-radius: 8px;
+    font-size: 9px;
+    flex: 1;
+  }
+
+  .nav-icon { font-size: 18px; width: auto; }
+
+  /* Show labels on mobile bottom nav */
+  .nav-label,
+  .nav-label.hidden { display: block !important; font-size: 9px; color: inherit; }
+
+  .sidebar-footer {
+    border-top: none;
+    padding-top: 0;
+  }
+
+  .logout-btn,
+  .sidebar.collapsed .logout-btn {
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 3px;
+    padding: 6px 10px;
+    font-size: 9px;
+    border-radius: 8px;
+    width: auto;
+    flex: 1;
+  }
+
+  /* ── Main: full width, add bottom padding for fixed nav ── */
+  .main {
+    order: 1;
+    padding-bottom: 56px;
+    overflow-y: auto;
+    height: 100vh;
+  }
+
+  /* ── Topbar ── */
+  .topbar {
+    height: auto;
+    min-height: 56px;
+    padding: 10px 14px;
+    flex-wrap: wrap;
+    gap: 8px;
+    position: sticky;
+    top: 0;
+    z-index: 800;
+  }
+
+  .topbar-seals {
+    position: static;
+    transform: none;
+    order: -1;
+    width: 100%;
+    justify-content: center;
+    pointer-events: auto;
+  }
+
+  .topbar-seal-img       { height: 36px; width: 36px; }
+  .topbar-seal-img:last-child { height: 40px; width: 40px; }
+
+  .top-left  { width: 100%; justify-content: space-between; }
+  .top-right { width: 100%; justify-content: flex-end; gap: 8px; }
+
+  .title-block h1 { font-size: 13px; }
+  .subtitle       { font-size: 9px; }
+
+  .connection { font-size: 9px; padding: 4px 10px; }
+  .alert-badge { font-size: 9px; padding: 4px 10px; }
+
+  /* ── Dashboard ── */
+  .dashboard-body {
+    flex-direction: column;
+    padding: 10px;
+    gap: 10px;
+    overflow: visible;
+  }
+
+  .content {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    overflow: visible;
+  }
+
+  .card-map, .card-water, .card-battery {
+    grid-column: auto;
+    grid-row: auto;
+  }
+
+  .card-map  { height: 260px; }
+  .card-water { height: 220px; }
+  .card-battery { height: 180px; }
+
+  .right-sidebar {
+    width: 100%;
+    min-width: 100%;
+    height: auto;
+  }
+
+  .rsb-list { flex-direction: row; flex-wrap: wrap; gap: 8px; }
+
+  .rsb-item { flex: 1; min-width: 130px; }
+
+  .rsb-detail { margin-top: 10px; }
+
+  /* ── Page body ── */
+  .page-body {
+    padding: 10px;
+    gap: 10px;
+    overflow-y: visible;
+  }
+
+  .logs-page-body { overflow: visible; }
+
+  .page-card { padding: 12px; gap: 10px; }
+  .page-card-title { font-size: 14px; }
+
+  /* ── Settings — Account actions ── */
+  .settings-action-btn { padding: 12px; }
+  .sa-label { font-size: 12px; }
+  .sa-sub   { font-size: 10px; }
+
+  /* ── Settings — Manage Users ── */
+  .mu-row {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+
+  .mu-info { min-width: 0; flex: 1 1 100%; }
+
+  .mu-controls {
+    flex-wrap: wrap;
+    width: 100%;
+    gap: 6px;
+  }
+
+  .mu-select  { flex: 1; min-width: 100px; }
+  .mu-save-btn { flex: 1; }
+
+  /* ── Settings — SMS table ── */
+  .sms-table-header { display: none; }
+
+  .sms-table-row {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-rows: auto auto auto;
+    gap: 2px 12px;
+    padding: 12px 14px;
+  }
+
+  /* Name — top left */
+  .sms-table-row .sms-name {
+    grid-column: 1;
+    grid-row: 1;
+    font-size: 13px;
+  }
+
+  /* Role — second line */
+  .sms-table-row .sms-role-text {
+    grid-column: 1;
+    grid-row: 2;
+    font-size: 11px;
+    color: var(--text-3);
+    display: block;
+  }
+
+  /* Department — third line */
+  .sms-table-row > span:nth-child(3) {
+    grid-column: 1;
+    grid-row: 3;
+    font-size: 11px;
+    color: var(--text-3);
+    display: block;
+  }
+
+  /* Phone — hide on mobile to keep it clean, shown in account settings */
+  .sms-table-row > span:nth-child(4) {
+    display: none;
+  }
+
+  /* Alerts toggle — right, spans all 3 rows */
+  .sms-table-row > div:last-child {
+    grid-column: 2;
+    grid-row: 1 / 4;
+    align-self: center;
+  }
+
+  /* ── Unit Control ── */
+  .uc-card { padding: 14px; gap: 12px; }
+
+  .uc-stats-row {
+    flex-wrap: wrap;
+  }
+
+  .uc-stat {
+    flex: 1 1 45%;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .uc-stat:nth-child(odd)  { border-right: 1px solid var(--border); }
+  .uc-stat:last-child,
+  .uc-stat:nth-last-child(2):nth-child(odd) { border-bottom: none; }
+
+  .uc-thr-row {
+    flex-wrap: wrap;
+  }
+
+  .uc-thr-field { flex: 1 1 40%; }
+
+  .uc-thr-save { width: 100%; }
+
+  /* ── Logs ── */
+  .logs-filters-row { flex-direction: column; align-items: stretch; }
+
+  .logs-search-wrap { min-width: 0; }
+
+  .fdd-trigger { min-width: 0; width: 100%; }
+
+  .logs-table-head {
+    grid-template-columns: 1fr 70px 70px;
+  }
+
+  /* Hide Station column on mobile */
+  .logs-table-head .logs-col-station,
+  .logs-row .logs-col-station { display: none; }
+
+  .logs-row {
+    grid-template-columns: 1fr 70px 70px;
+    padding: 8px 12px;
+  }
+
+  .logs-col-date { gap: 1px; }
+  .logs-date-day  { font-size: 10px; }
+  .logs-date-time { font-size: 9px; }
+
+  .logs-col-msg { font-size: 10px; }
+
+  .logs-pagination { flex-direction: column; align-items: flex-start; gap: 8px; }
+
+  .logs-stat-bar { flex-wrap: wrap; }
+  .logs-stat-item { flex: 1 1 45%; border-bottom: 1px solid var(--border); }
+  .logs-stat-item:last-child { border-bottom: none; }
+
+  /* ── Charts & Map ── */
+  .chart-wrap { min-height: 160px; }
+  .map-wrap   { min-height: 220px; }
+
+  /* ── Card base ── */
+  .card        { padding: 10px 12px; }
+  .card-header { margin-bottom: 6px; }
+
+  /* ── Export & filter dropdowns ── */
+  .export-menu-wrap  { align-self: stretch; }
+  .export-menu-trigger { width: 100%; border-radius: 10px; justify-content: center; }
+  .export-menu-dropdown { right: 0; left: auto; min-width: 140px; }
+  .fdd-wrap  { width: 100%; }
+  .fdd-menu  { width: 100%; left: 0; }
+  .mc-header { margin-bottom: 8px; }
+
+  /* ── Logs table card & body ── */
+  .logs-table-card { min-height: 300px; }
+  .logs-table-body { min-height: 0; }
+
+  /* ── Settings toggles ── */
+  .settings-toggle        { padding: 5px 14px; font-size: 11px; }
+  .settings-toggle-label  { font-size: 13px; }
+  .settings-toggle-sub    { font-size: 11px; }
+  .notif-toggle-row       { padding: 12px 14px; }
+  .notif-toggle-btn-wrap  { width: 56px; }
+
+  /* ── SMS table wrapper ── */
+  .sms-table { border-radius: 8px; }
+
+  /* ── Manage users ── */
+  .mu-add-btn  { padding: 7px 12px; font-size: 11px; }
+  .mu-avatar   { width: 32px; height: 32px; font-size: 10px; }
+  .mu-name     { font-size: 12px; }
+  .mu-email    { font-size: 9px; }
+  .mu-remove-btn { width: 30px; height: 30px; }
+
+  /* ── Profile avatar ── */
+  .profile-avatar-btn { width: 30px; height: 30px; font-size: 10px; }
+
+  /* ── Unit Control card internals ── */
+  .uc-card-header  { flex-wrap: wrap; gap: 8px; }
+  .uc-card-left    { gap: 8px; }
+  .uc-card-right   { gap: 8px; }
+  .uc-card-name    { font-size: 14px; }
+  .uc-card-loc     { font-size: 10px; }
+  .uc-badge        { font-size: 9px; padding: 3px 8px; }
+  .uc-stat-label   { font-size: 8px; }
+  .uc-stat-val     { font-size: 11px; }
+  .uc-desc-section { gap: 6px; }
+  .uc-desc-header  { flex-wrap: wrap; gap: 6px; }
+  .uc-thr-section  { gap: 6px; }
+  .uc-thr-label    { font-size: 9px; }
+  .uc-inline-input { font-size: 11px; }
+  .uc-description  { font-size: 11px; padding: 10px 12px; }
+  .uc-desc-textarea { font-size: 11px; padding: 10px 12px; }
+  .uc-save-info-btn { padding: 4px 14px; font-size: 11px; }
+  .uc-edit-btn      { font-size: 10px; padding: 3px 8px; }
+  .modal-box {
+    max-width: 94vw;
+    padding: 24px 18px;
+  }
+
+  /* ── Profile dropdown ── */
+  .profile-dropdown { width: 90vw; max-width: 320px; }
+
+  /* ── Date range filter panel ── */
+  .drf-panel { right: auto; left: 0; }
+}
+
+/* ================================
+   SMALL MOBILE  (max-width: 400px)
+================================ */
+@media (max-width: 400px) {
+  .topbar-seal-img       { height: 30px; width: 30px; }
+  .topbar-seal-img:last-child { height: 34px; width: 34px; }
+
+  .nav-btn,
+  .sidebar.collapsed .nav-btn { padding: 5px 6px; font-size: 8px; }
+  .nav-icon { font-size: 16px; }
+
+  .uc-stat { flex: 1 1 100%; border-right: none; }
+  .uc-stat:nth-child(odd) { border-right: none; }
+
+  .mu-select { font-size: 10px; padding: 4px 8px; }
+
+  .logs-table-head { grid-template-columns: 100px 60px; }
+  .logs-row        { grid-template-columns: 100px 60px; }
+  .logs-row .logs-col-type,
+  .logs-table-head .logs-col-type { display: none; }
+
+  .logs-col-msg { display: none; }
+}
