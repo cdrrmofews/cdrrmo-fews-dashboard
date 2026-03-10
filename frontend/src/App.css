@@ -879,7 +879,7 @@ select.settings-input {
   position: absolute; top: calc(100% + 4px); left: 0;
   background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px;
   padding: 4px; box-shadow: 0 12px 40px rgba(0,0,0,0.65);
-  z-index: 9999; width: max-content; min-width: 100%;
+  z-index: 99999; width: max-content; min-width: 100%;
   animation: cdp-fade 0.12s ease;
 }
 
@@ -2208,8 +2208,8 @@ select.settings-input {
   /* ── Modals — compact on mobile ── */
   .modal-box {
     max-width: 92vw;
-    max-height: 88vh;
-    overflow-y: auto;
+    max-height: 92vh;
+    overflow-y: visible;
     padding: 16px 14px;
     gap: 10px;
     border-radius: 14px;
@@ -2219,10 +2219,19 @@ select.settings-input {
   .modal-msg   { font-size: 11px; margin-bottom: 2px; }
   .modal-btn   { padding: 9px; font-size: 12px; }
 
-  /* Add New User modal — compact fields */
+  /* Add New User modal — compact, no scroll, fits content */
   .settings-field  { gap: 4px; }
   .settings-label  { font-size: 10px; }
-  .aum-box         { gap: 10px !important; max-width: 92vw !important; }
+  .aum-box {
+    gap: 8px !important;
+    max-width: 92vw !important;
+    overflow-y: visible !important;
+    max-height: none !important;
+  }
+  /* Compact input heights inside modal */
+  .aum-box .settings-input { height: 42px; font-size: 16px !important; padding: 0 12px; }
+  .aum-box .settings-field { gap: 3px; }
+  .aum-box .settings-label { font-size: 10px; letter-spacing: 0.05em; }
 
   .login-input        { font-size: 16px !important; }
   .logs-search-input  { font-size: 16px !important; height: 36px; padding: 8px 30px 8px 34px; }
