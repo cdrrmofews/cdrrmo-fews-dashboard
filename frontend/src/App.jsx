@@ -1690,12 +1690,12 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
             </div>
             {(isAdmin ? users : users.filter(u => u.role !== "Admin")).map(u => (
               <div key={u.id} className="sms-table-row">
-                <span className="sms-name">{u.name}</span>
+                <span className="sms-name">
+                  {u.name}{u.phone ? <span style={{ color:"var(--text-3)", fontWeight:400, fontSize:"0.85em" }}> · {u.phone}</span> : null}
+                </span>
                 <span className="sms-role-text">{u.role}</span>
                 <span style={{ color:"var(--text-2)", fontSize:12 }}>{u.department}</span>
-                <span style={{ color: u.phone ? "var(--text-1)" : "var(--text-3)", fontSize: 12 }}>
-                  {u.phone || "—"}
-                </span>
+                <span style={{ display:"none" }}>{u.phone || "—"}</span>
                 <div style={{ display:"flex", justifyContent:"center" }}>
                   <button
                     className={`settings-toggle ${u.sms_enabled ? "stoggle-on" : "stoggle-off"}`}

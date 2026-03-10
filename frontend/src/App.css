@@ -836,8 +836,9 @@ select.settings-input {
 .mu-save-btn {
   background: rgba(56,189,248,0.15); color: var(--blue);
   border: 1px solid rgba(56,189,248,0.25); border-radius: 8px;
-  padding: 5px 12px; font-family: var(--font); font-size: 11px; font-weight: 700;
+  padding: 0 12px; height: 32px; font-family: var(--font); font-size: 11px; font-weight: 700;
   cursor: pointer; transition: background 0.2s, opacity 0.2s; white-space: nowrap;
+  display: flex; align-items: center;
 }
 .mu-save-btn:hover    { background: rgba(56,189,248,0.25); }
 .mu-save-btn:disabled { opacity: 0.3; cursor: default; }
@@ -853,7 +854,12 @@ select.settings-input {
 .mu-remove-btn:hover { background: rgba(239,68,68,0.12); color: var(--red); border-color: rgba(239,68,68,0.3); }
 
 /* ── MU DROPDOWN (custom styled replace for native select) ── */
-.mu-dd-wrap { position: relative; flex: 1; min-width: 0; }
+.mu-dd-wrap { position: relative; flex: 0 0 auto; }
+
+/* Role dropdown — "Operator" is longest, ~90px */
+.mu-dd-wrap:nth-child(1) { min-width: 100px; }
+/* Department dropdown — "Field Unit A" is longest, ~130px */
+.mu-dd-wrap:nth-child(2) { min-width: 140px; }
 
 .mu-dd-trigger {
   display: flex; align-items: center; justify-content: space-between;
@@ -2041,12 +2047,13 @@ select.settings-input {
   /* ── Settings — Manage Users ── */
   .mu-row      { flex-wrap: wrap; gap: 10px; }
   .mu-info     { min-width: 0; flex: 1 1 100%; }
-  .mu-controls { flex-wrap: wrap; width: 100%; gap: 6px; }
-  .mu-dd-wrap  { flex: 1; min-width: 0; }
+  .mu-controls { display: flex; flex-wrap: nowrap; width: 100%; gap: 6px; align-items: center; }
+  .mu-dd-wrap  { flex: 1 1 0 !important; min-width: 0 !important; }
   .mu-dd-trigger { font-size: 12px; height: 34px; }
   .mu-dd-item  { font-size: 13px; padding: 9px 12px; }
   .settings-field .mu-dd-trigger { height: 38px; font-size: 16px; }
-  .mu-save-btn { flex: 1; }
+  .mu-save-btn { flex: 0 0 auto; padding: 0 14px; height: 34px; font-size: 11px; }
+  .mu-remove-btn { flex-shrink: 0; width: 34px; height: 34px; }
   .mu-add-btn  { padding: 6px 10px; font-size: 11px; }
   .mu-avatar   { width: 32px; height: 32px; font-size: 10px; }
   .mu-name     { font-size: 12px; }
