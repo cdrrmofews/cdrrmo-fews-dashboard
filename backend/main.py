@@ -325,9 +325,13 @@ def history():
     try:
         cur.execute("""
             SELECT device_id, water_level_cm, timestamp
-            FROM sensor_readings
-            WHERE device_id = 'fews_1'
-              AND timestamp >= NOW() - INTERVAL '12 hours'
+            FROM (
+                SELECT device_id, water_level_cm, timestamp
+                FROM sensor_readings
+                WHERE device_id = 'fews_1'
+                ORDER BY timestamp DESC
+                LIMIT 10
+            ) sub
             ORDER BY timestamp ASC
         """)
         rows = cur.fetchall()

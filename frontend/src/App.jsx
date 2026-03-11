@@ -1831,7 +1831,7 @@ export default function App() {
             ? rawTs.replace(" ", "T").replace(/Z?$/, "Z")
             : null;
           const lastSeen = utcStr ? new Date(utcStr) : null;
-          const isRecent = lastSeen && (Date.now() - lastSeen.getTime()) < 360000;
+          const isRecent = lastSeen && (Date.now() - lastSeen.getTime()) < 600000;
 
           if (isRecent) {
             setFews1Live(data.fews_1);
@@ -1993,15 +1993,7 @@ export default function App() {
             borderColor: "rgba(245,158,11,0.55)",
             borderWidth: 1,
             borderDash: [4, 4],
-            label: {
-              display: true,
-              content: "WARNING  200cm",
-              position: "end",
-              color: "#f59e0b",
-              backgroundColor: "rgba(245,158,11,0.12)",
-              font: { size: 9, weight: "700", family: "JetBrains Mono, monospace" },
-              padding: { x: 6, y: 3 },
-            },
+            label: { display: false },
           },
           lineCritical: {
             type: "line",
@@ -2010,15 +2002,7 @@ export default function App() {
             borderColor: "rgba(239,68,68,0.55)",
             borderWidth: 1,
             borderDash: [4, 4],
-            label: {
-              display: true,
-              content: "CRITICAL  300cm",
-              position: "end",
-              color: "#ef4444",
-              backgroundColor: "rgba(239,68,68,0.12)",
-              font: { size: 9, weight: "700", family: "JetBrains Mono, monospace" },
-              padding: { x: 6, y: 3 },
-            },
+            label: { display: false },
           },
         },
       },
@@ -2048,6 +2032,14 @@ export default function App() {
           minRotation: 0,
           font: { size: 9 },
           maxTicksLimit: 13,
+          callback: function(val, index) {
+            const label = this.getLabelForValue(val);
+            if (!label) return "";
+            const match = label.match(/(\d+):(\d+)/);
+            if (!match) return label;
+            const mins = parseInt(match[2]);
+            return mins % 5 === 0 ? label : "";
+          },
         },
       },
     },
@@ -2261,7 +2253,7 @@ export default function App() {
                   <h2>Water Level</h2>
                   <span className="card-tag">
                     {fews1Connected
-                      ? (historyData.length > 0 ? `${historyData.length} readings · Last 12h` : "Live")
+                      ? (historyData.length > 0 ? `${historyData.length} readings · Last 50min` : "Live")
                       : "Waiting for data"}
                   </span>
                 </div>
