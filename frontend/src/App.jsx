@@ -17,7 +17,7 @@ import {
   Tooltip,
   Legend,
 } from "chart.js";
-import "chartjs-adapter-date-fns";
+import "chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.esm";
 import annotationPlugin from "chartjs-plugin-annotation";
 import Login from "./Login";
 
@@ -1819,6 +1819,10 @@ export default function App() {
     [user.role]
   );
 
+  // ─── Track FEWS 1 online/offline transitions ─────────────────────────────
+  const wasConnectedRef = useRef(null);
+  const offlineTimeRef  = useRef(null);
+
   // ─── Poll latest sensor data every 5s ────────────────────────────────────
   useEffect(() => {
     const poll = async () => {
@@ -1827,7 +1831,6 @@ export default function App() {
         if (!res.ok) throw new Error("non-200");
         const data = await res.json();
         if (data.fews_1) {
-          // Check if the last reading is recent (within 30 seconds)
           const rawTs = data.fews_1.timestamp;
           const utcStr = typeof rawTs === "string"
             ? rawTs.replace(" ", "T").replace(/Z?$/, "Z")
@@ -1839,19 +1842,45 @@ export default function App() {
             setFews1Live(data.fews_1);
             setFews1Connected(true);
             setLastUpdated(new Date());
+            // Transition: offline → online
+            if (wasConnectedRef.current === false && offlineTimeRef.current) {
+              const diffMs   = Date.now() - offlineTimeRef.current;
+              const diffMins = Math.floor(diffMs / 60000);
+              const hours    = Math.floor(diffMins / 60);
+              const mins     = diffMins % 60;
+              const duration = hours > 0 ? `${hours} hour${hours > 1 ? "s" : ""} ${mins} minute${mins !== 1 ? "s" : ""}` : `${mins} minute${mins !== 1 ? "s" : ""}`;
+              addLog({ station: "FEWS 1", type: "system", message: `FEWS 1 is back online after ${duration} of inactivity` });
+              offlineTimeRef.current = null;
+            }
+            wasConnectedRef.current = true;
           } else {
-            // Data exists but is stale — treat as disconnected
             setFews1Live(null);
             setFews1Connected(false);
+            // Transition: online → offline
+            if (wasConnectedRef.current === true) {
+              offlineTimeRef.current = Date.now();
+              addLog({ station: "FEWS 1", type: "warning", message: `FEWS 1 went offline — no data received` });
+            }
+            wasConnectedRef.current = false;
           }
         } else {
-          // No sensor data at all
           setFews1Live(null);
           setFews1Connected(false);
+          // Transition: online → offline
+          if (wasConnectedRef.current === true) {
+            offlineTimeRef.current = Date.now();
+            addLog({ station: "FEWS 1", type: "warning", message: `FEWS 1 went offline — no data received` });
+          }
+          wasConnectedRef.current = false;
         }
       } catch {
         setFews1Live(null);
         setFews1Connected(false);
+        if (wasConnectedRef.current === true) {
+          offlineTimeRef.current = Date.now();
+          addLog({ station: "FEWS 1", type: "warning", message: `FEWS 1 went offline — no data received` });
+        }
+        wasConnectedRef.current = false;
       }
     };
     poll();
