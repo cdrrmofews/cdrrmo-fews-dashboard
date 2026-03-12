@@ -25,7 +25,15 @@ def get_pool():
 def get_db():
     pool = get_pool()
     conn = pool.getconn()
-    # Reset connection state to avoid stale connections
+    # Check if connection is still alive, replace if stale
+    try:
+        conn.cursor().execute("SELECT 1")
+    except Exception:
+        try:
+            pool.putconn(conn, close=True)
+        except Exception:
+            pass
+        conn = pool.getconn()
     conn.autocommit = False
     return conn
 

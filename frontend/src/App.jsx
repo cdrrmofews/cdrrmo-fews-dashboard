@@ -1909,7 +1909,7 @@ export default function App() {
   useEffect(() => {
     const buildChart = (rows) => {
       const now      = Date.now();
-      const windowMs = 50 * 60 * 1000;
+      const windowMs = 60 * 60 * 1000;
       const winStart = now - windowMs;
 
       // Filter to 50-min window
@@ -1981,7 +1981,7 @@ export default function App() {
     ? historyData.positions.map((ms, i) => ({ x: ms, y: historyData.values[i] }))
     : [];
 
-  const chartWinStart = Math.floor((historyData?.winStart ?? (Date.now() - 50 * 60 * 1000)) / 300000) * 300000;
+  const chartWinStart = Math.floor((historyData?.winStart ?? (Date.now() - 60 * 60 * 1000)) / 300000) * 300000;
   const chartWinEnd   = Math.ceil((historyData?.winEnd   ?? Date.now()) / 300000) * 300000;
 
   const waterChartData = {
@@ -2335,7 +2335,7 @@ export default function App() {
                   <h2>Water Level</h2>
                   <span className="card-tag">
                     {fews1Connected
-                      ? (historyData.values.length > 0 ? `${historyData.values.length} readings · Last 50min` : "Live")
+                      ? (historyData.values.length > 0 ? `${historyData.values.length} readings · Last 1hr` : "Live")
                       : "Waiting for data"}
                   </span>
                 </div>
