@@ -3,7 +3,7 @@ import uuid
 import threading
 import requests
 import paho.mqtt.client as mqtt
-from database import get_db
+from database import get_db, release_db
 
 # ─── SEMAPHORE SMS ────────────────────────────────────────────────────────────
 SEMAPHORE_API_KEY = "9a340cae60906c4fc591a20a24ace1b7"   # replace with real key
@@ -18,7 +18,7 @@ def send_sms_to_all():
         recipients = cur.fetchall()
     finally:
         cur.close()
-        conn.close()
+        release_db(conn)
 
     if not recipients:
         return
@@ -133,7 +133,7 @@ def on_message(client, userdata, msg):
                 threading.Thread(target=send_sms_to_all, daemon=True).start()
         finally:
             cur.close()
-            conn.close()
+            release_db(conn)
 
     except Exception as e:
         print(f"[BRIDGE] Error: {e}")
