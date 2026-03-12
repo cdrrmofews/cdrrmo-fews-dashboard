@@ -1820,7 +1820,89 @@ export default function App() {
   // ─── Track FEWS 1 online/offline transitions ─────────────────────────────
   const wasConnectedRef = useRef(null);
   const offlineTimeRef  = useRef(null);
-  const offlineTimerRef = useRef(null); // delay timer before logging offline
+  const offlineTimerRef = useRef(null);
+
+  // Restore offline state from sessionStorage on mount
+  useEffect(() => {
+    const storedOfflineTime = sessionStorage.getItem("fews1_offline_time");
+    const storedWasOffline  = sessionStorage.getItem("fews1_was_offline");
+    const storedLogged      = sessionStorage.getItem("fews1_offline_logged");
+
+    if (storedOfflineTime) {
+      offlineTimeRef.current  = parseInt(storedOfflineTime, 10);
+    }
+    if (storedWasOffline === "true") {
+      wasConnectedRef.current = false;
+
+      // If offline log hasn't fired yet, restart the timer for remaining time
+      if (storedLogged !== "true" && storedOfflineTime) {
+        const elapsed   = Date.now() - parseInt(storedOfflineTime, 10);
+        const remaining = Math.max(0, 120000 - elapsed);
+        offlineTimerRef.current = setTimeout(() => {
+          addLog({ station: "FEWS 1", type: "warning", message: `FEWS 1 went offline — no data received` });
+          sessionStorage.setItem("fews1_offline_logged", "true");
+          offlineTimerRef.current = null;
+        }, remaining);
+      }
+    }
+  }, []);
+
+  const handleOnline = useCallback(() => {
+    setFews1Connected(true);
+    setLastUpdated(new Date());
+
+    const wasOffline = wasConnectedRef.current === false || sessionStorage.getItem("fews1_was_offline") === "true";
+    const offlineTime = offlineTimeRef.current || parseInt(sessionStorage.getItem("fews1_offline_time") || "0", 10);
+
+    if (wasOffline && offlineTime) {
+      // Cancel pending offline timer if it hasn't fired yet
+      if (offlineTimerRef.current) {
+        clearTimeout(offlineTimerRef.current);
+        offlineTimerRef.current = null;
+        // Timer hadn't fired — brief disconnect, log nothing
+      } else {
+        // Offline log already fired — log back online with duration
+        const diffMs   = Date.now() - offlineTime;
+        const diffMins = Math.floor(diffMs / 60000);
+        if (diffMins >= 2) {
+          const hours    = Math.floor(diffMins / 60);
+          const mins     = diffMins % 60;
+          const duration = hours > 0
+            ? `${hours} hour${hours > 1 ? "s" : ""} ${mins} minute${mins !== 1 ? "s" : ""}`
+            : `${mins} minute${mins !== 1 ? "s" : ""}`;
+          addLog({ station: "FEWS 1", type: "system", message: `FEWS 1 is back online after ${duration} of inactivity` });
+        }
+      }
+      offlineTimeRef.current = null;
+      sessionStorage.removeItem("fews1_offline_time");
+      sessionStorage.removeItem("fews1_was_offline");
+      sessionStorage.removeItem("fews1_offline_logged");
+    }
+
+    wasConnectedRef.current = true;
+  }, [addLog]);
+
+  const handleOffline = useCallback(() => {
+    setFews1Live(null);
+    setFews1Connected(false);
+
+    const wasOnline = wasConnectedRef.current === true;
+    // Start timer only if: was online AND no timer running AND no existing offline session
+    if (wasOnline && !offlineTimerRef.current && !sessionStorage.getItem("fews1_was_offline")) {
+      const offlineTime = Date.now();
+      offlineTimeRef.current = offlineTime;
+      sessionStorage.setItem("fews1_offline_time", String(offlineTime));
+      sessionStorage.setItem("fews1_was_offline", "true");
+
+      offlineTimerRef.current = setTimeout(() => {
+        addLog({ station: "FEWS 1", type: "warning", message: `FEWS 1 went offline — no data received` });
+        sessionStorage.setItem("fews1_offline_logged", "true");
+        offlineTimerRef.current = null;
+      }, 120000);
+    }
+
+    wasConnectedRef.current = false;
+  }, [addLog]);
 
   // ─── Poll latest sensor data every 5s ────────────────────────────────────
   useEffect(() => {
@@ -1830,7 +1912,7 @@ export default function App() {
         if (!res.ok) throw new Error("non-200");
         const data = await res.json();
         if (data.fews_1) {
-          const rawTs = data.fews_1.timestamp;
+          const rawTs  = data.fews_1.timestamp;
           const utcStr = typeof rawTs === "string"
             ? rawTs.replace(" ", "T").replace(/Z?$/, "Z")
             : null;
@@ -1839,71 +1921,21 @@ export default function App() {
 
           if (isRecent) {
             setFews1Live(data.fews_1);
-            setFews1Connected(true);
-            setLastUpdated(new Date());
-            // Transition: offline → online
-            if (wasConnectedRef.current === false && offlineTimeRef.current) {
-              // Cancel pending offline log if it hasn't fired yet
-              if (offlineTimerRef.current) {
-                clearTimeout(offlineTimerRef.current);
-                offlineTimerRef.current = null;
-              } else {
-                // Offline log already fired — log back online if offline >= 2 mins
-                const diffMs   = Date.now() - offlineTimeRef.current;
-                const diffMins = Math.floor(diffMs / 60000);
-                if (diffMins >= 2) {
-                  const hours    = Math.floor(diffMins / 60);
-                  const mins     = diffMins % 60;
-                  const duration = hours > 0 ? `${hours} hour${hours > 1 ? "s" : ""} ${mins} minute${mins !== 1 ? "s" : ""}` : `${mins} minute${mins !== 1 ? "s" : ""}`;
-                  addLog({ station: "FEWS 1", type: "system", message: `FEWS 1 is back online after ${duration} of inactivity` });
-                }
-              }
-              offlineTimeRef.current = null;
-            }
-            wasConnectedRef.current = true;
+            handleOnline();
           } else {
-            setFews1Live(null);
-            setFews1Connected(false);
-            // Transition: online → offline — wait 2 mins before logging
-            if (wasConnectedRef.current === true && !offlineTimerRef.current) {
-              offlineTimeRef.current = Date.now();
-              offlineTimerRef.current = setTimeout(() => {
-                addLog({ station: "FEWS 1", type: "warning", message: `FEWS 1 went offline — no data received` });
-                offlineTimerRef.current = null;
-              }, 120000); // 2 minutes
-            }
-            wasConnectedRef.current = false;
+            handleOffline();
           }
         } else {
-          setFews1Live(null);
-          setFews1Connected(false);
-          // Transition: online → offline — wait 2 mins before logging
-          if (wasConnectedRef.current === true && !offlineTimerRef.current) {
-            offlineTimeRef.current = Date.now();
-            offlineTimerRef.current = setTimeout(() => {
-              addLog({ station: "FEWS 1", type: "warning", message: `FEWS 1 went offline — no data received` });
-              offlineTimerRef.current = null;
-            }, 120000); // 2 minutes
-          }
-          wasConnectedRef.current = false;
+          handleOffline();
         }
       } catch {
-        setFews1Live(null);
-        setFews1Connected(false);
-        if (wasConnectedRef.current === true && !offlineTimerRef.current) {
-          offlineTimeRef.current = Date.now();
-          offlineTimerRef.current = setTimeout(() => {
-            addLog({ station: "FEWS 1", type: "warning", message: `FEWS 1 went offline — no data received` });
-            offlineTimerRef.current = null;
-          }, 120000); // 2 minutes
-        }
-        wasConnectedRef.current = false;
+        handleOffline();
       }
     };
     poll();
     const interval = setInterval(poll, 5000);
     return () => { clearInterval(interval); if (offlineTimerRef.current) clearTimeout(offlineTimerRef.current); };
-  }, []);
+  }, [handleOnline, handleOffline]);
 
   // ─── Fetch real water level history every 10s ─────────────────────────────
   useEffect(() => {
