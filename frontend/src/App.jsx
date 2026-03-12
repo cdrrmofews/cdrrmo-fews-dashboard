@@ -1909,55 +1909,36 @@ export default function App() {
   useEffect(() => {
     const buildChart = (rows) => {
       const now      = Date.now();
-      const windowMs = 50 * 60 * 1000; // 50 minutes
+      const windowMs = 50 * 60 * 1000;
       const winStart = now - windowMs;
 
-      // Generate fixed 5-min grid labels — round to nearest 5-min for clean display
-      const gridLabelStart = Math.ceil(winStart / 300000) * 300000;
-      const gridLabelEnd   = Math.ceil(now      / 300000) * 300000;
-      const gridLabels = [];
-      for (let t = gridLabelStart; t <= gridLabelEnd; t += 300000) {
-        gridLabels.push(new Intl.DateTimeFormat("en-PH", {
-          timeZone: "Asia/Manila",
-          hour: "2-digit",
-          minute: "2-digit",
-          hour12: false,
-        }).format(new Date(t)));
-      }
-
-      // Filter rows to only those within the 50-min window
+      // Filter to 50-min window
       const recent = (rows || []).filter((r) => {
         const utcStr = r.timestamp.replace(" ", "T").replace(/Z?$/, "Z");
         return new Date(utcStr).getTime() >= winStart;
       });
 
-      if (recent.length === 0) {
-        setHistoryLabels(gridLabels);
-        setHistoryData({ positions: [], values: [], exactLabels: [] });
-        return;
-      }
+      const exactLabels = recent.map((r) => {
+        const utcStr = r.timestamp.replace(" ", "T").replace(/Z?$/, "Z");
+        const ts = new Date(utcStr).getTime();
+        return new Intl.DateTimeFormat("en-PH", {
+          timeZone: "Asia/Manila",
+          hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false,
+        }).format(new Date(ts));
+      });
 
-      const timestamps = recent.map((r) => {
+      const msTimestamps = recent.map((r) => {
         const utcStr = r.timestamp.replace(" ", "T").replace(/Z?$/, "Z");
         return new Date(utcStr).getTime();
       });
 
-      // Use exact winStart for position math so dots land correctly
-      const totalMs      = gridLabelEnd - gridLabelStart;
-      const gridPositions = timestamps.map((ts) => (ts - gridLabelStart) / 300000);
-
-      const exactLabels = timestamps.map((ts) =>
-        new Intl.DateTimeFormat("en-PH", {
-          timeZone: "Asia/Manila",
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-          hour12: false,
-        }).format(new Date(ts))
-      );
-
-      setHistoryLabels(gridLabels);
-      setHistoryData({ positions: gridPositions, values: recent.map((r) => r.water_level_cm), exactLabels });
+      setHistoryData({
+        positions: msTimestamps,
+        values: recent.map((r) => r.water_level_cm),
+        exactLabels,
+        winStart,
+        winEnd: now,
+      });
     };
 
     const fetchHistory = async () => {
@@ -1996,14 +1977,18 @@ export default function App() {
   if (!isLoggedIn) return <Login onLogin={handleLogin} />;
 
   // ─── WATER LEVEL CHART (fixed 0-500cm with threshold zones) ──────────────
-  const chartPoints = historyData?.positions
-    ? historyData.positions.map((x, i) => ({ x, y: historyData.values[i] }))
+  const chartPoints = (historyData?.values?.length)
+    ? historyData.positions.map((ms, i) => ({ x: ms, y: historyData.values[i] }))
     : [];
+
+  const chartWinStart = historyData?.winStart ?? (Date.now() - 50 * 60 * 1000);
+  const chartWinEnd   = historyData?.winEnd   ?? Date.now();
+
   const waterChartData = {
-    labels: historyLabels,
     datasets: [{
       label: "FEWS 1",
       data: chartPoints,
+      spanGaps: false,
       borderColor: "#22c55e",
       backgroundColor: "rgba(34,197,94,0.08)",
       tension: 0,
@@ -2121,13 +2106,22 @@ export default function App() {
         },
       },
       x: {
+        type: "linear",
+        min: chartWinStart,
+        max: chartWinEnd,
         grid: { color: "rgba(255,255,255,0.04)" },
         ticks: {
           color: "#64748b",
           maxRotation: 0,
           minRotation: 0,
           font: { size: 9 },
-          maxTicksLimit: 10,
+          stepSize: 5 * 60 * 1000, // 5 minutes in ms
+          callback: (val) => new Intl.DateTimeFormat("en-PH", {
+            timeZone: "Asia/Manila",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+          }).format(new Date(val)),
         },
       },
     },
