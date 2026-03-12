@@ -11,7 +11,8 @@ from auth import hash_password, verify_password, create_token, decode_token
 app = FastAPI()
 
 def run_with_retry(fn):
-    """Run fn(conn, cur) — retries once on SSL/connection error by resetting pool."""
+    """Run fn(conn, cur) — retries once on SSL/connection error.
+    fn must NOT close cur or call release_db — this wrapper owns that."""
     for attempt in range(2):
         conn = get_db()
         cur  = conn.cursor()
@@ -32,6 +33,10 @@ def run_with_retry(fn):
             except Exception: pass
             release_db(conn)
             raise
+        else:
+            try: cur.close()
+            except Exception: pass
+            release_db(conn)
 
 app.add_middleware(
     CORSMiddleware,
@@ -175,8 +180,6 @@ def login(req: LoginRequest):
             user["name"]
         ))
         conn.commit()
-        cur.close()
-        release_db(conn)
         return {
             "token":      token,
             "username":   user["name"],
@@ -331,8 +334,6 @@ def latest():
         for row in rows:
             key = row["device_id"].lower().replace("-", "_").replace(" ", "_")
             result[key] = dict(row)
-        cur.close()
-        release_db(conn)
         return result
     return run_with_retry(_query)
 
@@ -352,8 +353,6 @@ def history():
             ORDER BY timestamp ASC
         """)
         rows = cur.fetchall()
-        cur.close()
-        release_db(conn)
         return [dict(r) for r in rows]
     return run_with_retry(_query)
 
