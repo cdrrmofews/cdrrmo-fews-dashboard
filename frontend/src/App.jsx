@@ -1904,38 +1904,58 @@ export default function App() {
     wasConnectedRef.current = false;
   }, [addLog]);
 
-  // ─── Poll latest sensor data every 5s ────────────────────────────────────
-  useEffect(() => {
-    const poll = async () => {
-      try {
-        const res = await fetch(`${API_BASE}/data/latest`);
-        if (!res.ok) throw new Error("non-200");
-        const data = await res.json();
-        if (data.fews_1) {
-          const rawTs  = data.fews_1.timestamp;
-          const utcStr = typeof rawTs === "string"
-            ? rawTs.replace(" ", "T").replace(/Z?$/, "Z")
-            : null;
-          const lastSeen = utcStr ? new Date(utcStr) : null;
-          const isRecent = lastSeen && (Date.now() - lastSeen.getTime()) < 600000;
+// ─── Poll latest sensor data every 5s ────────────────────────────────────
+useEffect(() => {
+  const failCount = { current: 0 };  // ← ADD THIS
+  let timeoutId = null;               // ← ADD THIS
 
-          if (isRecent) {
-            setFews1Live(data.fews_1);
-            handleOnline();
-          } else {
-            handleOffline();
-          }
+  const poll = async () => {
+    try {
+      const res = await fetch(`${API_BASE}/data/latest`);
+      if (!res.ok) throw new Error("non-200");
+      const data = await res.json();
+      if (data.fews_1) {
+        const rawTs  = data.fews_1.timestamp;
+        const utcStr = typeof rawTs === "string"
+          ? rawTs.replace(" ", "T").replace(/Z?$/, "Z")
+          : null;
+        const lastSeen = utcStr ? new Date(utcStr) : null;
+        const isRecent = lastSeen && (Date.now() - lastSeen.getTime()) < 600000;
+
+        if (isRecent) {
+          setFews1Live(data.fews_1);
+          handleOnline();
+          failCount.current = 0;      // ← ADD THIS
         } else {
           handleOffline();
+          failCount.current += 1;     // ← ADD THIS
         }
-      } catch {
+      } else {
         handleOffline();
+        failCount.current += 1;       // ← ADD THIS
       }
-    };
-    poll();
-    const interval = setInterval(poll, 5000);
-    return () => { clearInterval(interval); if (offlineTimerRef.current) clearTimeout(offlineTimerRef.current); };
-  }, [handleOnline, handleOffline]);
+    } catch {
+      handleOffline();
+      failCount.current += 1;         // ← ADD THIS
+    } finally {
+      // ── ADD THIS WHOLE BLOCK ──────────────────────────────────────────
+      const delay = failCount.current === 0 ? 5000
+                  : failCount.current === 1 ? 10000
+                  : failCount.current === 2 ? 20000
+                  : 30000;
+      timeoutId = setTimeout(poll, delay);
+      // ─────────────────────────────────────────────────────────────────
+    }
+  };
+
+  poll();
+  // ─── REMOVE the setInterval line and update the cleanup ──────────────
+  return () => {
+    if (timeoutId) clearTimeout(timeoutId);                          // ← CHANGED
+    if (offlineTimerRef.current) clearTimeout(offlineTimerRef.current);
+  };
+  // ─────────────────────────────────────────────────────────────────────
+}, [handleOnline, handleOffline]);
 
   // ─── Fetch real water level history every 10s ─────────────────────────────
   useEffect(() => {
