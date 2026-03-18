@@ -2215,21 +2215,37 @@ export default function App() {
     return [fews1];
   }, [fews1Live]);
 
-  const toggleSiren = (id) => {
-    if (!can(user.role, "sirenControl")) return;
-    const turningOn = !sirens[id];
-    setSirens(prev => ({ ...prev, [id]: !prev[id] }));
-    const f = allFews.find(x => x.id === id);
-    if (f) {
-      addLog({
-        station: f.name,
-        type: turningOn ? "warning" : "system",
-        message: turningOn
-          ? `Siren for ${f.name} (${f.location}) has been manually activated by ${user.name}`
-          : `Siren for ${f.name} (${f.location}) has been silenced by ${user.name}`,
-      });
-    }
-  };
+const toggleSiren = async (id) => {
+  if (!can(user.role, "sirenControl")) return;
+  const turningOn = !sirens[id];
+  const deviceId = "fews" + id;
+
+  try {
+    await authFetch(`${API_BASE}/siren/${deviceId}`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${token}`
+      },
+      body: JSON.stringify({ state: turningOn ? "on" : "off" })
+    });
+    console.log(`[SIREN] Command sent: ${turningOn ? "on" : "off"}`);
+  } catch (e) {
+    console.error("[SIREN] Control failed:", e);
+  }
+
+  setSirens(prev => ({ ...prev, [id]: !prev[id] }));
+  const f = allFews.find(x => x.id === id);
+  if (f) {
+    addLog({
+      station: f.name,
+      type: turningOn ? "warning" : "system",
+      message: turningOn
+        ? `Siren for ${f.name} (${f.location}) has been manually activated by ${user.name}`
+        : `Siren for ${f.name} (${f.location}) has been silenced by ${user.name}`,
+    });
+  }
+};
 
   // FIX 1: Memoize chart points so they only recompute when historyData changes
   const chartPoints = useMemo(() =>

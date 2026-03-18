@@ -130,6 +130,11 @@ class CreateLogRequest(BaseModel):
     message:   str
     user_name: Optional[str] = None
 
+# ── NEW: Siren control schema ─────────────────────────────────────────────────
+class SirenRequest(BaseModel):
+    state: str  # "on" or "off"
+# ─────────────────────────────────────────────────────────────────────────────
+
 # --- AUTH ---
 
 @app.post("/login")
@@ -503,3 +508,11 @@ def update_unit(device_id: str, req: UpdateUnitRequest, user=Depends(get_current
     finally:
         cur.close()
         release_db(conn)
+
+# ── NEW: Siren control endpoint ───────────────────────────────────────────────
+@app.post("/siren/{device_id}")
+def control_siren(device_id: str, req: SirenRequest, user=Depends(get_current_user)):
+    from mqtt_bridge import publish_siren
+    publish_siren(device_id, req.state)
+    return {"ok": True}
+# ─────────────────────────────────────────────────────────────────────────────

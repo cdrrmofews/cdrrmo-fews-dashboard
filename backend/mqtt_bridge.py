@@ -3,6 +3,7 @@ import uuid
 import threading
 import requests
 import paho.mqtt.client as mqtt
+import paho.mqtt.publish as mqtt_publish
 from database import get_db, release_db
 
 # ─── SEMAPHORE SMS ────────────────────────────────────────────────────────────
@@ -10,7 +11,6 @@ SEMAPHORE_API_KEY = "9a340cae60906c4fc591a20a24ace1b7"
 SEMAPHORE_SENDER  = "CDRRMO"
 
 def send_sms_to_all():
-    """Send CRITICAL alert SMS to all users with sms_enabled=True and a phone number."""
     conn = get_db()
     cur  = conn.cursor()
     try:
@@ -84,7 +84,7 @@ def on_message(client, userdata, msg):
         status         = data.get("status")
         latitude       = data.get("latitude")
         longitude      = data.get("longitude")
-        is_immediate   = data.get("is_immediate", False)  # NEW
+        is_immediate   = data.get("is_immediate", False)
 
         conn = get_db()
         cur  = conn.cursor()
@@ -100,7 +100,7 @@ def on_message(client, userdata, msg):
                 status,
                 latitude,
                 longitude,
-                is_immediate,  # NEW
+                is_immediate,
             ))
 
             log_type     = water_level_to_type(water_level_cm)
@@ -156,3 +156,20 @@ def start_bridge_thread():
     t = threading.Thread(target=start_bridge, daemon=True)
     t.start()
     print("[BRIDGE] Thread started")
+
+# ── NEW: Publish siren command to Arduino ─────────────────────────────────────
+def publish_siren(device_id: str, state: str):
+    topic   = f"cdrrmo/{device_id}/siren"
+    payload = json.dumps({"siren": state})
+    try:
+        mqtt_publish.single(
+            topic,
+            payload=payload,
+            hostname=MQTT_BROKER,
+            port=MQTT_PORT,
+            protocol=mqtt.MQTTv311,
+        )
+        print(f"[SIREN] Published '{state}' to {topic}")
+    except Exception as e:
+        print(f"[SIREN] Failed to publish: {e}")
+# ─────────────────────────────────────────────────────────────────────────────
