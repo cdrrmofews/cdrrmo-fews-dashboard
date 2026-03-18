@@ -63,6 +63,30 @@ function can(role, feature) {
   return false;
 }
 
+// ─── FIX 4: User normalization helper ────────────────────────────────────────
+// Ensures the user object always has all expected fields with safe defaults,
+// regardless of what the backend or sessionStorage returns.
+function normalizeUser(parsed) {
+  if (!parsed || typeof parsed !== "object") {
+    return { name: "", role: "Operator", department: "", email: "", phone: "", photo: null, sms_enabled: false, initials: "?" };
+  }
+  const name = parsed.name || "";
+  const initials = parsed.initials ||
+    name.split(" ").filter(Boolean).map(w => w[0]).join("").slice(0, 2).toUpperCase() ||
+    "?";
+  return {
+    name,
+    role:        parsed.role        || "Operator",
+    department:  parsed.department  || "",
+    email:       parsed.email       || "",
+    phone:       parsed.phone       || "",
+    photo:       parsed.photo       || null,
+    sms_enabled: parsed.sms_enabled ?? false,
+    initials,
+  };
+}
+// ─────────────────────────────────────────────────────────────────────────────
+
 // ─── FEWS BASE DATA ───────────────────────────────────────────────────────────
 const FEWS1_BASE = {
   id: 1, name: "FEWS 1", location: "Bolbok",
@@ -753,7 +777,6 @@ function AddUserModal({ onAdd, onClose, token, addLog }) {
 }
 
 // ─── PROFILE DROPDOWN ─────────────────────────────────────────────────────────
-// CHANGED: removed `saved` state, save now auto-closes after spinner
 function ProfileDropdown({ user, token, onSave, onClose, addLog }) {
   const ref                   = useRef();
   const fileRef               = useRef();
@@ -777,7 +800,6 @@ function ProfileDropdown({ user, token, onSave, onClose, addLog }) {
     reader.readAsDataURL(file);
   };
 
-  // CHANGED: spinner shows while saving, then auto-closes — no "Saved" flash
   const handleSave = async () => {
     if (!name.trim()) { setError("Name cannot be empty."); return; }
     setSaving(true);
@@ -790,8 +812,9 @@ function ProfileDropdown({ user, token, onSave, onClose, addLog }) {
       });
       if (!res.ok) throw new Error("Failed to save");
       const updated = await res.json();
-      const initials = updated.name.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase();
-      onSave({ ...user, name: updated.name, photo: updated.photo, initials });
+      // FIX 4: normalize the updated user before passing up
+      const normalized = normalizeUser({ ...user, name: updated.name, photo: updated.photo });
+      onSave(normalized);
       addLog({
         station: "System",
         type: "system",
@@ -847,7 +870,6 @@ function ProfileDropdown({ user, token, onSave, onClose, addLog }) {
           {error && <div className="settings-error" style={{ fontSize: 11 }}>{error}</div>}
           <div className="pd-edit-actions">
             <button className="pd-btn" onClick={() => { setEditing(false); setError(""); }}>Cancel</button>
-            {/* CHANGED: no more "Saved" state — just spinner then closes */}
             <button className="pd-save-btn" onClick={handleSave} disabled={saving}>
               {saving ? <span className="btn-spinner" /> : "Save"}
             </button>
@@ -1582,7 +1604,6 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
       .finally(() => setLoadingUsers(false));
   }, [token]);
 
-  // CHANGED: sync local users list when parent user object updates (e.g. after profile edit)
   useEffect(() => {
     setUsers(prev => prev.map(u => u.id === user.id ? { ...u, name: user.name, photo: user.photo } : u));
   }, [user.name, user.photo]);
@@ -1604,7 +1625,8 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
         if (d.department !== u.department) addLog({ station: "System", type: "system", message: `${u.name}'s department has been changed from ${u.department} to ${d.department} by ${userName}` });
         setUsers(prev => prev.map(x => x.id === u.id ? { ...x, ...d } : x));
         setDrafts(prev => { const n={...prev}; delete n[u.id]; return n; });
-        if (u.id === user.id) onUserUpdate({ ...user, ...d });
+        // FIX 4: normalize when updating the current user's own record
+        if (u.id === user.id) onUserUpdate(normalizeUser({ ...user, ...d }));
       } else {
         setActionError("Failed to save changes. Try again.");
       }
@@ -1647,7 +1669,8 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
       if (res.ok) {
         const target = users.find(u => u.id === userId);
         setUsers(prev => prev.map(u => u.id === userId ? { ...u, sms_enabled: newVal } : u));
-        if (userId === user.id) onUserUpdate({ ...user, sms_enabled: newVal });
+        // FIX 4: normalize when updating current user's sms_enabled
+        if (userId === user.id) onUserUpdate(normalizeUser({ ...user, sms_enabled: newVal }));
         addLog({
           station: "System", type: "system",
           message: `SMS alerts for ${target?.name || "user"} have been ${newVal ? "enabled" : "disabled"} by ${userName}`,
@@ -1686,7 +1709,8 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
         onClose={() => setShowEmail(false)}
         token={token} user={user} addLog={addLog}
         onEmailChanged={(newEmail) => {
-          onUserUpdate({ ...user, email: newEmail });
+          // FIX 4: normalize when updating email
+          onUserUpdate(normalizeUser({ ...user, email: newEmail }));
           setUsers(prev => prev.map(u => u.id === user.id ? { ...u, email: newEmail } : u));
         }} />}
       {showPassword && <ChangePasswordModal
@@ -1696,7 +1720,8 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
         onClose={() => setShowPhone(false)}
         token={token} user={user} addLog={addLog}
         onPhoneChanged={(newPhone) => {
-          onUserUpdate({ ...user, phone: newPhone });
+          // FIX 4: normalize when updating phone
+          onUserUpdate(normalizeUser({ ...user, phone: newPhone }));
           setUsers(prev => prev.map(u => u.id === user.id ? { ...u, phone: newPhone } : u));
         }} />}
       {confirmSms && <ConfirmModal
@@ -1855,6 +1880,7 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
+  // FIX 4: Use normalizeUser when initializing user state from sessionStorage
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     try {
       const tok    = sessionStorage.getItem("token");
@@ -1873,22 +1899,29 @@ export default function App() {
   const [copiedId, setCopiedId] = useState(null);
   const copiedTimerRef = useRef(null);
 
+  // FIX 2: Clean up copiedTimerRef on unmount to prevent state updates on dead component
+  useEffect(() => {
+    return () => {
+      if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+    };
+  }, []);
+
   const [fews1Live, setFews1Live]           = useState(null);
   const [fews1Connected, setFews1Connected] = useState(false);
   const [lastUpdated, setLastUpdated]       = useState(null);
 
+  // FIX 4: normalizeUser applied when reading user from sessionStorage on mount
   const [user, setUser] = useState(() => {
     try {
       const stored = sessionStorage.getItem("user");
       if (stored) {
         const parsed = JSON.parse(stored);
-        // Validate required fields — if shape is wrong, fall through to default
         if (parsed && typeof parsed.name === "string" && typeof parsed.role === "string" && parsed.role) {
-          return parsed;
+          return normalizeUser(parsed);
         }
       }
     } catch {}
-    return { name: "", role: "Operator", department: "", initials: "?", dob: "", photo: null, email: "" };
+    return normalizeUser({});
   });
 
   const [token, setToken] = useState(() => sessionStorage.getItem("token") || "");
@@ -1912,13 +1945,14 @@ export default function App() {
     }
   }, [token, user.name]);
 
+  // FIX 4: handleLogin normalizes the user from sessionStorage after login
   const handleLogin = (role) => {
     try {
       const stored = sessionStorage.getItem("user");
       if (stored) {
         const parsed = JSON.parse(stored);
         if (parsed && typeof parsed.name === "string" && parsed.name && parsed.role) {
-          setUser(parsed);
+          setUser(normalizeUser(parsed));
         }
       }
     } catch {}
@@ -1932,7 +1966,6 @@ export default function App() {
 
   const handleLogout = useCallback(() => {
     const currentUser = userRef.current;
-    // Log the logout — use plain fetch to avoid circular dep with addLog
     const tok = sessionStorage.getItem("token");
     if (tok && currentUser.name) {
       fetch(`${API_BASE}/logs`, {
@@ -1951,12 +1984,12 @@ export default function App() {
     sessionStorage.removeItem("fews1_was_offline");
     sessionStorage.removeItem("fews1_initial_logged");
     setIsLoggedIn(false);
-    setUser({ name: "", role: "Operator", department: "", initials: "?", dob: "", photo: null, email: "" });
+    // FIX 4: reset to a normalized empty user
+    setUser(normalizeUser({}));
     setToken("");
     setShowLogoutModal(false);
   }, []);
 
-  // Register the 401 unauthorized handler so any expired JWT auto-logs out
   useEffect(() => {
     setUnauthorizedHandler(handleLogout);
     return () => setUnauthorizedHandler(null);
@@ -1978,7 +2011,6 @@ export default function App() {
   const wasConnectedRef = useRef(null);
   const offlineTimeRef  = useRef(null);
 
-  // Restore offline state from sessionStorage on mount
   useEffect(() => {
     const storedOfflineTime = sessionStorage.getItem("fews1_offline_time");
     const storedWasOffline  = sessionStorage.getItem("fews1_was_offline");
@@ -1995,7 +2027,6 @@ export default function App() {
     setLastUpdated(new Date());
 
     if (wasConnectedRef.current === false) {
-      // Coming back from a known offline state
       const offlineTime = offlineTimeRef.current;
       if (offlineTime) {
         const diffMs   = Date.now() - offlineTime;
@@ -2027,7 +2058,6 @@ export default function App() {
       sessionStorage.removeItem("fews1_offline_time");
       sessionStorage.removeItem("fews1_was_offline");
     } else if (wasConnectedRef.current === null) {
-      // First data received since page load — only log once per session
       if (!sessionStorage.getItem("fews1_initial_logged")) {
         addLog({
           station: "FEWS 1", type: "system",
@@ -2044,7 +2074,6 @@ export default function App() {
     setFews1Live(null);
     setFews1Connected(false);
 
-    // Only log and record offline time on first transition from online → offline
     if (wasConnectedRef.current === true && !offlineTimeRef.current) {
       const offlineTime = Date.now();
       offlineTimeRef.current = offlineTime;
@@ -2060,7 +2089,7 @@ export default function App() {
     wasConnectedRef.current = false;
   }, [addLog]);
 
-  // ─── Poll latest sensor data — with backoff ───────────────────────────────
+  // ─── Poll latest sensor data ──────────────────────────────────────────────
   useEffect(() => {
     const failCount = { current: 0 };
     let timeoutId = null;
@@ -2108,7 +2137,7 @@ export default function App() {
     };
   }, [handleOnline, handleOffline]);
 
-  // ─── Fetch water level history — with backoff ─────────────────────────────
+  // ─── Fetch water level history ────────────────────────────────────────────
   useEffect(() => {
     const buildChart = (rows) => {
       const now      = Date.now();
@@ -2143,7 +2172,6 @@ export default function App() {
       });
     };
 
-    // CHANGED: replaced setInterval with self-scheduling setTimeout with backoff
     const historyFailCount = { current: 0 };
     let historyTimeoutId = null;
 
@@ -2187,7 +2215,6 @@ export default function App() {
     return [fews1];
   }, [fews1Live]);
 
-  // Fix 5 — toggleSiren moved here so allFews is in scope
   const toggleSiren = (id) => {
     if (!can(user.role, "sirenControl")) return;
     const turningOn = !sirens[id];
@@ -2204,20 +2231,33 @@ export default function App() {
     }
   };
 
-  // Fix 10 — chart constants moved before early return to avoid post-return definitions
-  const chartPoints = (historyData?.values?.length)
-    ? historyData.positions.map((ms, i) => ({ x: ms, y: historyData.values[i] }))
-    : [];
+  // FIX 1: Memoize chart points so they only recompute when historyData changes
+  const chartPoints = useMemo(() =>
+    (historyData?.values?.length)
+      ? historyData.positions.map((ms, i) => ({ x: ms, y: historyData.values[i] }))
+      : [],
+    [historyData]
+  );
 
   const CHART_PADDING = 2 * 60 * 1000;
-  const chartWinStart = historyData?.positions?.length
-    ? Math.floor((historyData.positions[0] - CHART_PADDING) / 300000) * 300000
-    : Math.floor((Date.now() - 60 * 60 * 1000) / 300000) * 300000;
-  const chartWinEnd = historyData?.positions?.length
-    ? Math.ceil((historyData.positions[historyData.positions.length - 1] + CHART_PADDING) / 300000) * 300000
-    : Math.ceil(Date.now() / 300000) * 300000;
 
-  const waterChartData = {
+  // FIX 1: Memoize chart window boundaries
+  const chartWinStart = useMemo(() =>
+    historyData?.positions?.length
+      ? Math.floor((historyData.positions[0] - CHART_PADDING) / 300000) * 300000
+      : Math.floor((Date.now() - 60 * 60 * 1000) / 300000) * 300000,
+    [historyData]
+  );
+
+  const chartWinEnd = useMemo(() =>
+    historyData?.positions?.length
+      ? Math.ceil((historyData.positions[historyData.positions.length - 1] + CHART_PADDING) / 300000) * 300000
+      : Math.ceil(Date.now() / 300000) * 300000,
+    [historyData]
+  );
+
+  // FIX 1: Memoize waterChartData — only rebuilds when chartPoints changes
+  const waterChartData = useMemo(() => ({
     datasets: [{
       label: "FEWS 1",
       data: chartPoints,
@@ -2249,9 +2289,10 @@ export default function App() {
         return "#22c55e";
       },
     }],
-  };
+  }), [chartPoints]);
 
-  const waterChartOptions = {
+  // FIX 1: Memoize waterChartOptions — only rebuilds when chart window boundaries change
+  const waterChartOptions = useMemo(() => ({
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
@@ -2323,9 +2364,10 @@ export default function App() {
         },
       },
     },
-  };
+  }), [chartWinStart, chartWinEnd, historyData]);
 
-  const batteryData = {
+  // FIX 1: Memoize batteryData — only rebuilds when allFews or fews1Connected changes
+  const batteryData = useMemo(() => ({
     labels: allFews.map(f => f.name),
     datasets: [{
       label: "Battery %",
@@ -2338,9 +2380,10 @@ export default function App() {
       borderRadius: 6,
       barThickness: 28,
     }],
-  };
+  }), [allFews, fews1Connected]);
 
-  const batteryOptions = {
+  // FIX 1: Memoize batteryOptions — static config, only needs to be created once
+  const batteryOptions = useMemo(() => ({
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
@@ -2363,7 +2406,7 @@ export default function App() {
       },
     },
     layout: { padding: { top: 4 } },
-  };
+  }), []);
 
   const alertCount      = allFews.filter(f => f.status !== "safe").length;
   const selectedStation = allFews.find(f => f.id === selectedFEWS) || null;
@@ -2468,7 +2511,18 @@ export default function App() {
               {showProfileDropdown && createPortal(
                 <div style={{ position:"fixed", top:"64px", right:"16px", zIndex:99999 }}
                   onKeyDown={e => { if (e.key === "Escape") setShowProfileDropdown(false); }}>
-                  <ProfileDropdown user={user} token={token} onSave={u => { setUser(u); sessionStorage.setItem("user", JSON.stringify(u)); }} onClose={() => setShowProfileDropdown(false)} addLog={addLog} />
+                  <ProfileDropdown
+                    user={user}
+                    token={token}
+                    // FIX 4: normalize the saved user before storing in state and sessionStorage
+                    onSave={u => {
+                      const normalized = normalizeUser(u);
+                      setUser(normalized);
+                      sessionStorage.setItem("user", JSON.stringify(normalized));
+                    }}
+                    onClose={() => setShowProfileDropdown(false)}
+                    addLog={addLog}
+                  />
                 </div>, document.body
               )}
             </div>
@@ -2519,7 +2573,10 @@ export default function App() {
                                 navigator.clipboard.writeText(`${f.lat}, ${f.lng}`);
                                 setCopiedId(f.id);
                                 if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
-                                copiedTimerRef.current = setTimeout(() => { setCopiedId(null); copiedTimerRef.current = null; }, 1500);
+                                copiedTimerRef.current = setTimeout(() => {
+                                  setCopiedId(null);
+                                  copiedTimerRef.current = null;
+                                }, 1500);
                               }} style={{ marginTop:"7px", padding:"3px 8px", background: copiedId===f.id?"#22c55e":cfg.color, color:"#000", border:"none", outline:"none", boxShadow:"none", borderRadius:"4px", cursor:"pointer", fontWeight:"700", fontSize:"10px", width:"100%", transition:"background 0.2s" }}>
                                 {copiedId===f.id ? "Copied!" : "📋 Copy Coordinates"}
                               </button>
@@ -2658,7 +2715,19 @@ export default function App() {
 
         {activeNav === "UnitControl" && <UnitControlPage allFews={allFews} fews1Connected={fews1Connected} userRole={user.role} userName={user.name} addLog={addLog} token={token} />}
         {activeNav === "Logs"        && <LogsPage token={token} userRole={user.role} />}
-        {activeNav === "Settings"    && <SettingsPage userRole={user.role} userName={user.name} user={user} onUserUpdate={(u) => { setUser(u); sessionStorage.setItem("user", JSON.stringify(u)); }} token={token} addLog={addLog} />}
+        {activeNav === "Settings"    && <SettingsPage
+          userRole={user.role}
+          userName={user.name}
+          user={user}
+          // FIX 4: normalize and persist whenever settings updates the user
+          onUserUpdate={(u) => {
+            const normalized = normalizeUser(u);
+            setUser(normalized);
+            sessionStorage.setItem("user", JSON.stringify(normalized));
+          }}
+          token={token}
+          addLog={addLog}
+        />}
       </div>
     </div>
   );
