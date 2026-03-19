@@ -1573,10 +1573,7 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
   const [showPassword, setShowPassword]     = useState(false);
   const [showPhone, setShowPhone]           = useState(false);
   const [showAddUser, setShowAddUser]       = useState(false);
-  const [notifs, setNotifs]                 = useState({ autoSiren: true, sms: true, email: false });
-  const [notifSaving, setNotifSaving]       = useState({});
   const [smsSaving, setSmsSaving]           = useState({});
-  const [confirmNotif, setConfirmNotif]     = useState(null);
   const [confirmSms, setConfirmSms]         = useState(null);
   const [users, setUsers]                   = useState([]);
   const [loadingUsers, setLoadingUsers]     = useState(false);
@@ -1586,13 +1583,71 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
   const [confirmSave, setConfirmSave]       = useState(null);
   const [confirmRemove, setConfirmRemove]   = useState(null);
 
-  const isAdmin = userRole === "Admin";
+  // auto_siren wired to backend
+  const [autoSiren, setAutoSiren]               = useState(true);
+  const [autoSirenLoading, setAutoSirenLoading] = useState(true);
+  const [autoSirenSaving, setAutoSirenSaving]   = useState(false);
+  const [confirmAutoSiren, setConfirmAutoSiren]  = useState(null);
+  // email notif stays local only
+  const [emailNotif, setEmailNotif]               = useState(false);
+  const [confirmEmailNotif, setConfirmEmailNotif] = useState(null);
+  const [emailNotifSaving, setEmailNotifSaving]   = useState(false);
 
-  const NOTIF_LABELS = {
-    autoSiren: "Auto-trigger siren on CRITICAL",
-    sms:       "SMS Notifications",
-    email:     "Email Notifications",
+  useEffect(() => {
+    authFetch(`${API_BASE}/settings`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.json())
+      .then(data => { setAutoSiren(data.auto_siren ?? true); })
+      .catch(() => {})
+      .finally(() => setAutoSirenLoading(false));
+  }, [token]);
+
+  const handleAutoSirenToggle = () => {
+    if (autoSirenSaving || autoSirenLoading || userRole !== "Admin") return;
+    setConfirmAutoSiren(!autoSiren);
   };
+
+  const doAutoSirenToggle = async (newVal) => {
+    setAutoSirenSaving(true);
+    try {
+      const res = await authFetch(`${API_BASE}/settings`, {
+        method:  "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ auto_siren: newVal }),
+      });
+      if (res.ok) {
+        setAutoSiren(newVal);
+        addLog({
+          station: "System", type: "system",
+          message: `Auto-trigger siren on CRITICAL has been ${newVal ? "enabled" : "disabled"} by ${userName}`,
+        });
+      } else {
+        setActionError("Failed to update auto-siren setting. Try again.");
+      }
+    } catch (err) {
+      if (err?.message !== "Unauthorized") setActionError("Failed to update auto-siren setting. Try again.");
+    } finally {
+      setAutoSirenSaving(false);
+    }
+  };
+
+  const handleEmailNotifToggle = () => {
+    if (emailNotifSaving) return;
+    setConfirmEmailNotif(!emailNotif);
+  };
+
+  const doEmailNotifToggle = (newVal) => {
+    setEmailNotifSaving(true);
+    setTimeout(() => {
+      setEmailNotif(newVal);
+      setEmailNotifSaving(false);
+      addLog({
+        station: "System", type: "system",
+        message: `Email Notifications has been ${newVal ? "enabled" : "disabled"}`,
+      });
+    }, 500);
+  };
+
+  const isAdmin = userRole === "Admin";
 
   useEffect(() => {
     setLoadingUsers(true);
@@ -1625,7 +1680,6 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
         if (d.department !== u.department) addLog({ station: "System", type: "system", message: `${u.name}'s department has been changed from ${u.department} to ${d.department} by ${userName}` });
         setUsers(prev => prev.map(x => x.id === u.id ? { ...x, ...d } : x));
         setDrafts(prev => { const n={...prev}; delete n[u.id]; return n; });
-        // FIX 4: normalize when updating the current user's own record
         if (u.id === user.id) onUserUpdate(normalizeUser({ ...user, ...d }));
       } else {
         setActionError("Failed to save changes. Try again.");
@@ -1642,10 +1696,7 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
         method: "DELETE", headers: { Authorization: `Bearer ${token}` },
       });
       if (res.ok) {
-        addLog({
-          station: "System", type: "system",
-          message: `User ${u.name} (${u.role}, ${u.department}) has been removed from the system`,
-        });
+        addLog({ station: "System", type: "system", message: `User ${u.name} (${u.role}, ${u.department}) has been removed from the system` });
         setUsers(prev => prev.filter(x => x.id !== u.id));
       } else {
         setActionError("Failed to remove user. Try again.");
@@ -1669,12 +1720,8 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
       if (res.ok) {
         const target = users.find(u => u.id === userId);
         setUsers(prev => prev.map(u => u.id === userId ? { ...u, sms_enabled: newVal } : u));
-        // FIX 4: normalize when updating current user's sms_enabled
         if (userId === user.id) onUserUpdate(normalizeUser({ ...user, sms_enabled: newVal }));
-        addLog({
-          station: "System", type: "system",
-          message: `SMS alerts for ${target?.name || "user"} have been ${newVal ? "enabled" : "disabled"} by ${userName}`,
-        });
+        addLog({ station: "System", type: "system", message: `SMS alerts for ${target?.name || "user"} have been ${newVal ? "enabled" : "disabled"} by ${userName}` });
       } else {
         setActionError("Failed to update SMS setting. Try again.");
       }
@@ -1684,24 +1731,6 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
     setSmsSaving(p => ({ ...p, [userId]: false }));
   };
 
-  const handleNotifToggle = (key) => {
-    if (notifSaving[key]) return;
-    setConfirmNotif(key);
-  };
-
-  const doNotifToggle = (key) => {
-    const newVal = !notifs[key];
-    setNotifSaving(p => ({ ...p, [key]: true }));
-    setTimeout(() => {
-      setNotifs(n => ({ ...n, [key]: newVal }));
-      setNotifSaving(p => ({ ...p, [key]: false }));
-      addLog({
-        station: "System", type: "system",
-        message: `${NOTIF_LABELS[key]} has been ${newVal ? "enabled" : "disabled"}`,
-      });
-    }, 500);
-  };
-
   return (
     <>
       {showAddUser  && <AddUserModal onAdd={doAdd} onClose={() => setShowAddUser(false)} token={token} addLog={addLog} />}
@@ -1709,7 +1738,6 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
         onClose={() => setShowEmail(false)}
         token={token} user={user} addLog={addLog}
         onEmailChanged={(newEmail) => {
-          // FIX 4: normalize when updating email
           onUserUpdate(normalizeUser({ ...user, email: newEmail }));
           setUsers(prev => prev.map(u => u.id === user.id ? { ...u, email: newEmail } : u));
         }} />}
@@ -1720,10 +1748,10 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
         onClose={() => setShowPhone(false)}
         token={token} user={user} addLog={addLog}
         onPhoneChanged={(newPhone) => {
-          // FIX 4: normalize when updating phone
           onUserUpdate(normalizeUser({ ...user, phone: newPhone }));
           setUsers(prev => prev.map(u => u.id === user.id ? { ...u, phone: newPhone } : u));
         }} />}
+
       {confirmSms && <ConfirmModal
         icon={confirmSms.newVal ? "🔔" : "🔕"}
         iconColor={confirmSms.newVal ? "var(--green)" : "var(--red)"}
@@ -1733,19 +1761,45 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
         confirmColor={confirmSms.newVal ? "var(--green)" : "var(--red)"}
         onConfirm={() => { handleSmsToggle(confirmSms.userId, confirmSms.newVal); setConfirmSms(null); }}
         onCancel={() => setConfirmSms(null)} />}
-      {confirmNotif && <ConfirmModal
-        icon={notifs[confirmNotif] ? "🔕" : "🔔"}
-        iconColor={notifs[confirmNotif] ? "var(--red)" : "var(--green)"}
-        title={notifs[confirmNotif] ? `Disable ${NOTIF_LABELS[confirmNotif]}?` : `Enable ${NOTIF_LABELS[confirmNotif]}?`}
-        message={notifs[confirmNotif]
-          ? `This will turn OFF ${NOTIF_LABELS[confirmNotif]} for the system.`
-          : `This will turn ON ${NOTIF_LABELS[confirmNotif]} for the system.`}
-        confirmLabel={notifs[confirmNotif] ? "Yes, Disable" : "Yes, Enable"}
-        confirmColor={notifs[confirmNotif] ? "var(--red)" : "var(--green)"}
-        onConfirm={() => { doNotifToggle(confirmNotif); setConfirmNotif(null); }}
-        onCancel={() => setConfirmNotif(null)} />}
-      {confirmSave   && <ConfirmModal icon="👤" iconColor="var(--blue)" title={`Save Changes for ${confirmSave.name}?`} message={`Role → ${getDraft(confirmSave).role} · Department → ${getDraft(confirmSave).department}`} confirmLabel="Yes, Save" onConfirm={doSave} onCancel={() => setConfirmSave(null)} />}
-      {confirmRemove && <ConfirmModal icon="🗑" iconColor="var(--red)" title={`Remove ${confirmRemove.name}?`} message={`This will permanently remove ${confirmRemove.name} from the system.`} confirmLabel="Yes, Remove" confirmColor="var(--red)" onConfirm={doRemove} onCancel={() => setConfirmRemove(null)} />}
+
+      {confirmAutoSiren !== null && <ConfirmModal
+        icon={confirmAutoSiren ? "🔔" : "🔕"}
+        iconColor={confirmAutoSiren ? "var(--green)" : "var(--red)"}
+        title={confirmAutoSiren ? "Enable Auto-Siren?" : "Disable Auto-Siren?"}
+        message={confirmAutoSiren
+          ? "Siren will automatically activate when water level stays CRITICAL for 30 seconds."
+          : "Siren will NOT automatically activate on CRITICAL. Manual control only."}
+        confirmLabel={confirmAutoSiren ? "Yes, Enable" : "Yes, Disable"}
+        confirmColor={confirmAutoSiren ? "var(--green)" : "var(--red)"}
+        onConfirm={() => { doAutoSirenToggle(confirmAutoSiren); setConfirmAutoSiren(null); }}
+        onCancel={() => setConfirmAutoSiren(null)} />}
+
+      {confirmEmailNotif !== null && <ConfirmModal
+        icon={confirmEmailNotif ? "🔔" : "🔕"}
+        iconColor={confirmEmailNotif ? "var(--green)" : "var(--red)"}
+        title={confirmEmailNotif ? "Enable Email Notifications?" : "Disable Email Notifications?"}
+        message={confirmEmailNotif
+          ? "This will turn ON Email Notifications for the system."
+          : "This will turn OFF Email Notifications for the system."}
+        confirmLabel={confirmEmailNotif ? "Yes, Enable" : "Yes, Disable"}
+        confirmColor={confirmEmailNotif ? "var(--green)" : "var(--red)"}
+        onConfirm={() => { doEmailNotifToggle(confirmEmailNotif); setConfirmEmailNotif(null); }}
+        onCancel={() => setConfirmEmailNotif(null)} />}
+
+      {confirmSave && <ConfirmModal
+        icon="👤" iconColor="var(--blue)"
+        title={`Save Changes for ${confirmSave.name}?`}
+        message={`Role → ${getDraft(confirmSave).role} · Department → ${getDraft(confirmSave).department}`}
+        confirmLabel="Yes, Save"
+        onConfirm={doSave} onCancel={() => setConfirmSave(null)} />}
+
+      {confirmRemove && <ConfirmModal
+        icon="🗑" iconColor="var(--red)"
+        title={`Remove ${confirmRemove.name}?`}
+        message={`This will permanently remove ${confirmRemove.name} from the system.`}
+        confirmLabel="Yes, Remove" confirmColor="var(--red)"
+        onConfirm={doRemove} onCancel={() => setConfirmRemove(null)} />}
+
       <div className="page-body">
 
         <div className="page-card">
@@ -1786,37 +1840,29 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
                     ⚠️ {actionError}
                   </div>
                 )}
-              <div className="mu-list">
-                {users.map(u => {
-                  const d = getDraft(u); const changed = d.role !== u.role || d.department !== u.department;
-                  return (
-                    <div key={u.id} className="mu-row">
-                      <div className="mu-avatar">
-                        {u.photo
-                          ? <img src={u.photo} alt={u.name} style={{ width:"100%", height:"100%", borderRadius:"50%", objectFit:"cover" }} />
-                          : u.name.split(" ").map(w=>w[0]).join("").slice(0,2)
-                        }
+                <div className="mu-list">
+                  {users.map(u => {
+                    const d = getDraft(u); const changed = d.role !== u.role || d.department !== u.department;
+                    return (
+                      <div key={u.id} className="mu-row">
+                        <div className="mu-avatar">
+                          {u.photo
+                            ? <img src={u.photo} alt={u.name} style={{ width:"100%", height:"100%", borderRadius:"50%", objectFit:"cover" }} />
+                            : u.name.split(" ").map(w=>w[0]).join("").slice(0,2)
+                          }
+                        </div>
+                        <div className="mu-info"><div className="mu-name">{u.name}</div><div className="mu-email">{u.email}</div></div>
+                        <div className="mu-controls">
+                          <MuDropdown value={d.role} options={["Admin", "Operator"]} onChange={val => handleDraft(u.id, "role", val)} />
+                          <MuDropdown value={d.department} options={["C3", "MIAD", "OPS", "ITSD"]} onChange={val => handleDraft(u.id, "department", val)} />
+                          <button className="mu-save-btn" disabled={!changed} onClick={() => setConfirmSave(u)}>Save</button>
+                          <button className="mu-remove-btn" onClick={() => setConfirmRemove(u)}>✕</button>
+                        </div>
                       </div>
-                      <div className="mu-info"><div className="mu-name">{u.name}</div><div className="mu-email">{u.email}</div></div>
-                      <div className="mu-controls">
-                        <MuDropdown
-                          value={d.role}
-                          options={["Admin", "Operator"]}
-                          onChange={val => handleDraft(u.id, "role", val)}
-                        />
-                        <MuDropdown
-                          value={d.department}
-                          options={["C3", "MIAD", "OPS", "ITSD"]}
-                          onChange={val => handleDraft(u.id, "department", val)}
-                        />
-                        <button className="mu-save-btn" disabled={!changed} onClick={() => setConfirmSave(u)}>Save</button>
-                        <button className="mu-remove-btn" onClick={() => setConfirmRemove(u)}>✕</button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </>
+                    );
+                  })}
+                </div>
+              </>
             )}
           </div>
         )}
@@ -1825,20 +1871,50 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
           <div className="page-card-title">Alert Triggers</div>
           <div className="page-card-sub">Choose how the system alerts operators during flood events.</div>
           <div style={{ borderRadius: 10, overflow: "hidden", border: "1px solid var(--border)" }}>
-          {[
-            { key:"autoSiren", label:"Auto-trigger siren on CRITICAL", sub:"Siren activates automatically when danger threshold is crossed" },
-            { key:"email",     label:"Email Notifications",            sub:"Send email alerts to registered operators" },
-          ].map(item => (
-            <div key={item.key} className="notif-toggle-row">
-              <div><div className="settings-toggle-label">{item.label}</div><div className="settings-toggle-sub">{item.sub}</div></div>
+
+            {/* Auto-siren — wired to backend, Admin only */}
+            <div className="notif-toggle-row">
+              <div>
+                <div className="settings-toggle-label">Auto-trigger siren on CRITICAL</div>
+                <div className="settings-toggle-sub">Siren activates automatically when water stays CRITICAL for 30 seconds</div>
+              </div>
               <div className="notif-toggle-btn-wrap">
-                <button className={`settings-toggle ${notifs[item.key] ? "stoggle-on" : "stoggle-off"}`} onClick={() => handleNotifToggle(item.key)}>
-                  {notifSaving[item.key] ? <span className="btn-spinner" style={{ width:10, height:10, borderWidth:1.5 }} /> : notifs[item.key] ? "ON" : "OFF"}
+                <button
+                  className={`settings-toggle ${autoSiren ? "stoggle-on" : "stoggle-off"}`}
+                  onClick={handleAutoSirenToggle}
+                  disabled={autoSirenLoading || autoSirenSaving || userRole !== "Admin"}
+                >
+                  {autoSirenLoading || autoSirenSaving
+                    ? <span className="btn-spinner" style={{ width:10, height:10, borderWidth:1.5 }} />
+                    : autoSiren ? "ON" : "OFF"}
                 </button>
               </div>
             </div>
-          ))}
+
+            {/* Email notif — local only */}
+            <div className="notif-toggle-row">
+              <div>
+                <div className="settings-toggle-label">Email Notifications</div>
+                <div className="settings-toggle-sub">Send email alerts to registered operators</div>
+              </div>
+              <div className="notif-toggle-btn-wrap">
+                <button
+                  className={`settings-toggle ${emailNotif ? "stoggle-on" : "stoggle-off"}`}
+                  onClick={handleEmailNotifToggle}
+                >
+                  {emailNotifSaving
+                    ? <span className="btn-spinner" style={{ width:10, height:10, borderWidth:1.5 }} />
+                    : emailNotif ? "ON" : "OFF"}
+                </button>
+              </div>
+            </div>
+
           </div>
+          {userRole !== "Admin" && (
+            <div style={{ fontSize: 11, color: "var(--text-3)", marginTop: 8, fontFamily: "var(--mono)" }}>
+              ℹ Only Admins can change the Auto-Siren setting.
+            </div>
+          )}
         </div>
 
         <div className="page-card">
@@ -2610,12 +2686,12 @@ const toggleSiren = async (id) => {
                 <div className="card-header">
                   <h2>Water Level</h2>
                   <span className="card-tag">
-                    {fews1Connected
-                      ? (historyData.values.length > 0 ? `${historyData.values.length} readings` : "Live")
-                      : "Waiting for data"}
+                    {historyData.values.length > 0
+                          ? `${historyData.values.length} readings`
+                          : fews1Connected ? "Live" : "Waiting for data"}
                   </span>
                 </div>
-                {fews1Connected && historyData.values.length > 0 ? (
+                {historyData.values.length > 0 ? (
                   <div className="chart-wrap">
                     <Line data={waterChartData} options={waterChartOptions} />
                   </div>

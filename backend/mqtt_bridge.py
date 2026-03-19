@@ -6,7 +6,7 @@ import paho.mqtt.client as mqtt
 import paho.mqtt.publish as mqtt_publish
 from database import get_db, release_db
 
-# ─── SEMAPHORE SMS ────────────────────────────────────────────────────────────
+# --- SEMAPHORE SMS ---
 SEMAPHORE_API_KEY = "9a340cae60906c4fc591a20a24ace1b7"
 SEMAPHORE_SENDER  = "CDRRMO"
 
@@ -41,6 +41,39 @@ def send_sms_to_all():
         except Exception as e:
             print(f"[SMS] Failed to send to {name} ({phone}): {e}")
 
+# --- NEW: Read auto_siren flag from DB ---
+def get_auto_siren_enabled():
+    conn = None
+    try:
+        conn = get_db()
+        cur  = conn.cursor()
+        cur.execute("SELECT auto_siren FROM system_settings LIMIT 1")
+        row = cur.fetchone()
+        cur.close()
+        return row["auto_siren"] if row else True
+    except Exception as e:
+        print(f"[SETTINGS] Failed to read auto_siren: {e}")
+        return True
+    finally:
+        if conn:
+            release_db(conn)
+
+# --- NEW: Publish auto_siren config to Arduino ---
+def publish_config(auto_siren: bool):
+    topic   = "cdrrmo/fews1/config"
+    payload = json.dumps({"auto_siren": auto_siren})
+    try:
+        mqtt_publish.single(
+            topic,
+            payload=payload,
+            hostname=MQTT_BROKER,
+            port=MQTT_PORT,
+            protocol=mqtt.MQTTv311,
+        )
+        print(f"[CONFIG] Published auto_siren={auto_siren} to {topic}")
+    except Exception as e:
+        print(f"[CONFIG] Failed to publish config: {e}")
+
 MQTT_BROKER = "broker.emqx.io"
 MQTT_PORT   = 1883
 MQTT_TOPIC  = "cdrrmo/fews1/data"
@@ -70,6 +103,10 @@ def on_connect(client, userdata, flags, rc):
         print("[BRIDGE] Connected to broker")
         result, mid = client.subscribe(MQTT_TOPIC, qos=0)
         print(f"[BRIDGE] Subscribed to {MQTT_TOPIC} result={result} mid={mid}")
+        # NEW: On every connect, immediately sync current config to Arduino
+        auto_siren = get_auto_siren_enabled()
+        threading.Thread(target=publish_config, args=(auto_siren,), daemon=True).start()
+        print(f"[BRIDGE] Synced config to Arduino on connect: auto_siren={auto_siren}")
     else:
         print(f"[BRIDGE] Connection failed rc={rc}")
 
@@ -110,8 +147,8 @@ def on_message(client, userdata, msg):
             water_str    = f"{water_level_cm} cm" if water_level_cm is not None else "N/A"
 
             log_message = (
-                f"{station_name} reading — "
-                f"Water Level: {water_str} [{status_label}] · "
+                f"{station_name} reading -- "
+                f"Water Level: {water_str} [{status_label}] - "
                 f"Battery: {battery_str}"
             )
 
@@ -126,7 +163,7 @@ def on_message(client, userdata, msg):
             ))
 
             conn.commit()
-            print(f"[BRIDGE] Saved → {station_id} {water_level_cm}cm {status} is_immediate={is_immediate} | Logged as [{log_type.upper()}]")
+            print(f"[BRIDGE] Saved -> {station_id} {water_level_cm}cm {status} is_immediate={is_immediate} | Logged as [{log_type.upper()}]")
 
             if log_type == "danger":
                 threading.Thread(target=send_sms_to_all, daemon=True).start()
@@ -157,7 +194,7 @@ def start_bridge_thread():
     t.start()
     print("[BRIDGE] Thread started")
 
-# ── NEW: Publish siren command to Arduino ─────────────────────────────────────
+# --- Publish siren command to Arduino ---
 def publish_siren(device_id: str, state: str):
     topic   = f"cdrrmo/{device_id}/siren"
     payload = json.dumps({"siren": state})
@@ -172,4 +209,3 @@ def publish_siren(device_id: str, state: str):
         print(f"[SIREN] Published '{state}' to {topic}")
     except Exception as e:
         print(f"[SIREN] Failed to publish: {e}")
-# ─────────────────────────────────────────────────────────────────────────────

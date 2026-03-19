@@ -30,13 +30,13 @@ def startup():
             cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS sms_enabled BOOLEAN NOT NULL DEFAULT FALSE")
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS fews_units (
-                    id               SERIAL PRIMARY KEY,
-                    device_id        VARCHAR(50) UNIQUE NOT NULL,
-                    name             VARCHAR(100) NOT NULL,
-                    location         VARCHAR(100),
-                    installed_date   VARCHAR(50),
-                    technician       VARCHAR(100),
-                    description      TEXT,
+                    id                SERIAL PRIMARY KEY,
+                    device_id         VARCHAR(50) UNIQUE NOT NULL,
+                    name              VARCHAR(100) NOT NULL,
+                    location          VARCHAR(100),
+                    installed_date    VARCHAR(50),
+                    technician        VARCHAR(100),
+                    description       TEXT,
                     threshold_warning INT NOT NULL DEFAULT 200,
                     threshold_danger  INT NOT NULL DEFAULT 300,
                     updated_at        TIMESTAMPTZ DEFAULT NOW()
@@ -52,6 +52,19 @@ def startup():
                     "Deployed along the upper tributary of Sta. Rita River. Monitors early upstream surge from heavy rainfall in the Mataas na Gulod watershed.",
                     200, 300
                 ))
+
+            # NEW: System settings table
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS system_settings (
+                    id          SERIAL PRIMARY KEY,
+                    auto_siren  BOOLEAN NOT NULL DEFAULT TRUE,
+                    updated_at  TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+            cur.execute("SELECT id FROM system_settings")
+            if not cur.fetchone():
+                cur.execute("INSERT INTO system_settings (auto_siren) VALUES (TRUE)")
+
             conn.commit()
         except Exception as e:
             print(f"[STARTUP] Migration error: {e}")
@@ -130,10 +143,12 @@ class CreateLogRequest(BaseModel):
     message:   str
     user_name: Optional[str] = None
 
-# ── NEW: Siren control schema ─────────────────────────────────────────────────
 class SirenRequest(BaseModel):
     state: str  # "on" or "off"
-# ─────────────────────────────────────────────────────────────────────────────
+
+# NEW: System settings schema
+class SystemSettingsRequest(BaseModel):
+    auto_siren: bool
 
 # --- AUTH ---
 
@@ -509,10 +524,45 @@ def update_unit(device_id: str, req: UpdateUnitRequest, user=Depends(get_current
         cur.close()
         release_db(conn)
 
-# ── NEW: Siren control endpoint ───────────────────────────────────────────────
+# --- Siren control endpoint ---
 @app.post("/siren/{device_id}")
 def control_siren(device_id: str, req: SirenRequest, user=Depends(get_current_user)):
     from mqtt_bridge import publish_siren
     publish_siren(device_id, req.state)
     return {"ok": True}
-# ─────────────────────────────────────────────────────────────────────────────
+
+# --- NEW: System settings endpoints ---
+@app.get("/settings")
+def get_settings(user=Depends(get_current_user)):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        cur.execute("SELECT auto_siren FROM system_settings LIMIT 1")
+        row = cur.fetchone()
+        if not row:
+            return {"auto_siren": True}
+        return {"auto_siren": row["auto_siren"]}
+    finally:
+        cur.close()
+        release_db(conn)
+
+@app.put("/settings")
+def update_settings(req: SystemSettingsRequest, user=Depends(get_current_user)):
+    if user.get("role") != "Admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        cur.execute("""
+            UPDATE system_settings
+            SET auto_siren = %s, updated_at = NOW()
+        """, (req.auto_siren,))
+        conn.commit()
+        from mqtt_bridge import publish_config
+        import threading
+        threading.Thread(target=publish_config, args=(req.auto_siren,), daemon=True).start()
+        print(f"[SETTINGS] auto_siren updated to {req.auto_siren} -- syncing to Arduino")
+        return {"auto_siren": req.auto_siren}
+    finally:
+        cur.close()
+        release_db(conn)
