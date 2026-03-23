@@ -2307,7 +2307,7 @@ const waterChartOptions = useMemo(() => ({
     plugins: {
       legend: {
         display: true,
-        labels: { color: "#94a3b8", font: { size: 9 }, boxWidth: 10 }
+        labels: { color: "#94a3b8", font: { size: 9 }, boxWidth: 10, boxHeight: 2, usePointStyle: true, pointStyle: "line" },
       },
       tooltip: {
         backgroundColor: "#1e293b",
@@ -2406,7 +2406,7 @@ const waterChartOptions = useMemo(() => ({
     plugins: {
       legend: {
       display: true,
-      labels: { color: "#94a3b8", font: { size: 9 }, boxWidth: 10 }
+      labels: { color: "#94a3b8", font: { size: 9 }, boxWidth: 10, boxHeight: 2, usePointStyle: true, pointStyle: "line" },
     },
       tooltip: {
         backgroundColor: "#1e293b", titleColor: "#fff", bodyColor: "#94a3b8",
