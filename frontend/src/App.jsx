@@ -2354,18 +2354,15 @@ const waterChartOptions = useMemo(() => ({
           minRotation: 0,
           font: { size: 9 },
           stepSize: 5 * 60 * 1000,
+          includeBounds: false,
           callback: (val) => {
-            const d = new Date(val);
-            const phMinutes = parseInt(
-              new Intl.DateTimeFormat("en-PH", { timeZone: "Asia/Manila", minute: "2-digit" }).format(d)
-            );
-            if (phMinutes % 5 !== 0) return "";
+            if (val % (5 * 60 * 1000) !== 0) return "";
             return new Intl.DateTimeFormat("en-PH", {
               timeZone: "Asia/Manila",
               hour: "2-digit",
               minute: "2-digit",
               hour12: false,
-            }).format(d);
+            }).format(new Date(val));
           },
         },
       },
