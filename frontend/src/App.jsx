@@ -2348,22 +2348,26 @@ const waterChartOptions = useMemo(() => ({
         min: chartWinStart,
         max: chartWinEnd,
         grid: { color: "rgba(255,255,255,0.04)" },
+        afterBuildTicks: (axis) => {
+          const ticks = [];
+          const step = 5 * 60 * 1000;
+          const start = Math.ceil(chartWinStart / step) * step;
+          for (let t = start; t <= chartWinEnd; t += step) {
+            ticks.push({ value: t });
+          }
+          axis.ticks = ticks;
+        },
         ticks: {
           color: "#64748b",
           maxRotation: 0,
           minRotation: 0,
           font: { size: 9 },
-          stepSize: 5 * 60 * 1000,
-          includeBounds: false,
-          callback: (val) => {
-            if (val % (5 * 60 * 1000) !== 0) return "";
-            return new Intl.DateTimeFormat("en-PH", {
-              timeZone: "Asia/Manila",
-              hour: "2-digit",
-              minute: "2-digit",
-              hour12: false,
-            }).format(new Date(val));
-          },
+          callback: (val) => new Intl.DateTimeFormat("en-PH", {
+            timeZone: "Asia/Manila",
+            hour: "2-digit",
+            minute: "2-digit",
+            hour12: false,
+          }).format(new Date(val)),
         },
       },
     },
