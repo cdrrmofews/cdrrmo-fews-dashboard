@@ -7,7 +7,10 @@ import paho.mqtt.publish as mqtt_publish
 from database import get_db, release_db
 
 # ─── SEMAPHORE SMS ────────────────────────────────────────────────────────────
-SEMAPHORE_API_KEY = "5038256bfb39407617e6fa097a424d79"
+import os
+SEMAPHORE_API_KEY = os.environ.get("SEMAPHORE_API_KEY")
+if not SEMAPHORE_API_KEY:
+    raise RuntimeError("[SMS] SEMAPHORE_API_KEY environment variable is not set")
 SEMAPHORE_SENDER  = "CDRRMO"
 
 def send_sms_to_all():
