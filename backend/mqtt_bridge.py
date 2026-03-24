@@ -7,7 +7,7 @@ import paho.mqtt.publish as mqtt_publish
 from database import get_db, release_db
 
 # ─── SEMAPHORE SMS ────────────────────────────────────────────────────────────
-SEMAPHORE_API_KEY = "9a340cae60906c4fc591a20a24ace1b7"
+SEMAPHORE_API_KEY = "5038256bfb39407617e6fa097a424d79"
 SEMAPHORE_SENDER  = "CDRRMO"
 
 def send_sms_to_all():
