@@ -2497,7 +2497,7 @@ const waterChartOptions = useMemo(() => ({
         borderColor: "#38bdf8",
         borderWidth: 3,
         borderRadius: 6,
-        barThickness: 80,
+        barThickness: 60,
       }],
   }), [allFews, fews1Connected]);
 
@@ -2531,7 +2531,7 @@ const waterChartOptions = useMemo(() => ({
       tooltip: {
         backgroundColor: "#1e293b", titleColor: "#fff", bodyColor: "#94a3b8",
         borderColor: "#334155", borderWidth: 1,
-        callbacks: { label: ctx => fews1Connected ? `${ctx.parsed.y}%` : "Offline" },
+        callbacks: { label: ctx => fews1Connected ? `FEWS 1 · ${ctx.parsed.y}%` : "FEWS 1 · Offline" },
       },
     },
     scales: {
@@ -2546,7 +2546,7 @@ const waterChartOptions = useMemo(() => ({
         offset: false,
       },
     },
-    layout: { padding: { top: 4 } },
+    layout: { padding: { top: 4, left: 20, right: 20 } },
   }), [fews1Connected]);
 
   const alertCount      = allFews.filter(f => f.status !== "safe").length;
