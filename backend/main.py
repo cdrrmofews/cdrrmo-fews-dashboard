@@ -14,6 +14,13 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
+import os, uuid, base64, re
+from supabase import create_client
+
+SUPABASE_URL         = os.environ.get("SUPABASE_URL")
+SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
+supabase             = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY) if SUPABASE_URL and SUPABASE_SERVICE_KEY else None
+
 # --- APP SETUP ---
 
 app = FastAPI()
@@ -142,7 +149,7 @@ class UpdateUserRequest(BaseModel):
 
 class UpdateProfileRequest(BaseModel):
     name:  Optional[str] = None
-    photo: Optional[str] = None
+    photo: Optional[str] = None  # now accepts base64 OR a supabase URL
 
 class ChangeEmailRequest(BaseModel):
     email: str
@@ -232,8 +239,41 @@ def update_profile(req: UpdateProfileRequest, user=Depends(get_current_user)):
         user_id = int(user["sub"])
         fields = []
         values = []
-        if req.name  is not None: fields.append("name = %s");  values.append(req.name)
-        if req.photo is not None: fields.append("photo = %s"); values.append(req.photo)
+        if req.name is not None:
+            fields.append("name = %s")
+            values.append(req.name)
+
+        if req.photo is not None:
+            # If it's a base64 image, upload to Supabase Storage
+            if req.photo.startswith("data:image/"):
+                if supabase is None:
+                    raise HTTPException(status_code=500, detail="Storage not configured.")
+                try:
+                    header, data = req.photo.split(",", 1)
+                    decoded = base64.b64decode(data)
+                    if len(decoded) > 5 * 1024 * 1024:
+                        raise HTTPException(status_code=400, detail="Photo must be under 5MB.")
+                    mime_match = re.search(r"data:(image/\w+);base64", header)
+                    mime_type  = mime_match.group(1) if mime_match else "image/jpeg"
+                    ext        = mime_type.split("/")[1]
+                    filename   = f"user_{user_id}_{uuid.uuid4().hex[:8]}.{ext}"
+                    supabase.storage.from_("avatars").upload(
+                        filename,
+                        decoded,
+                        {"content-type": mime_type, "upsert": "true"}
+                    )
+                    photo_url = f"{SUPABASE_URL}/storage/v1/object/public/avatars/{filename}"
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    raise HTTPException(status_code=500, detail=f"Photo upload failed: {e}")
+                fields.append("photo = %s")
+                values.append(photo_url)
+            else:
+                # Already a URL, save as-is
+                fields.append("photo = %s")
+                values.append(req.photo)
+
         if not fields:
             raise HTTPException(status_code=400, detail="Nothing to update")
         values.append(user_id)
