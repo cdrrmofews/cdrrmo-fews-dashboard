@@ -2527,9 +2527,9 @@ const waterChartOptions = useMemo(() => ({
         borderWidth: 0,
         borderSkipped: false,
         borderRadius: 8,
-        barThickness: 32,
-        barPercentage: 0.4,
-        categoryPercentage: 0.5,
+        barThickness: 40,
+        barPercentage: 1,
+        categoryPercentage: 1,
       }],
   }), [allFews, fews1Connected]);
 
@@ -2594,10 +2594,10 @@ const waterChartOptions = useMemo(() => ({
       x: {
         grid: { display: false },
         ticks: { display: false },
-        offset: false,
+        offset: true,
       },
     },
-    layout: { padding: { top: 4, left: 10, right: 40 } },
+    layout: { padding: { top: 4, left: 60, right: 60 } },
   }), [fews1Connected]);
 
   const alertCount      = allFews.filter(f => f.status !== "safe").length;
