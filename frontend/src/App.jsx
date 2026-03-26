@@ -2021,25 +2021,27 @@ export default function App() {
     const currentUser = userRef.current;
     const tok = getStoredToken();
     if (tok) {
-      try {
-        await fetch(`${API_BASE}/logout`, {
-          method:  "POST",
-          headers: { Authorization: `Bearer ${tok}` },
-        });
-      } catch {}
-      if (currentUser.name) {
-        fetch(`${API_BASE}/logs`, {
-          method:  "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
-          body: JSON.stringify({
-            station:   "System",
-            type:      "system",
-            message:   `${currentUser.name} (${currentUser.role}, ${currentUser.department}) has logged out of the system`,
-            user_name: currentUser.name,
-          }),
-        }).catch(() => {});
-      }
-    }
+          if (currentUser.name) {
+            try {
+              await fetch(`${API_BASE}/logs`, {
+                method:  "POST",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
+                body: JSON.stringify({
+                  station:   "System",
+                  type:      "system",
+                  message:   `${currentUser.name} (${currentUser.role}, ${currentUser.department}) has logged out of the system`,
+                  user_name: currentUser.name,
+                }),
+              });
+            } catch {}
+          }
+          try {
+            await fetch(`${API_BASE}/logout`, {
+              method:  "POST",
+              headers: { Authorization: `Bearer ${tok}` },
+            });
+          } catch {}
+        }
     clearStoredSession();
     sessionStorage.removeItem("fews1_offline_time");
     sessionStorage.removeItem("fews1_was_offline");
