@@ -27,9 +27,9 @@ ChartJS.register(
 
 delete L.Icon.Default.prototype._getIconUrl;
 L.Icon.Default.mergeOptions({
-  iconRetinaUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon-2x.png",
-  iconUrl:       "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
-  shadowUrl:     "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
+    iconRetinaUrl: "/leaflet/marker-icon-2x.png",
+    iconUrl:       "/leaflet/marker-icon.png",
+    shadowUrl:     "/leaflet/marker-shadow.png",
 });
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
@@ -1929,6 +1929,7 @@ export default function App() {
   });
   const markerRefs = useRef({});
   const [copiedId, setCopiedId] = useState(null);
+  const avatarBtnRef = useRef();
   const copiedTimerRef = useRef(null);
 
   useEffect(() => {
@@ -1955,15 +1956,23 @@ export default function App() {
   });
 
   const [token, setToken] = useState(() => getStoredToken());
-  const [sirens, setSirens] = useState(() => {
-    try {
-      const stored = sessionStorage.getItem("sirens");
-      return stored ? JSON.parse(stored) : { 1: false };
-    } catch { return { 1: false }; }
-  });
+  const [sirens, setSirens] = useState({ 1: false });
+
   useEffect(() => {
-  sessionStorage.setItem("sirens", JSON.stringify(sirens));
-}, [sirens]);
+      if (!token) return;
+      fetch(`${API_BASE}/units`, { headers: { Authorization: `Bearer ${token}` } })
+          .then(r => r.ok ? r.json() : null)
+          .then(rows => {
+              if (!Array.isArray(rows)) return;
+              const sirenMap = {};
+              rows.forEach(row => {
+                  const f = [{ id: 1, deviceId: "fews_1" }].find(x => "fews" + x.id === row.device_id);
+                  if (f) sirenMap[f.id] = row.siren_state ?? false;
+              });
+              setSirens(prev => ({ ...prev, ...sirenMap }));
+          })
+          .catch(() => {});
+  }, [token]);
   const [historyData, setHistoryData] = useState({ positions: [], values: [], exactLabels: [] });
   const [hadDataBefore, setHadDataBefore] = useState(() => {
   return sessionStorage.getItem("fews1_had_data") === "true";
@@ -2035,7 +2044,6 @@ export default function App() {
     sessionStorage.removeItem("fews1_offline_time");
     sessionStorage.removeItem("fews1_was_offline");
     sessionStorage.removeItem("fews1_initial_logged");
-    sessionStorage.removeItem("sirens");
     sessionStorage.removeItem("fews1_had_data");
     sessionStorage.removeItem("activeNav");
     setIsLoggedIn(false);
@@ -2659,25 +2667,30 @@ const waterChartOptions = useMemo(() => ({
               {fews1Connected ? "System Online" : "Waiting for Data"}
             </div>
             <div className="profile-wrap">
-              <div className="profile-avatar-btn" onClick={() => setShowProfileDropdown(v => !v)}>
+              <div className="profile-avatar-btn" ref={avatarBtnRef} onClick={() => setShowProfileDropdown(v => !v)}>
                 {user.photo ? <img src={user.photo} alt="avatar" style={{ width:"100%", height:"100%", borderRadius:"50%", objectFit:"cover" }} /> : user.initials}
               </div>
-              {showProfileDropdown && createPortal(
-                <div style={{ position:"fixed", top:"64px", right:"16px", zIndex:99999 }}
-                  onKeyDown={e => { if (e.key === "Escape") setShowProfileDropdown(false); }}>
-                  <ProfileDropdown
-                    user={user}
-                    token={token}
-                    onSave={u => {
-                      const normalized = normalizeUser(u);
-                      setUser(normalized);
-                      getStorage().setItem("user", JSON.stringify(normalized));
-                    }}
-                    onClose={() => setShowProfileDropdown(false)}
-                    addLog={addLog}
-                  />
-                </div>, document.body
-              )}
+              {showProfileDropdown && (() => {
+                  const rect  = avatarBtnRef.current?.getBoundingClientRect();
+                  const top   = rect ? rect.bottom + 8 : 72;
+                  const right = rect ? window.innerWidth - rect.right : 16;
+                  return createPortal(
+                      <div style={{ position:"fixed", top:`${top}px`, right:`${right}px`, zIndex:99999 }}
+                          onKeyDown={e => { if (e.key === "Escape") setShowProfileDropdown(false); }}>
+                          <ProfileDropdown
+                              user={user}
+                              token={token}
+                              onSave={u => {
+                                  const normalized = normalizeUser(u);
+                                  setUser(normalized);
+                                  getStorage().setItem("user", JSON.stringify(normalized));
+                              }}
+                              onClose={() => setShowProfileDropdown(false)}
+                              addLog={addLog}
+                          />
+                      </div>, document.body
+                  );
+              })()}
             </div>
           </div>
         </header>

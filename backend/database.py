@@ -173,6 +173,7 @@ def init_db():
         cur.execute("CREATE INDEX IF NOT EXISTS idx_logs_ts ON system_logs (timestamp DESC)")
         cur.execute("CREATE INDEX IF NOT EXISTS idx_readings_ts ON sensor_readings (device_id, timestamp DESC)")
         cur.execute("ALTER TABLE system_logs ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id) ON DELETE SET NULL")
+        cur.execute("ALTER TABLE fews_units ADD COLUMN IF NOT EXISTS siren_state BOOLEAN NOT NULL DEFAULT FALSE")
         conn.commit()
         print("[DB] Tables initialized successfully")
     except Exception as e:

@@ -544,4 +544,15 @@ def update_unit(device_id: str, req: UpdateUnitRequest, user=Depends(get_current
 def control_siren(device_id: str, req: SirenRequest, user=Depends(get_current_user)):
     from mqtt_bridge import publish_siren
     publish_siren(device_id, req.state)
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        cur.execute(
+            "UPDATE fews_units SET siren_state = %s WHERE device_id = %s",
+            (req.state == "on", device_id)
+        )
+        conn.commit()
+    finally:
+        cur.close()
+        release_db(conn)
     return {"ok": True}
