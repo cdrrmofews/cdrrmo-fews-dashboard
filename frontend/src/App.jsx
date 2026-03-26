@@ -2627,10 +2627,10 @@ const waterChartOptions = useMemo(() => ({
         <div className="critical-banner-inner">
           <div className="marquee-track">
             <div className="marquee-content">
-              ⚠ CRITICAL WATER LEVEL DETECTED — IMMEDIATE ACTION REQUIRED &nbsp;&nbsp;⚠ CRITICAL WATER LEVEL DETECTED — IMMEDIATE ACTION REQUIRED &nbsp;&nbsp;⚠ CRITICAL WATER LEVEL DETECTED — IMMEDIATE ACTION REQUIRED &nbsp;&nbsp;⚠ CRITICAL WATER LEVEL DETECTED — IMMEDIATE ACTION REQUIRED &nbsp;&nbsp;
+              CRITICAL WATER LEVEL DETECTED — IMMEDIATE ACTION REQUIRED &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; CRITICAL WATER LEVEL DETECTED — IMMEDIATE ACTION REQUIRED &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; CRITICAL WATER LEVEL DETECTED — IMMEDIATE ACTION REQUIRED &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
             </div>
             <div className="marquee-content" aria-hidden="true">
-              ⚠ CRITICAL WATER LEVEL DETECTED — IMMEDIATE ACTION REQUIRED &nbsp;&nbsp;⚠ CRITICAL WATER LEVEL DETECTED — IMMEDIATE ACTION REQUIRED &nbsp;&nbsp;⚠ CRITICAL WATER LEVEL DETECTED — IMMEDIATE ACTION REQUIRED &nbsp;&nbsp;⚠ CRITICAL WATER LEVEL DETECTED — IMMEDIATE ACTION REQUIRED &nbsp;&nbsp;
+              CRITICAL WATER LEVEL DETECTED — IMMEDIATE ACTION REQUIRED &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; CRITICAL WATER LEVEL DETECTED — IMMEDIATE ACTION REQUIRED &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; CRITICAL WATER LEVEL DETECTED — IMMEDIATE ACTION REQUIRED &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
             </div>
           </div>
         </div>

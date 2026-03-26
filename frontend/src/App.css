@@ -101,7 +101,7 @@ body {
   flex-shrink: 0;
   align-items: center;
   white-space: nowrap;
-  animation: marquee-scroll 28s linear infinite;
+  animation: marquee-scroll 40s linear infinite;
   padding-right: 0;
 }
 
