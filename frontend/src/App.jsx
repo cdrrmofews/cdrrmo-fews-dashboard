@@ -2527,7 +2527,6 @@ const waterChartOptions = useMemo(() => ({
         borderWidth: 0,
         borderSkipped: false,
         borderRadius: 8,
-        barThickness: 48,
         barThickness: 32,
         barPercentage: 0.4,
         categoryPercentage: 0.5,
@@ -2595,10 +2594,10 @@ const waterChartOptions = useMemo(() => ({
       x: {
         grid: { display: false },
         ticks: { display: false },
-        offset: true,
+        offset: false,
       },
     },
-    layout: { padding: { top: 4 } },
+    layout: { padding: { top: 4, left: 10, right: 40 } },
   }), [fews1Connected]);
 
   const alertCount      = allFews.filter(f => f.status !== "safe").length;
