@@ -5,16 +5,6 @@
     <link rel="icon" type="image/svg+xml" href="/vite.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <title>CDRRMO FEWS Dashboard</title>
-    <script>
-      window.onerror = function(msg, src, line, col, err) {
-        document.body.style.cssText = 'background:#080e1a;color:#ef4444;font-family:monospace;padding:20px;font-size:13px;word-break:break-all;';
-        document.body.innerHTML = '<b>JS ERROR (iOS Debug)</b><br><br>' + msg + '<br><br>File: ' + src + '<br>Line: ' + line + ':' + col + '<br><br>' + (err ? err.stack : '');
-      };
-      window.addEventListener('unhandledrejection', function(e) {
-        document.body.style.cssText = 'background:#080e1a;color:#f59e0b;font-family:monospace;padding:20px;font-size:13px;word-break:break-all;';
-        document.body.innerHTML = '<b>UNHANDLED PROMISE (iOS Debug)</b><br><br>' + (e.reason ? e.reason.toString() : 'unknown') + '<br><br>' + (e.reason && e.reason.stack ? e.reason.stack : '');
-      });
-    </script>
   </head>
   <body>
     <div id="root"></div>

@@ -2320,7 +2320,7 @@ export default function App() {
     const prevCriticalRef = useRef(false);
     useEffect(() => {
       if (isCritical && !prevCriticalRef.current) {
-        if (Notification.permission === "granted") {
+        if (typeof Notification !== "undefined" && Notification.permission === "granted") {
           new Notification("⚠ CDRRMO FEWS ALERT", {
             body: "FEWS 1 has reached CRITICAL water level! Immediate action required.",
             icon: "/cdrrmo-seal.png",
@@ -2331,7 +2331,7 @@ export default function App() {
     }, [isCritical]);
 
     useEffect(() => {
-      if (Notification.permission === "default") {
+      if (typeof Notification !== "undefined" && Notification.permission === "default") {
         Notification.requestPermission();
       }
     }, []);
