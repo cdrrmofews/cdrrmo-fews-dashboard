@@ -2377,7 +2377,7 @@ export default function App() {
 
   const CHART_WINDOW  = 60 * 60 * 1000;
   const CHART_PADDING = 2 * 60 * 1000;
-  const chartWinEnd   = useMemo(() => Math.ceil(chartNow / 300000) * 300000, [chartNow]);
+  const chartWinEnd = useMemo(() => Math.floor(chartNow / 300000) * 300000, [chartNow]);
   const chartWinStart = useMemo(() => chartWinEnd - CHART_WINDOW - CHART_PADDING, [chartWinEnd]);
   const hasEverHadData = historyData?.values?.length > 0 || hadDataBefore;
   const waterChartData = useMemo(() => ({
@@ -2492,6 +2492,8 @@ const waterChartOptions = useMemo(() => ({
         min: chartWinStart,
         max: chartWinEnd,
         grid: { color: "rgba(255,255,255,0.04)" },
+        offset: false,    
+        bounds: "data",     
         afterBuildTicks: (axis) => {
           const ticks = [];
           const step = 5 * 60 * 1000;
