@@ -2463,9 +2463,9 @@ const waterChartOptions = useMemo(() => ({
       },
       annotation: {
         annotations: {
-          zoneSafe:    { type: "box", yMin: 0,   yMax: 200, backgroundColor: "rgba(34,197,94,0.10)",  borderWidth: 0 },
-          zoneWarning: { type: "box", yMin: 200, yMax: 300, backgroundColor: "rgba(245,158,11,0.13)", borderWidth: 0 },
-          zoneCritical:{ type: "box", yMin: 300, yMax: 500, backgroundColor: "rgba(239,68,68,0.13)",  borderWidth: 0 },
+          zoneSafe:    { type: "box", xMin: chartWinStart, xMax: chartWinEnd, yMin: 0,   yMax: 200, backgroundColor: "rgba(34,197,94,0.10)",  borderWidth: 0 },
+          zoneWarning: { type: "box", xMin: chartWinStart, xMax: chartWinEnd, yMin: 200, yMax: 300, backgroundColor: "rgba(245,158,11,0.13)", borderWidth: 0 },
+          zoneCritical:{ type: "box", xMin: chartWinStart, xMax: chartWinEnd, yMin: 300, yMax: 500, backgroundColor: "rgba(239,68,68,0.13)",  borderWidth: 0 },
           lineWarning: { type: "line", yMin: 200, yMax: 200, borderColor: "rgba(245,158,11,0.55)", borderWidth: 1, borderDash: [4, 4], label: { display: false } },
           lineCritical:{ type: "line", yMin: 300, yMax: 300, borderColor: "rgba(239,68,68,0.55)",  borderWidth: 1, borderDash: [4, 4], label: { display: false } },
         },
