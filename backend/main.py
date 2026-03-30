@@ -64,22 +64,6 @@ def startup():
         conn = get_db()
         cur  = conn.cursor()
         try:
-            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS phone VARCHAR(20)")
-            cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS sms_enabled BOOLEAN NOT NULL DEFAULT FALSE")
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS fews_units (
-                    id               SERIAL PRIMARY KEY,
-                    device_id        VARCHAR(50) UNIQUE NOT NULL,
-                    name             VARCHAR(100) NOT NULL,
-                    location         VARCHAR(100),
-                    installed_date   VARCHAR(50),
-                    technician       VARCHAR(100),
-                    description      TEXT,
-                    threshold_warning INT NOT NULL DEFAULT 200,
-                    threshold_danger  INT NOT NULL DEFAULT 300,
-                    updated_at        TIMESTAMPTZ DEFAULT NOW()
-                )
-            """)
             cur.execute("SELECT id FROM fews_units WHERE device_id = 'fews_1'")
             if not cur.fetchone():
                 cur.execute("""
