@@ -1938,9 +1938,10 @@ export default function App() {
     };
   }, []);
 
-  const [fews1Live, setFews1Live]           = useState(null);
-  const [fews1Connected, setFews1Connected] = useState(false);
-  const [lastUpdated, setLastUpdated]       = useState(null);
+const [fews1Live, setFews1Live]                   = useState(null);
+  const [fews1Connected, setFews1Connected]       = useState(false);
+  const [fews1StatusOnline, setFews1StatusOnline] = useState(false);
+  const [lastUpdated, setLastUpdated]             = useState(null);
 
   const [user, setUser] = useState(() => {
     try {
@@ -2119,6 +2120,7 @@ export default function App() {
 
   const handleOnline = useCallback(() => {
     setFews1Connected(true);
+    setFews1StatusOnline(true);
     setLastUpdated(new Date());
 
     if (wasConnectedRef.current === false) {
@@ -2163,6 +2165,8 @@ export default function App() {
   const handleOffline = useCallback(() => {
     setFews1Live(null);
     setFews1Connected(false);
+    // Note: fews1StatusOnline is driven by /status/fews1 poll independently
+    // so we don't reset it here — the status poll will handle its own timeout
 
     if (wasConnectedRef.current === true && !offlineTimeRef.current) {
       const offlineTime = Date.now();
@@ -2225,6 +2229,33 @@ export default function App() {
       if (timeoutId) clearTimeout(timeoutId);
     };
   }, [handleOnline, handleOffline]);
+
+  // ── Poll /status/fews1 for startup ping (drives topbar/sidebar online state) ──
+  useEffect(() => {
+    let statusTimeoutId = null;
+    let statusFailCount = 0;
+
+    const pollStatus = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/status/fews1`);
+        if (!res.ok) throw new Error("non-200");
+        const data = await res.json();
+        setFews1StatusOnline(data.online === true);
+        statusFailCount = 0;
+      } catch {
+        statusFailCount += 1;
+      } finally {
+        const delay = statusFailCount === 0 ? 10000
+                    : statusFailCount === 1 ? 20000
+                    : statusFailCount === 2 ? 40000
+                    : 60000;
+        statusTimeoutId = setTimeout(pollStatus, delay);
+      }
+    };
+
+    pollStatus();
+    return () => { if (statusTimeoutId) clearTimeout(statusTimeoutId); };
+  }, []);
 
   useEffect(() => {
     const buildChart = (rows) => {
@@ -2596,6 +2627,9 @@ const waterChartOptions = useMemo(() => ({
     layout: { padding: { top: 4 } },
   }), [fews1Connected]);
 
+  // Connected = either recent sensor reading OR recent status ping
+  const isHardwareOnline = fews1Connected || fews1StatusOnline;
+
   const alertCount      = allFews.filter(f => f.status === "danger").length;
   const selectedStation = allFews.find(f => f.id === selectedFEWS) || null;
   const pageInfo        = PAGE_TITLES[activeNav];
@@ -2709,9 +2743,9 @@ const waterChartOptions = useMemo(() => ({
                 {alertCount} Alert{alertCount > 1 ? "s" : ""}
               </div>
             )}
-            <div className={`connection ${fews1Connected ? "online" : "waiting"}`}>
-              <span className={fews1Connected ? "pulse-dot" : "wait-dot"} />
-              {fews1Connected ? "System Online" : "Waiting for Data"}
+            <div className={`connection ${isHardwareOnline ? "online" : "waiting"}`}>
+              <span className={isHardwareOnline ? "pulse-dot" : "wait-dot"} />
+              {isHardwareOnline ? "System Online" : "Waiting for Data"}
             </div>
             <div className="profile-wrap">
               <div className="profile-avatar-btn" ref={avatarBtnRef} onClick={() => setShowProfileDropdown(v => !v)}>
@@ -2759,7 +2793,7 @@ const waterChartOptions = useMemo(() => ({
                     {allFews.map(f => {
                       const cfg            = STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"];
                       const isSel          = selectedFEWS === f.id;
-                      const isActuallyLive = f.isLive && fews1Connected;
+                      const isActuallyLive = f.isLive && isHardwareOnline;
                       const markerColor    = isActuallyLive ? cfg.color : "#64748b";
                       const icon = L.divIcon({
                         className: "",
@@ -2833,7 +2867,7 @@ const waterChartOptions = useMemo(() => ({
                 <div className="card card-battery">
                 <div className="card-header">
                   <h2>Battery Level</h2>
-                  <span className="card-tag">{fews1Connected ? "FEWS 1" : "Offline"}</span>
+                  <span className="card-tag">{isHardwareOnline ? "FEWS 1" : "Offline"}</span>
                 </div>
                 {fews1Connected && !hasEverHadData ? (
                   <div className="chart-wrap skeleton" />
@@ -2854,7 +2888,7 @@ const waterChartOptions = useMemo(() => ({
                 {allFews.map(f => {
                   const cfg   = STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"];
                   const isSel = selectedFEWS === f.id;
-                  const isActuallyLive = f.isLive && fews1Connected;
+                  const isActuallyLive = f.isLive && isHardwareOnline;
                   return (
                     <button key={f.id} className={`rsb-item ${isSel ? "selected" : ""}`}
                       onClick={() => setSelectedFEWS(isSel ? null : f.id)}
@@ -2885,7 +2919,7 @@ const waterChartOptions = useMemo(() => ({
                 const f       = allFews.find(s => s.id === selectedFEWS);
                 const cfg     = STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"];
                 const sirenOn = sirens[f.id];
-                const isActuallyLive = f.isLive && fews1Connected;
+                const isActuallyLive = f.isLive && isHardwareOnline;
                 const canSiren = can(user.role, "sirenControl");
                 return (
                   <div className="rsb-detail" style={{ "--status-color": isActuallyLive ? cfg.color : "var(--text-3)" }}>
@@ -2928,7 +2962,7 @@ const waterChartOptions = useMemo(() => ({
           </div>
         )}
 
-        {activeNav === "UnitControl" && <UnitControlPage allFews={allFews} fews1Connected={fews1Connected} userRole={user.role} userName={user.name} addLog={addLog} token={token} />}
+        {activeNav === "UnitControl" && <UnitControlPage allFews={allFews} fews1Connected={isHardwareOnline} userRole={user.role} userName={user.name} addLog={addLog} token={token} />}
         {activeNav === "Logs"        && <LogsPage token={token} userRole={user.role} />}
         {activeNav === "Settings"    && <SettingsPage
           userRole={user.role}

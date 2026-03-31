@@ -56,6 +56,15 @@ MQTT_PORT          = 1883
 MQTT_TOPIC         = "cdrrmo/fews1/data"
 MQTT_STATUS_TOPIC  = "cdrrmo/fews1/status"
 
+# In-memory last online timestamp per station
+_last_online: dict = {}
+
+def mark_station_online(station_id: str):
+    _last_online[station_id] = time.time()
+
+def get_last_online(station_id: str) -> float:
+    return _last_online.get(station_id, 0)
+
 def water_level_to_type(water_level_cm):
     if water_level_cm is None:
         return "info"
@@ -94,6 +103,8 @@ def on_message(client, userdata, msg):
         # ── Handle startup status message ─────────────────────────────────
         if msg.topic == MQTT_STATUS_TOPIC:
             if data.get("online") and data.get("station_id"):
+                station_id = data.get("station_id")
+                mark_station_online(station_id)
                 conn = get_db()
                 cur  = conn.cursor()
                 try:
@@ -161,8 +172,9 @@ def on_message(client, userdata, msg):
             ))
 
             conn.commit()
+            mark_station_online(station_id)
             print(f"[BRIDGE] Saved → {station_id} {water_level_cm}cm {status} is_immediate={is_immediate} | Logged as [{log_type.upper()}]")
-
+            
             if log_type == "danger":
                             import time
                             global _last_sms_time

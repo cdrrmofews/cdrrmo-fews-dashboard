@@ -12,7 +12,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
-import os, uuid, base64, re
+import os, uuid, base64, re, time
 from supabase import create_client
 
 from models import (
@@ -360,6 +360,18 @@ def history():
     finally:
         cur.close()
         release_db(conn)
+
+@app.get("/status/fews1")
+def fews1_status():
+    from mqtt_bridge import get_last_online
+    last = get_last_online("fews_1")
+    if last == 0:
+        return { "online": False, "last_seen": None }
+    age = time.time() - last
+    return {
+        "online":    age < 600,
+        "last_seen": last,
+    }
 
 # --- SYSTEM LOGS ---
 
