@@ -1360,7 +1360,7 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, 
       });
   }, [token]);
 
-  const getDeviceId = (id) => "fews" + id;
+  const getDeviceId = (id) => "fews_" + id;
 
   const saveThr = async (id) => {
     if (!canControl) return;
