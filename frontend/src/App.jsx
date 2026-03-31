@@ -2094,7 +2094,7 @@ const [fews1Live, setFews1Live]                   = useState(null);
               if (!Array.isArray(rows)) return;
               const sirenMap = {};
               rows.forEach(row => {
-                  const f = [{ id: 2, deviceId: "fews_1" }].find(x => "fews_" + x.id === row.device_id);
+                  const f = [{ id: 1, deviceId: "fews_1" }].find(x => "fews" + x.id === row.device_id);
                   if (f) sirenMap[f.id] = row.siren_state ?? false;
               });
               setSirens(prev => ({ ...prev, ...sirenMap }));
