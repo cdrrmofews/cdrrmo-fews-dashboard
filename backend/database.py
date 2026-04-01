@@ -143,5 +143,10 @@ def init_db():
                 print("[DB] init_db giving up — DB unavailable at startup")
                 return
 
-    print("[DB] Tables initialized successfully")
-    release_db(conn)
+    if conn is None:
+        return
+
+    try:
+        print("[DB] Tables initialized successfully")
+    finally:
+        release_db(conn)
