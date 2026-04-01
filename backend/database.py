@@ -39,20 +39,22 @@ def reset_pool():
     print("[DB] Resetting connection pool...")
     try:
         with _pool_lock:
-            old_pool_id = id(_pool)  # ADD THIS
-            print(f"[DB] Destroying old pool id={old_pool_id}")  # ADD THIS
-            try:
-                if _pool is not None:
-                    _pool.closeall()
-            except Exception:
-                pass
+            old_pool = _pool  # save reference
+            print(f"[DB] Destroying old pool id={id(old_pool)}")
             _pool = None
 
-        time.sleep(2)
+        time.sleep(2)  # let in-flight requests finish
+
+        # NOW close the old pool after requests have had time to complete
+        if old_pool is not None:
+            try:
+                old_pool.closeall()
+            except Exception:
+                pass
 
         with _pool_lock:
             get_pool()
-            print(f"[DB] New pool id={id(_pool)}")  # ADD THIS
+            print(f"[DB] New pool id={id(_pool)}")
     except Exception as e:
         print(f"[DB] Pool reset failed: {e}")
     finally:
