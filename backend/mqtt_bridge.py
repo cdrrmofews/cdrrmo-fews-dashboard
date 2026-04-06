@@ -1,55 +1,60 @@
 import json
 import uuid
 import threading
-import requests
+#import requests
 import time
 import paho.mqtt.client as mqtt
 import paho.mqtt.publish as mqtt_publish
 from database import get_db, release_db
 
 # ─── SEMAPHORE SMS ────────────────────────────────────────────────────────────
-import os
-SEMAPHORE_API_KEY = os.environ.get("SEMAPHORE_API_KEY")
-if not SEMAPHORE_API_KEY:
-    raise RuntimeError("[SMS] SEMAPHORE_API_KEY environment variable is not set")
-SEMAPHORE_SENDER  = "CDRRMO"
+#import os
+#SEMAPHORE_API_KEY = os.environ.get("SEMAPHORE_API_KEY")
+#if not SEMAPHORE_API_KEY:
+#    raise RuntimeError("[SMS] SEMAPHORE_API_KEY environment variable is not set")
+#SEMAPHORE_SENDER  = "CDRRMO"
 _last_sms_time = 0
 
 def send_sms_to_all():
-    try:
-        conn = get_db()
-        cur  = conn.cursor()
-        try:
-            cur.execute("SELECT name, phone FROM users WHERE sms_enabled = TRUE AND phone IS NOT NULL AND phone != ''")
-            recipients = cur.fetchall()
-        finally:
-            cur.close()
-            release_db(conn)
+    print("[SMS] Semaphore disabled for development — Arduino handles SMS directly")
+    return
 
-        if not recipients:
-            print("[SMS] No recipients with SMS enabled — skipping")
-            return
+#def send_sms_to_all():
+#    try:
+#        conn = get_db()
+#        cur  = conn.cursor()
+#        try:
+#            cur.execute("SELECT name, phone FROM users WHERE sms_enabled = TRUE AND phone IS NOT NULL AND phone != ''")
+#            recipients = cur.fetchall()
+#        finally:
+#            cur.close()
+#            release_db(conn)
+#
+#        if not recipients:
+#            print("[SMS] No recipients with SMS enabled — skipping")
+#            return
 
-        message = "CDRRMO ALERT: Water level has reached CRITICAL status. Immediate action may be required."
-        for row in recipients:
-            name, phone = row["name"], row["phone"]
-            try:
-                resp = requests.post(
-                    "https://api.semaphore.co/api/v4/messages",
-                    data={
-                        "apikey":     SEMAPHORE_API_KEY,
-                        "number":     phone,
-                        "message":    message,
-                        "sendername": SEMAPHORE_SENDER,
-                    },
-                    timeout=10,
-                )
-                print(f"[SMS] Sent to {name} ({phone}): HTTP {resp.status_code}")
-            except Exception as e:
-                print(f"[SMS] Failed to send to {name} ({phone}): {e}")
-
-    except Exception as e:
-        print(f"[SMS] send_sms_to_all failed entirely: {e}")
+#        message = "CDRRMO ALERT: Water level has reached CRITICAL status. Immediate action may be required."
+#        for row in recipients:
+#            name, phone = row["name"], row["phone"]
+#            try:
+#                resp = requests.post(
+#                    "https://api.semaphore.co/api/v4/messages",
+#                    data={
+#                        "apikey":     SEMAPHORE_API_KEY,
+#                        "number":     phone,
+#                        "message":    message,
+#                        "sendername": SEMAPHORE_SENDER,
+#                    },
+#                    timeout=10,
+#                )
+#                print(f"[SMS] Sent to {name} ({phone}): HTTP {resp.status_code}")
+#            except Exception as e:
+#                print(f"[SMS] Failed to send to {name} ({phone}): {e}")
+#
+#    except Exception as e:
+#        print(f"[SMS] send_sms_to_all failed entirely: {e}")
+#───────────────────────────────────────────────────────────
 
 MQTT_BROKER        = "broker.emqx.io"
 MQTT_PORT          = 1883
@@ -196,14 +201,7 @@ def on_message(client, userdata, msg):
             print(f"[BRIDGE] Saved → {station_id} {water_level_cm}cm {status} is_immediate={is_immediate} | Logged as [{log_type.upper()}]")
             
             if log_type == "danger":
-                            import time
-                            global _last_sms_time
-                            if time.time() - _last_sms_time > 600:
-                                _last_sms_time = time.time()
-                                threading.Thread(target=send_sms_to_all, daemon=True).start()
-                            else:
-                                remaining = int(600 - (time.time() - _last_sms_time))
-                                print(f"[SMS] Cooldown active — {remaining}s remaining before next blast")
+                print("[SMS] CRITICAL detected — SMS handled by Arduino directly")
         finally:
             cur.close()
             release_db(conn)
