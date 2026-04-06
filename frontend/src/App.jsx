@@ -1566,7 +1566,7 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, 
                   <div className="uc-thr-row">
                     <div className="uc-thr-field">
                       <label className="uc-thr-field-label">⚠ Warning (cm)</label>
-                      <input className="settings-input" type="number" step="100" min="100"
+                      <input className="settings-input" type="number" step="100" min="100" max="300"
                         value={thr.warning}
                         onChange={e => setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], warning: parseInt(e.target.value) } }))} />
                     </div>
