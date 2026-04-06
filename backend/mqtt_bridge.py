@@ -261,7 +261,7 @@ def start_bridge_thread():
 
 # ── NEW: Publish siren command to Arduino ─────────────────────────────────────
 def publish_siren(device_id: str, state: str):
-    topic   = f"cdrrmo/{device_id}/siren"
+    topic = "cdrrmo/fews1/siren"
     payload = json.dumps({"siren": state})
     try:
         mqtt_publish.single(
@@ -276,7 +276,7 @@ def publish_siren(device_id: str, state: str):
         print(f"[SIREN] Failed to publish: {e}")
 
 def publish_config(device_id: str, threshold_warning: int, threshold_danger: int):
-    topic   = f"cdrrmo/{device_id}/config"
+    topic = "cdrrmo/fews1/config"
     payload = json.dumps({"warning": threshold_warning, "danger": threshold_danger})
     try:
         mqtt_publish.single(
