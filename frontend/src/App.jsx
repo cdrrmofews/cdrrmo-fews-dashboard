@@ -1568,15 +1568,17 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, 
                       <label className="uc-thr-field-label">⚠ Warning (cm)</label>
                       <input className="settings-input" type="number" step="100" min="100" max="300"
                         value={thr.warning}
+                        disabled={!isActuallyLive}
                         onChange={e => setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], warning: parseInt(e.target.value) } }))} />
                     </div>
                     <div className="uc-thr-field">
                       <label className="uc-thr-field-label">🔴 Danger (cm)</label>
                       <input className="settings-input" type="number" step="100" min="200" max="400"
                         value={thr.danger}
+                        disabled={!isActuallyLive}
                         onChange={e => setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], danger: parseInt(e.target.value) } }))} />
                     </div>
-                    <button className="uc-thr-save" onClick={() => {
+                    <button className="uc-thr-save" disabled={!isActuallyLive} onClick={() => {
                       // Run validation first before showing modal
                       const thr = thresholds[f.id];
                       if (!thr.warning || thr.warning < 100 || thr.warning % 100 !== 0) {
@@ -3084,9 +3086,8 @@ const waterChartOptions = useMemo(() => ({
                           <span style={{ color: isActuallyLive ? "var(--text-2)" : "var(--text-3)" }}>{sirenOn ? "🔊 Active" : "🔇 Off"}</span>
                           <button
                             className={`siren-btn ${sirenOn ? "siren-on" : "siren-off"}`}
-                            onClick={() => isActuallyLive && toggleSiren(f.id)}
+                            onClick={() => toggleSiren(f.id)}
                             disabled={!isActuallyLive}
-                            style={{ opacity: isActuallyLive ? 1 : 0.3, cursor: isActuallyLive ? "pointer" : "not-allowed" }}
                           >
                             {sirenOn ? "SILENCE" : "MANUAL ON"}
                           </button>
