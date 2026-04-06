@@ -1314,6 +1314,7 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, 
   const [thresholds, setThr]              = useState(Object.fromEntries(allFews.map(f => [f.id, { warning: 200, danger: 300 }])));
   const [prevThresholds, setPrevThr]      = useState(Object.fromEntries(allFews.map(f => [f.id, { warning: 200, danger: 300 }])));
   const [thrSaving, setThrSaving]         = useState({});
+  const [thrConfirm, setThrConfirm]       = useState(null);
   const [editing, setEditing]             = useState({});
   const [infoSaving, setInfoSaving]       = useState({});
   const [loadError, setLoadError]         = useState(false);
@@ -1367,17 +1368,7 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, 
     const f    = fewsData.find(x => x.id === id);
     const thr  = thresholds[id];
     const prev = prevThresholds[id];
-
-    // Validation
-    if (!thr.warning || thr.warning < 100 || thr.warning % 100 !== 0) {
-      setThrError(p => ({ ...p, [id]: "Warning must be a multiple of 100 and at least 100cm." })); return;
-    }
-    if (!thr.danger || thr.danger > 400 || thr.danger % 100 !== 0) {
-      setThrError(p => ({ ...p, [id]: "Danger must be a multiple of 100 and at most 400cm." })); return;
-    }
-    if (thr.danger < thr.warning + 100) {
-      setThrError(p => ({ ...p, [id]: "Danger must be at least Warning + 100cm." })); return;
-    }
+    // Validation already done before modal opens, but double-check here as safety
     setThrSaving(p => ({ ...p, [id]: true }));
     setThrError(p => ({ ...p, [id]: "" }));
     try {
@@ -1435,6 +1426,38 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, 
 
   return (
     <>
+      {thrConfirm !== null && (() => {
+        const confirmId  = thrConfirm;
+        const confirmThr = thresholds[confirmId];
+        return (
+          <div className="modal-overlay">
+            <div className="modal-box">
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div className="modal-icon" style={{ color: "var(--amber)", marginBottom: 0 }}>⚠</div>
+                <div className="modal-title">Update Alert Thresholds?</div>
+              </div>
+              <div className="modal-msg">
+                Warning will be set to <strong style={{ color: "var(--amber)" }}>{confirmThr?.warning} cm</strong> and Danger to <strong style={{ color: "var(--red)" }}>{confirmThr?.danger} cm</strong>. This will also update the Arduino device.
+              </div>
+              <div className="modal-actions">
+                <button className="modal-btn modal-cancel"
+                  onClick={() => setThrConfirm(null)}
+                  disabled={thrSaving[confirmId]}>
+                  Cancel
+                </button>
+                <button className="modal-btn"
+                  style={{ background: "var(--blue)", color: "#000", minWidth: 90 }}
+                  disabled={thrSaving[confirmId]}
+                  onClick={() => saveThr(confirmId).then(() => setThrConfirm(null))}>
+                  {thrSaving[confirmId]
+                    ? <span className="btn-spinner" style={{ borderTopColor: "#000", borderColor: "rgba(0,0,0,0.2)" }} />
+                    : "Yes, Save"}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
       <div className="page-body">
         {loadError && (
           <div style={{ background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.2)", borderRadius:10, padding:"12px 16px", color:"var(--red)", fontSize:12, fontWeight:600 }}>
@@ -1553,7 +1576,21 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, 
                         value={thr.danger}
                         onChange={e => setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], danger: parseInt(e.target.value) } }))} />
                     </div>
-                    <button className="uc-thr-save" onClick={() => saveThr(f.id)}>{thrSaving[f.id] ? <span className="btn-spinner" /> : "Save"}</button>
+                    <button className="uc-thr-save" onClick={() => {
+                      // Run validation first before showing modal
+                      const thr = thresholds[f.id];
+                      if (!thr.warning || thr.warning < 100 || thr.warning % 100 !== 0) {
+                        setThrError(p => ({ ...p, [f.id]: "Warning must be a multiple of 100 and at least 100cm." })); return;
+                      }
+                      if (!thr.danger || thr.danger > 400 || thr.danger % 100 !== 0) {
+                        setThrError(p => ({ ...p, [f.id]: "Danger must be a multiple of 100 and at most 400cm." })); return;
+                      }
+                      if (thr.danger < thr.warning + 100) {
+                        setThrError(p => ({ ...p, [f.id]: "Danger must be at least Warning + 100cm." })); return;
+                      }
+                      setThrError(p => ({ ...p, [f.id]: "" }));
+                      setThrConfirm(f.id);
+                    }}>Save</button>
                   </div>
                   {thrError[f.id] && <div className="settings-error" style={{ fontSize: 11, marginTop: 4 }}>{thrError[f.id]}</div>}
                 </div>
