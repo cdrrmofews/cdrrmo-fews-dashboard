@@ -1988,6 +1988,7 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
           </div>
         )}
 
+      {isAdmin && (
         <div className="page-card">
           <div className="page-card-title">SMS Notifications</div>
           <div className="page-card-sub">Send SMS alerts to registered operators on CRITICAL events.</div>
@@ -2019,7 +2020,7 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
             ))}
           </div>
         </div>
-
+      )}
       </div>
     </>
   );
