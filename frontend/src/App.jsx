@@ -2135,27 +2135,41 @@ const [fews1Live, setFews1Live]                   = useState(null);
 
   useEffect(() => {
     if (!token) return;
-    fetch(`${API_BASE}/units`, { headers: { Authorization: `Bearer ${token}` } })
-        .then(r => r.ok ? r.json() : null)
-        .then(rows => {
-            if (!Array.isArray(rows)) return;
-            const sirenMap = {};
-            rows.forEach(row => {
-                const f = [{ id: 1, deviceId: "fews_1" }].find(x => "fews_" + x.id === row.device_id);
-                if (f) sirenMap[f.id] = row.siren_state ?? false;
-            });
-            setSirens(prev => ({ ...prev, ...sirenMap }));
 
-            // Load thresholds from DB on app load
-            const fews1Row = rows.find(r => r.device_id === "fews_1");
-            if (fews1Row) {
-                setThresholds({
-                    warning: fews1Row.threshold_warning ?? 200,
-                    danger:  fews1Row.threshold_danger  ?? 300,
+    let timeoutId = null;
+    let failCount = 0;
+
+    const pollUnits = () => {
+        fetch(`${API_BASE}/units`, { headers: { Authorization: `Bearer ${token}` } })
+            .then(r => r.ok ? r.json() : null)
+            .then(rows => {
+                if (!Array.isArray(rows)) return;
+                failCount = 0;
+
+                const sirenMap = {};
+                rows.forEach(row => {
+                    const f = [{ id: 1, deviceId: "fews_1" }].find(x => "fews_" + x.id === row.device_id);
+                    if (f) sirenMap[f.id] = row.siren_state ?? false;
                 });
-            }
-        })
-        .catch(() => {});
+                setSirens(prev => ({ ...prev, ...sirenMap }));
+
+                const fews1Row = rows.find(r => r.device_id === "fews_1");
+                if (fews1Row) {
+                    setThresholds({
+                        warning: fews1Row.threshold_warning ?? 200,
+                        danger:  fews1Row.threshold_danger  ?? 300,
+                    });
+                }
+            })
+            .catch(() => { failCount += 1; })
+            .finally(() => {
+                const delay = failCount === 0 ? 10000 : failCount <= 2 ? 20000 : 30000;
+                timeoutId = setTimeout(pollUnits, delay);
+            });
+    };
+
+    pollUnits();
+    return () => { if (timeoutId) clearTimeout(timeoutId); };
 }, [token]);
   const [historyData, setHistoryData] = useState({ positions: [], values: [], exactLabels: [] });
   const [hadDataBefore, setHadDataBefore] = useState(() => {

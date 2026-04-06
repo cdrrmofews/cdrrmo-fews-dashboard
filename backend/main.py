@@ -689,7 +689,7 @@ def control_siren(device_id: str, req: SirenRequest, user=Depends(get_current_us
     cur  = conn.cursor()
     try:
         cur.execute(
-            "UPDATE fews_units SET siren_state = %s WHERE device_id = %s",
+            "UPDATE fews_units SET siren_state = %s, siren_auto_triggered = FALSE WHERE device_id = %s",
             (req.state == "on", device_id)
         )
         conn.commit()

@@ -13,6 +13,7 @@ from database import get_db, release_db
 #if not SEMAPHORE_API_KEY:
 #    raise RuntimeError("[SMS] SEMAPHORE_API_KEY environment variable is not set")
 #SEMAPHORE_SENDER  = "CDRRMO"
+
 _last_sms_time = 0
 
 def send_sms_to_all():
@@ -199,9 +200,33 @@ def on_message(client, userdata, msg):
             conn.commit()
             mark_station_online(station_id)
             print(f"[BRIDGE] Saved → {station_id} {water_level_cm}cm {status} is_immediate={is_immediate} | Logged as [{log_type.upper()}]")
-            
+
             if log_type == "danger":
                 print("[SMS] CRITICAL detected — SMS handled by Arduino directly")
+
+            # Auto-siren ON: after 30s CRITICAL
+            if is_immediate and status == "CRITICAL":
+                try:
+                    cur.execute(
+                        "UPDATE fews_units SET siren_state = TRUE, siren_auto_triggered = TRUE WHERE device_id = %s",
+                        (station_id,)
+                    )
+                    conn.commit()
+                    print(f"[BRIDGE] Auto-siren ON written to DB for {station_id}")
+                except Exception as e:
+                    print(f"[BRIDGE] Failed to write auto-siren state: {e}")
+
+            # Auto-siren OFF: only clear if it was auto-triggered, never touch manual
+            if status != "CRITICAL":
+                try:
+                    cur.execute(
+                        "UPDATE fews_units SET siren_state = FALSE, siren_auto_triggered = FALSE WHERE device_id = %s AND siren_auto_triggered = TRUE",
+                        (station_id,)
+                    )
+                    conn.commit()
+                    print(f"[BRIDGE] Auto-siren OFF cleared in DB for {station_id} — status is {status}")
+                except Exception as e:
+                    print(f"[BRIDGE] Failed to clear auto-siren state: {e}")
         finally:
             cur.close()
             release_db(conn)
