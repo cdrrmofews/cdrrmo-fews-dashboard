@@ -1782,10 +1782,7 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
   const [showPassword, setShowPassword]     = useState(false);
   const [showPhone, setShowPhone]           = useState(false);
   const [showAddUser, setShowAddUser]       = useState(false);
-  const [notifs, setNotifs]                 = useState({ autoSiren: true, email: false });
-  const [notifSaving, setNotifSaving]       = useState({});
   const [smsSaving, setSmsSaving]           = useState({});
-  const [confirmNotif, setConfirmNotif]     = useState(null);
   const [confirmSms, setConfirmSms]         = useState(null);
   const [users, setUsers]                   = useState([]);
   const [loadingUsers, setLoadingUsers]     = useState(false);
@@ -1796,11 +1793,6 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
   const [confirmRemove, setConfirmRemove]   = useState(null);
 
   const isAdmin = userRole === "Admin";
-
-  const NOTIF_LABELS = {
-    autoSiren: "Auto-trigger siren on CRITICAL",
-    email:     "Email Notifications",
-  };
 
   useEffect(() => {
     setLoadingUsers(true);
@@ -1890,24 +1882,6 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
     setSmsSaving(p => ({ ...p, [userId]: false }));
   };
 
-  const handleNotifToggle = (key) => {
-    if (notifSaving[key]) return;
-    setConfirmNotif(key);
-  };
-
-  const doNotifToggle = (key) => {
-    const newVal = !notifs[key];
-    setNotifSaving(p => ({ ...p, [key]: true }));
-    setTimeout(() => {
-      setNotifs(n => ({ ...n, [key]: newVal }));
-      setNotifSaving(p => ({ ...p, [key]: false }));
-      addLog({
-        station: "System", type: "system",
-        message: `${NOTIF_LABELS[key]} has been ${newVal ? "enabled" : "disabled"}`,
-      });
-    }, 500);
-  };
-
   return (
     <>
       {showAddUser  && <AddUserModal onAdd={doAdd} onClose={() => setShowAddUser(false)} token={token} addLog={addLog} />}
@@ -1937,17 +1911,6 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
         confirmColor={confirmSms.newVal ? "var(--green)" : "var(--red)"}
         onConfirm={() => { handleSmsToggle(confirmSms.userId, confirmSms.newVal); setConfirmSms(null); }}
         onCancel={() => setConfirmSms(null)} />}
-      {confirmNotif && <ConfirmModal
-        icon={notifs[confirmNotif] ? "🔕" : "🔔"}
-        iconColor={notifs[confirmNotif] ? "var(--red)" : "var(--green)"}
-        title={notifs[confirmNotif] ? `Disable ${NOTIF_LABELS[confirmNotif]}?` : `Enable ${NOTIF_LABELS[confirmNotif]}?`}
-        message={notifs[confirmNotif]
-          ? `This will turn OFF ${NOTIF_LABELS[confirmNotif]} for the system.`
-          : `This will turn ON ${NOTIF_LABELS[confirmNotif]} for the system.`}
-        confirmLabel={notifs[confirmNotif] ? "Yes, Disable" : "Yes, Enable"}
-        confirmColor={notifs[confirmNotif] ? "var(--red)" : "var(--green)"}
-        onConfirm={() => { doNotifToggle(confirmNotif); setConfirmNotif(null); }}
-        onCancel={() => setConfirmNotif(null)} />}
       {confirmSave   && <ConfirmModal icon="👤" iconColor="var(--blue)" title={`Save Changes for ${confirmSave.name}?`} message={`Role → ${getDraft(confirmSave).role} · Department → ${getDraft(confirmSave).department}`} confirmLabel="Yes, Save" onConfirm={doSave} onCancel={() => setConfirmSave(null)} />}
       {confirmRemove && <ConfirmModal icon="🗑" iconColor="var(--red)" title={`Remove ${confirmRemove.name}?`} message={`This will permanently remove ${confirmRemove.name} from the system.`} confirmLabel="Yes, Remove" confirmColor="var(--red)" onConfirm={doRemove} onCancel={() => setConfirmRemove(null)} />}
       <div className="page-body">
@@ -2024,26 +1987,6 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
             )}
           </div>
         )}
-
-        <div className="page-card">
-          <div className="page-card-title">Alert Triggers</div>
-          <div className="page-card-sub">Choose how the system alerts operators during flood events.</div>
-          <div style={{ borderRadius: 10, overflow: "hidden", border: "1px solid var(--border)" }}>
-          {[
-            { key:"autoSiren", label:"Auto-trigger siren on CRITICAL", sub:"Siren activates automatically when danger threshold is crossed" },
-            { key:"email",     label:"Email Notifications",            sub:"Send email alerts to registered operators" },
-          ].map(item => (
-            <div key={item.key} className="notif-toggle-row">
-              <div><div className="settings-toggle-label">{item.label}</div><div className="settings-toggle-sub">{item.sub}</div></div>
-              <div className="notif-toggle-btn-wrap">
-                <button className={`settings-toggle ${notifs[item.key] ? "stoggle-on" : "stoggle-off"}`} onClick={() => handleNotifToggle(item.key)}>
-                  {notifSaving[item.key] ? <span className="btn-spinner" style={{ width:10, height:10, borderWidth:1.5 }} /> : notifs[item.key] ? "ON" : "OFF"}
-                </button>
-              </div>
-            </div>
-          ))}
-          </div>
-        </div>
 
         <div className="page-card">
           <div className="page-card-title">SMS Notifications</div>
