@@ -635,6 +635,21 @@ def get_units(user=Depends(get_current_user)):
 def update_unit(device_id: str, req: UpdateUnitRequest, user=Depends(get_current_user)):
     if user["role"] not in ("Admin", "Operator"):
         raise HTTPException(status_code=403, detail="Not authorized")
+
+    # Server-side threshold validation
+    if req.threshold_warning is not None or req.threshold_danger is not None:
+        w = req.threshold_warning
+        d = req.threshold_danger
+        if w is not None:
+            if w < 100 or w % 100 != 0:
+                raise HTTPException(status_code=400, detail="Warning threshold must be a multiple of 100 and at least 100.")
+        if d is not None:
+            if d > 400 or d % 100 != 0:
+                raise HTTPException(status_code=400, detail="Danger threshold must be a multiple of 100 and at most 400.")
+        if w is not None and d is not None:
+            if d < w + 100:
+                raise HTTPException(status_code=400, detail="Danger threshold must be at least Warning + 100.")
+
     conn = get_db()
     cur  = conn.cursor()
     try:
@@ -653,6 +668,12 @@ def update_unit(device_id: str, req: UpdateUnitRequest, user=Depends(get_current
         row = cur.fetchone()
         if not row:
             raise HTTPException(status_code=404, detail="Unit not found")
+
+        # Publish new thresholds to Arduino if thresholds were updated
+        if req.threshold_warning is not None or req.threshold_danger is not None:
+            from mqtt_bridge import publish_config
+            publish_config(device_id, row["threshold_warning"], row["threshold_danger"])
+
         return row
     finally:
         cur.close()

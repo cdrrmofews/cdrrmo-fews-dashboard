@@ -1309,7 +1309,7 @@ function ProfileDropdown({ user, token, onSave, onClose, addLog }) {
 }
 
 // ─── UNIT CONTROL PAGE ────────────────────────────────────────────────────────
-function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, token }) {
+function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, token, onThresholdSaved }) {
   const [fewsData, setFewsData]           = useState(allFews.map(f => ({ ...f })));
   const [thresholds, setThr]              = useState(Object.fromEntries(allFews.map(f => [f.id, { warning: 200, danger: 300 }])));
   const [prevThresholds, setPrevThr]      = useState(Object.fromEntries(allFews.map(f => [f.id, { warning: 200, danger: 300 }])));
@@ -1367,11 +1367,16 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, 
     const f    = fewsData.find(x => x.id === id);
     const thr  = thresholds[id];
     const prev = prevThresholds[id];
-    if (!thr.warning || !thr.danger || thr.warning <= 0 || thr.danger <= 0) {
-      setThrError(p => ({ ...p, [id]: "Thresholds must be greater than 0." })); return;
+
+    // Validation
+    if (!thr.warning || thr.warning < 100 || thr.warning % 100 !== 0) {
+      setThrError(p => ({ ...p, [id]: "Warning must be a multiple of 100 and at least 100cm." })); return;
     }
-    if (thr.warning >= thr.danger) {
-      setThrError(p => ({ ...p, [id]: "Warning threshold must be less than Danger threshold." })); return;
+    if (!thr.danger || thr.danger > 400 || thr.danger % 100 !== 0) {
+      setThrError(p => ({ ...p, [id]: "Danger must be a multiple of 100 and at most 400cm." })); return;
+    }
+    if (thr.danger < thr.warning + 100) {
+      setThrError(p => ({ ...p, [id]: "Danger must be at least Warning + 100cm." })); return;
     }
     setThrSaving(p => ({ ...p, [id]: true }));
     setThrError(p => ({ ...p, [id]: "" }));
@@ -1385,6 +1390,8 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, 
       if (thr.warning !== prev.warning) addLog({ station: f.name, type: "info", message: `${f.name} (${f.location}) warning threshold updated from ${prev.warning} cm to ${thr.warning} cm by ${userName}` });
       if (thr.danger  !== prev.danger)  addLog({ station: f.name, type: "info", message: `${f.name} (${f.location}) danger threshold updated from ${prev.danger} cm to ${thr.danger} cm by ${userName}` });
       setPrevThr(p => ({ ...p, [id]: { ...thr } }));
+      // Notify App to update chart thresholds
+      if (onThresholdSaved) onThresholdSaved({ warning: thr.warning, danger: thr.danger });
     } catch (err) {
       if (err?.message !== "Unauthorized") setThrError(p => ({ ...p, [id]: "Network error. Try again." }));
     } finally {
@@ -1536,13 +1543,15 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, 
                   <div className="uc-thr-row">
                     <div className="uc-thr-field">
                       <label className="uc-thr-field-label">⚠ Warning (cm)</label>
-                      <input className="settings-input" type="number" step="1" value={thr.warning}
-                        onChange={e => setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], warning: parseFloat(e.target.value) } }))} />
+                      <input className="settings-input" type="number" step="100" min="100"
+                        value={thr.warning}
+                        onChange={e => setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], warning: parseInt(e.target.value) } }))} />
                     </div>
                     <div className="uc-thr-field">
                       <label className="uc-thr-field-label">🔴 Danger (cm)</label>
-                      <input className="settings-input" type="number" step="1" value={thr.danger}
-                        onChange={e => setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], danger: parseFloat(e.target.value) } }))} />
+                      <input className="settings-input" type="number" step="100" min="200" max="400"
+                        value={thr.danger}
+                        onChange={e => setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], danger: parseInt(e.target.value) } }))} />
                     </div>
                     <button className="uc-thr-save" onClick={() => saveThr(f.id)}>{thrSaving[f.id] ? <span className="btn-spinner" /> : "Save"}</button>
                   </div>
@@ -2085,6 +2094,7 @@ const [fews1Live, setFews1Live]                   = useState(null);
 
   const [token, setToken] = useState(() => getStoredToken());
   const [sirens, setSirens] = useState({ 1: false });
+  const [thresholds, setThresholds] = useState({ warning: 200, danger: 300 });
 
   useEffect(() => {
     if (!token) return;
@@ -2098,6 +2108,15 @@ const [fews1Live, setFews1Live]                   = useState(null);
                 if (f) sirenMap[f.id] = row.siren_state ?? false;
             });
             setSirens(prev => ({ ...prev, ...sirenMap }));
+
+            // Load thresholds from DB on app load
+            const fews1Row = rows.find(r => r.device_id === "fews_1");
+            if (fews1Row) {
+                setThresholds({
+                    warning: fews1Row.threshold_warning ?? 200,
+                    danger:  fews1Row.threshold_danger  ?? 300,
+                });
+            }
         })
         .catch(() => {});
 }, [token]);
@@ -2550,19 +2569,19 @@ const [fews1Live, setFews1Live]                   = useState(null);
       pointBackgroundColor: (ctx) => {
         const v = ctx.parsed?.y;
         if (v == null) return "transparent";
-        if (v > 300) return "#ef4444";
-        if (v > 200) return "#f59e0b";
+        if (v > thresholds.danger)  return "#ef4444";
+        if (v > thresholds.warning) return "#f59e0b";
         return "#22c55e";
       },
       pointBorderColor: (ctx) => {
         const v = ctx.parsed?.y;
         if (v == null) return "transparent";
-        if (v > 300) return "#ef4444";
-        if (v > 200) return "#f59e0b";
+        if (v > thresholds.danger)  return "#ef4444";
+        if (v > thresholds.warning) return "#f59e0b";
         return "#22c55e";
       },
     }],
-  }), [chartPoints]);
+  }), [chartPoints, thresholds]);
 
 const waterChartOptions = useMemo(() => ({
     responsive: true,
@@ -2604,23 +2623,23 @@ const waterChartOptions = useMemo(() => ({
           },
           label: (ctx) => {
             const v = ctx.parsed.y;
-            const status = v > 300 ? "CRITICAL" : v > 200 ? "WARNING" : "SAFE";
+            const status = v > thresholds.danger ? "CRITICAL" : v > thresholds.warning ? "WARNING" : "SAFE";
             return ` ${v} cm  [${status}]`;
           },
           labelColor: (ctx) => {
             const v = ctx.parsed.y;
-            const color = v > 300 ? "#ef4444" : v > 200 ? "#f59e0b" : "#22c55e";
+            const color = v > thresholds.danger ? "#ef4444" : v > thresholds.warning ? "#f59e0b" : "#22c55e";
             return { borderColor: color, backgroundColor: color };
           },
         },
       },
       annotation: {
         annotations: {
-          zoneSafe:    { type: "box", yMin: 0,   yMax: 200, backgroundColor: "rgba(34,197,94,0.10)",  borderWidth: 0 },
-          zoneWarning: { type: "box", yMin: 200, yMax: 300, backgroundColor: "rgba(245,158,11,0.13)", borderWidth: 0 },
-          zoneCritical:{ type: "box", yMin: 300, yMax: 500, backgroundColor: "rgba(239,68,68,0.13)",  borderWidth: 0 },
-          lineWarning: { type: "line", yMin: 200, yMax: 200, borderColor: "rgba(245,158,11,0.55)", borderWidth: 1, borderDash: [4, 4], label: { display: false } },
-          lineCritical:{ type: "line", yMin: 300, yMax: 300, borderColor: "rgba(239,68,68,0.55)",  borderWidth: 1, borderDash: [4, 4], label: { display: false } },
+          zoneSafe:    { type: "box", yMin: 0,                    yMax: thresholds.warning, backgroundColor: "rgba(34,197,94,0.10)",  borderWidth: 0 },
+          zoneWarning: { type: "box", yMin: thresholds.warning,   yMax: thresholds.danger,  backgroundColor: "rgba(245,158,11,0.13)", borderWidth: 0 },
+          zoneCritical:{ type: "box", yMin: thresholds.danger,    yMax: 500,                backgroundColor: "rgba(239,68,68,0.13)",  borderWidth: 0 },
+          lineWarning: { type: "line", yMin: thresholds.warning, yMax: thresholds.warning, borderColor: "rgba(245,158,11,0.55)", borderWidth: 1, borderDash: [4, 4], label: { display: false } },
+          lineCritical:{ type: "line", yMin: thresholds.danger,  yMax: thresholds.danger,  borderColor: "rgba(239,68,68,0.55)",  borderWidth: 1, borderDash: [4, 4], label: { display: false } },
         },
       },
     },
@@ -2631,8 +2650,8 @@ const waterChartOptions = useMemo(() => ({
         ticks: {
           color: (ctx) => {
             const v = ctx.tick.value;
-            if (v > 300) return "#ef4444";
-            if (v > 200) return "#f59e0b";
+            if (v > thresholds.danger)  return "#ef4444";
+            if (v > thresholds.warning) return "#f59e0b";
             return "#22c55e";
           },
           font: { size: 10 },
@@ -2668,7 +2687,7 @@ const waterChartOptions = useMemo(() => ({
         },
       },
     },
-  }), [chartWinStart, chartWinEnd, historyData]);
+  }), [chartWinStart, chartWinEnd, historyData, thresholds]);
 
   const batteryData = useMemo(() => ({
     labels: allFews.map(() => ""),
@@ -3089,7 +3108,7 @@ const waterChartOptions = useMemo(() => ({
           </div>
         )}
 
-        {activeNav === "UnitControl" && <UnitControlPage allFews={allFews} fews1Connected={isHardwareOnline} userRole={user.role} userName={user.name} addLog={addLog} token={token} />}
+        {activeNav === "UnitControl" && <UnitControlPage allFews={allFews} fews1Connected={isHardwareOnline} userRole={user.role} userName={user.name} addLog={addLog} token={token} onThresholdSaved={(t) => setThresholds(t)} />}
         {activeNav === "Logs"        && <LogsPage token={token} userRole={user.role} />}
         {activeNav === "Settings"    && <SettingsPage
           userRole={user.role}

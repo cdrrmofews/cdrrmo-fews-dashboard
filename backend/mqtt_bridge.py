@@ -65,21 +65,40 @@ def mark_station_online(station_id: str):
 def get_last_online(station_id: str) -> float:
     return _last_online.get(station_id, 0)
 
-def water_level_to_type(water_level_cm):
+def get_thresholds(device_id="fews_1"):
+    try:
+        conn = get_db()
+        cur  = conn.cursor()
+        try:
+            cur.execute(
+                "SELECT threshold_warning, threshold_danger FROM fews_units WHERE device_id = %s",
+                (device_id,)
+            )
+            row = cur.fetchone()
+            if row:
+                return row["threshold_warning"], row["threshold_danger"]
+        finally:
+            cur.close()
+            release_db(conn)
+    except Exception as e:
+        print(f"[THRESHOLDS] Failed to fetch: {e}")
+    return 200, 300  # fallback defaults
+
+def water_level_to_type(water_level_cm, threshold_warning=200, threshold_danger=300):
     if water_level_cm is None:
         return "info"
-    if water_level_cm > 300:
+    if water_level_cm > threshold_danger:
         return "danger"
-    if water_level_cm > 200:
+    if water_level_cm > threshold_warning:
         return "warning"
     return "info"
 
-def water_level_to_status_label(water_level_cm):
+def water_level_to_status_label(water_level_cm, threshold_warning=200, threshold_danger=300):
     if water_level_cm is None:
         return "UNKNOWN"
-    if water_level_cm > 300:
+    if water_level_cm > threshold_danger:
         return "CRITICAL"
-    if water_level_cm > 200:
+    if water_level_cm > threshold_warning:
         return "WARNING"
     if water_level_cm > 0:
         return "SAFE"
@@ -149,8 +168,9 @@ def on_message(client, userdata, msg):
                 is_immediate,
             ))
 
-            log_type     = water_level_to_type(water_level_cm)
-            status_label = water_level_to_status_label(water_level_cm)
+            threshold_warning, threshold_danger = get_thresholds(station_id)
+            log_type     = water_level_to_type(water_level_cm, threshold_warning, threshold_danger)
+            status_label = water_level_to_status_label(water_level_cm, threshold_warning, threshold_danger)
             station_name = "FEWS 1"
             battery_str  = f"{battery_pct}%" if battery_pct is not None else "N/A"
             water_str    = f"{water_level_cm} cm" if water_level_cm is not None else "N/A"
@@ -231,4 +251,19 @@ def publish_siren(device_id: str, state: str):
         print(f"[SIREN] Published '{state}' to {topic}")
     except Exception as e:
         print(f"[SIREN] Failed to publish: {e}")
+
+def publish_config(device_id: str, threshold_warning: int, threshold_danger: int):
+    topic   = f"cdrrmo/{device_id}/config"
+    payload = json.dumps({"warning": threshold_warning, "danger": threshold_danger})
+    try:
+        mqtt_publish.single(
+            topic,
+            payload=payload,
+            hostname=MQTT_BROKER,
+            port=MQTT_PORT,
+            protocol=mqtt.MQTTv311,
+        )
+        print(f"[CONFIG] Published thresholds warning={threshold_warning} danger={threshold_danger} to {topic}")
+    except Exception as e:
+        print(f"[CONFIG] Failed to publish: {e}")
 # ─────────────────────────────────────────────────────────────────────────────
