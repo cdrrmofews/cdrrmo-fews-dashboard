@@ -171,27 +171,14 @@ def on_message(client, userdata, msg):
             # Auto-siren OFF: only clear if it was auto-triggered, never touch manual
             if status != "CRITICAL":
                 try:
-                    # First check if an auto-siren is currently active before clearing
                     cur.execute(
-                        "SELECT siren_state, siren_auto_triggered FROM fews_units WHERE device_id = %s",
-                        (station_id,)
-                    )
-                    unit_row = cur.fetchone()
-                    was_auto_active = (
-                        unit_row is not None
-                        and unit_row["siren_auto_triggered"] is True
-                        and unit_row["siren_state"] is True
-                    )
-
-                    cur.execute(
-                        "UPDATE fews_units SET siren_state = FALSE, siren_auto_triggered = FALSE WHERE device_id = %s AND siren_auto_triggered = TRUE",
+                        "UPDATE fews_units SET siren_state = FALSE, siren_auto_triggered = FALSE WHERE device_id = %s AND siren_auto_triggered = TRUE RETURNING siren_state",
                         (station_id,)
                     )
                     conn.commit()
-
-                    if was_auto_active:
+                    if cur.rowcount > 0:
                         publish_siren(station_id, "off")
-                        print(f"[BRIDGE] Auto-siren OFF published to Arduino for {station_id}")
+                        print(f"[BRIDGE] Auto-siren OFF published to dashboard for {station_id}")
                     print(f"[BRIDGE] Auto-siren OFF cleared in DB for {station_id} — status is {status}")
                 except Exception as e:
                     print(f"[BRIDGE] Failed to clear auto-siren state: {e}")
