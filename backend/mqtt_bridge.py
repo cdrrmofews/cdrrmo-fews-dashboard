@@ -13,6 +13,7 @@ MQTT_BROKER        = "broker.emqx.io"
 MQTT_PORT          = 1883
 MQTT_TOPIC         = "cdrrmo/fews1/data"
 MQTT_STATUS_TOPIC  = "cdrrmo/fews1/status"
+MQTT_SIREN_STATUS_TOPIC = "cdrrmo/fews1/siren_status"
 
 # In-memory last online timestamp per station
 _last_online: dict = {}
@@ -69,6 +70,8 @@ def on_connect(client, userdata, flags, rc):
         print(f"[BRIDGE] Subscribed to {MQTT_TOPIC} result={result} mid={mid}")
         result2, mid2 = client.subscribe(MQTT_STATUS_TOPIC, qos=0)
         print(f"[BRIDGE] Subscribed to {MQTT_STATUS_TOPIC} result={result2} mid={mid2}")
+        result3, mid3 = client.subscribe(MQTT_SIREN_STATUS_TOPIC, qos=0)
+        print(f"[BRIDGE] Subscribed to {MQTT_SIREN_STATUS_TOPIC} result={result3} mid={mid3}")
     else:
         print(f"[BRIDGE] Connection failed rc={rc}")
 
@@ -76,6 +79,30 @@ def on_message(client, userdata, msg):
     try:
         data = json.loads(msg.payload.decode())
         print(f"[BRIDGE] Received on {msg.topic}: {data}")
+
+        # ── Handle siren auto-off from Arduino ────────────────────────────
+        if msg.topic == MQTT_SIREN_STATUS_TOPIC:
+            if data.get("siren_auto_off") and data.get("station_id"):
+                sid = data.get("station_id")
+                try:
+                    conn = get_db()
+                    cur  = conn.cursor()
+                    try:
+                        cur.execute(
+                            "UPDATE fews_units SET siren_state = FALSE, siren_auto_triggered = FALSE WHERE device_id = %s AND siren_auto_triggered = TRUE RETURNING siren_state",
+                            (sid,)
+                        )
+                        conn.commit()
+                        if cur.rowcount > 0:
+                            print(f"[BRIDGE] Siren auto-off synced to DB for {sid}")
+                        else:
+                            print(f"[BRIDGE] Siren auto-off received but nothing to clear for {sid}")
+                    finally:
+                        cur.close()
+                        release_db(conn)
+                except Exception as e:
+                    print(f"[BRIDGE] Siren auto-off DB error: {e}")
+            return
 
         # ── Handle startup status message ─────────────────────────────────
         if msg.topic == MQTT_STATUS_TOPIC:
