@@ -2908,17 +2908,56 @@ const waterChartOptions = useMemo(() => ({
                   )}
               </div>
 
-                {/* ─── ALARM STATUS ─── */}
+             {/* ─── ALARM STATUS ─── */}
               {(() => {
                 const ALARM_CFG = {
-                  safe:    { color: "#22c55e", bg: "rgba(34,197,94,0.08)",  border: "rgba(34,197,94,0.20)",  label: "ALL CLEAR", sub: "No critical advisories at this time.",               anim: false },
-                  warning: { color: "#f59e0b", bg: "rgba(245,158,11,0.08)", border: "rgba(245,158,11,0.28)", label: "WARNING",   sub: "Water level is rising. Monitor closely.",              anim: true  },
-                  danger:  { color: "#ef4444", bg: "rgba(239,68,68,0.08)",  border: "rgba(239,68,68,0.28)",  label: "CRITICAL",  sub: "Critical water level detected. Take immediate action.", anim: true  },
-                  offline: { color: "#4a607e", bg: "rgba(74,96,126,0.06)",  border: "rgba(74,96,126,0.18)",  label: "OFFLINE",   sub: "No data received. Waiting for stations to come online.", anim: false },
+                  safe: {
+                    color:  "#22c55e",
+                    bg:     "rgba(34,197,94,0.12)",
+                    border: "rgba(34,197,94,0.22)",
+                    sqBg:   "rgba(34,197,94,0.18)",
+                    sqBor:  "rgba(34,197,94,0.35)",
+                    label:  "ALL CLEAR",
+                    sub:    "No critical advisories at this time.",
+                    icon:   "✓",
+                    anim:   false,
+                  },
+                  warning: {
+                    color:  "#f59e0b",
+                    bg:     "rgba(245,158,11,0.12)",
+                    border: "rgba(245,158,11,0.25)",
+                    sqBg:   "rgba(245,158,11,0.18)",
+                    sqBor:  "rgba(245,158,11,0.38)",
+                    label:  "WARNING",
+                    sub:    "Water level is rising. Monitor closely.",
+                    icon:   "!",
+                    anim:   true,
+                  },
+                  danger: {
+                    color:  "#ef4444",
+                    bg:     "rgba(239,68,68,0.12)",
+                    border: "rgba(239,68,68,0.28)",
+                    sqBg:   "rgba(239,68,68,0.20)",
+                    sqBor:  "rgba(239,68,68,0.40)",
+                    label:  "CRITICAL",
+                    sub:    "Immediate action required.",
+                    icon:   "!!",
+                    anim:   true,
+                  },
+                  offline: {
+                    color:  "#4a607e",
+                    bg:     "rgba(74,96,126,0.13)",
+                    border: "rgba(74,96,126,0.22)",
+                    sqBg:   "rgba(74,96,126,0.18)",
+                    sqBor:  "rgba(74,96,126,0.35)",
+                    label:  "OFFLINE",
+                    sub:    "No stations online.",
+                    icon:   "◌",
+                    anim:   false,
+                  },
                 };
 
-                // Derive worst status across ALL stations
-                const anyLive    = allFews.some(f => f.isLive && isHardwareOnline);
+                const anyLive = allFews.some(f => f.isLive && isHardwareOnline);
                 const worstStatus = anyLive
                   ? allFews.reduce((worst, f) => {
                       if (!f.isLive || !isHardwareOnline) return worst;
@@ -2929,89 +2968,92 @@ const waterChartOptions = useMemo(() => ({
 
                 const cfg = ALARM_CFG[worstStatus];
 
-                // Stations summary rows
-                const stationRows = allFews.map(f => {
-                  const live = f.isLive && isHardwareOnline;
-                  const sCfg = live ? (STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"]) : null;
-                  return { f, live, sCfg };
-                });
+                // For the single water level line — worst station's data
+                const worstFews = anyLive
+                  ? allFews.find(f => f.isLive && isHardwareOnline && f.status === worstStatus) || allFews[0]
+                  : null;
+                const sCfg = worstFews && anyLive
+                  ? (STATUS_CONFIG[worstFews.status] || STATUS_CONFIG["safe"])
+                  : null;
 
                 return (
-                  <div className="card card-battery" style={{
-                    borderLeft: `3px solid ${cfg.color}`,
-                    transition: "border-color 0.4s",
-                  }}>
-                    <div className="card-header" style={{ marginBottom: 10 }}>
+                  <div className="card card-battery">
+                    <div className="card-header">
                       <h2>Alarm Status</h2>
-                      <span className="card-tag" style={{
+                      <span className="card-tag">ALL FEWS</span>
+                    </div>
+
+                    {/* Big status block — fills remaining card space */}
+                    <div style={{
+                      flex: 1,
+                      borderRadius: 10,
+                      border: `1px solid ${cfg.border}`,
+                      background: cfg.bg,
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      justifyContent: "center",
+                      gap: 6,
+                      padding: "12px 10px",
+                      minHeight: 0,
+                    }}>
+                      {/* Square icon */}
+                      <div style={{
+                        width: 38, height: 38, flexShrink: 0,
+                        borderRadius: 8,
+                        border: `2px solid ${cfg.sqBor}`,
+                        background: cfg.sqBg,
+                        display: "flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: worstStatus === "offline" ? 18 : worstStatus === "danger" ? 15 : 18,
+                        fontWeight: 900,
+                        fontFamily: "var(--mono)",
                         color: cfg.color,
-                        background: cfg.bg,
-                        border: `1px solid ${cfg.border}`,
-                        borderRadius: 999,
-                        padding: "2px 8px",
-                        fontWeight: 700,
-                        letterSpacing: "0.07em",
+                        letterSpacing: worstStatus === "danger" ? "-1px" : "0",
+                        animation: cfg.anim ? "pulse 1.8s ease-in-out infinite" : "none",
+                      }}>
+                        {cfg.icon}
+                      </div>
+
+                      {/* Label */}
+                      <div style={{
+                        fontSize: 14,
+                        fontWeight: 800,
+                        color: cfg.color,
+                        fontFamily: "var(--mono)",
+                        letterSpacing: "0.10em",
                         animation: cfg.anim ? "blink 1.2s infinite" : "none",
                       }}>
                         {cfg.label}
-                      </span>
-                    </div>
+                      </div>
 
-                    {/* Status message bar */}
-                    <div style={{
-                      background: cfg.bg,
-                      border: `1px solid ${cfg.border}`,
-                      borderRadius: 8,
-                      padding: "8px 12px",
-                      fontSize: 11,
-                      color: worstStatus === "offline" ? "var(--text-3)" : cfg.color,
-                      fontWeight: 600,
-                      lineHeight: 1.5,
-                      flexShrink: 0,
-                    }}>
-                      {cfg.sub}
-                    </div>
+                      {/* Sub message */}
+                      <div style={{
+                        fontSize: 10,
+                        color: cfg.color,
+                        textAlign: "center",
+                        lineHeight: 1.5,
+                        opacity: 0.75,
+                        maxWidth: 160,
+                      }}>
+                        {cfg.sub}
+                      </div>
 
-                    {/* Station rows */}
-                    <div style={{ display:"flex", flexDirection:"column", gap:6, flex:1, justifyContent:"center", marginTop: 4 }}>
-                      {stationRows.map(({ f, live, sCfg }) => (
-                        <div key={f.id} style={{
-                          display: "flex",
-                          alignItems: "center",
-                          gap: 8,
-                          background: "var(--bg-raised)",
-                          border: `1px solid ${live ? (sCfg?.color ? sCfg.color + "22" : "var(--border)") : "var(--border)"}`,
-                          borderRadius: 8,
-                          padding: "7px 10px",
-                          opacity: live ? 1 : 0.5,
+                      {/* Single water level line — only when live */}
+                      {anyLive && worstFews && (
+                        <div style={{
+                          fontSize: 10,
+                          fontWeight: 700,
+                          fontFamily: "var(--mono)",
+                          color: cfg.color,
+                          opacity: 0.85,
+                          letterSpacing: "0.04em",
+                          marginTop: 2,
                         }}>
-                          {/* Status dot */}
-                          <div style={{
-                            width: 7, height: 7, borderRadius: "50%", flexShrink: 0,
-                            background: live ? sCfg?.color : "#334155",
-                            animation: live && (f.status === "danger" || f.status === "warning") ? "pulse 2s infinite" : "none",
-                          }} />
-                          {/* Name + location */}
-                          <div style={{ flex:1, minWidth:0 }}>
-                            <div style={{ fontSize:11, fontWeight:700, color:"var(--text-1)", display:"flex", alignItems:"center", gap:5 }}>
-                              {f.name}
-                              <span style={{ fontSize:8, fontFamily:"var(--mono)", fontWeight:700, color: live ? "var(--green)" : "var(--text-3)" }}>
-                                {live ? "LIVE" : "WAITING"}
-                              </span>
-                            </div>
-                            <div style={{ fontSize:9, color:"var(--text-3)", fontFamily:"var(--mono)" }}>{f.location}</div>
-                          </div>
-                          {/* Water level */}
-                          <div style={{ textAlign:"right", flexShrink:0 }}>
-                            <div style={{ fontSize:12, fontWeight:700, fontFamily:"var(--mono)", color: live ? sCfg?.color : "var(--text-3)" }}>
-                              {live ? `${f.waterLevel} cm` : "—"}
-                            </div>
-                            <div style={{ fontSize:9, fontWeight:700, color: live ? sCfg?.color : "var(--text-3)", fontFamily:"var(--mono)", letterSpacing:"0.05em" }}>
-                              {live ? sCfg?.label : "OFFLINE"}
-                            </div>
-                          </div>
+                          {worstFews.name} · {worstFews.waterLevel} cm · {sCfg?.label}
                         </div>
-                      ))}
+                      )}
                     </div>
                   </div>
                 );
