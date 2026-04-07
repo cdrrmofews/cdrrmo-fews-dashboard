@@ -1,6 +1,6 @@
 import "./App.css";
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { Line, Bar } from "react-chartjs-2";
+import { Line } from "react-chartjs-2";
 import { createPortal } from "react-dom";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
@@ -11,7 +11,6 @@ import {
   LinearScale,
   PointElement,
   LineElement,
-  BarElement,
   Title,
   Tooltip,
   Legend,
@@ -21,7 +20,7 @@ import Login from "./Login";
 
 ChartJS.register(
   CategoryScale, LinearScale, PointElement,
-  LineElement, BarElement, Title, Tooltip, Legend,
+  LineElement, Title, Tooltip, Legend,
   annotationPlugin
 );
 
@@ -33,7 +32,6 @@ L.Icon.Default.mergeOptions({
 });
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
-
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -130,7 +128,7 @@ function normalizeUser(parsed) {
 const FEWS1_BASE = {
   id: 1, name: "FEWS 1", location: "Bolbok",
   lat: 13.7703472, lng: 121.0525449,
-  status: "safe", battery: 0, waterLevel: 0,
+  status: "safe", waterLevel: 0,
   description: "Deployed along the upper tributary of Sta. Rita River. Monitors early upstream surge from heavy rainfall in the Mataas na Gulod watershed.",
   installedDate: "—", technician: "Engr. Andrew Van Ryan",
   isLive: true,
@@ -1515,12 +1513,6 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, 
                   </span>
                 </div>
                 <div className="uc-stat">
-                  <span className="uc-stat-label">Battery</span>
-                  <span className="uc-stat-val" style={{ color: isActuallyLive ? (f.battery > 50 ? "var(--green)" : "var(--amber)") : "var(--text-3)" }}>
-                    {isActuallyLive ? `${f.battery}%` : "—"}
-                  </span>
-                </div>
-                <div className="uc-stat">
                   <span className="uc-stat-label">Coordinates</span>
                   <span className="uc-stat-val" style={{ fontFamily:"var(--mono)", fontSize:10 }}>{f.lat}, {f.lng}</span>
                 </div>
@@ -2476,7 +2468,6 @@ const [fews1Live, setFews1Live]                   = useState(null);
           ...fews1,
           waterLevel: fews1Live.water_level_cm,
           status:     backendStatusToKey(fews1Live.status),
-          battery:    fews1Live.battery_pct,
           lat:        fews1Live.latitude,
           lng:        fews1Live.longitude,
         };
@@ -2686,90 +2677,6 @@ const waterChartOptions = useMemo(() => ({
     },
   }), [chartWinStart, chartWinEnd, historyData, thresholds]);
 
-  const batteryData = useMemo(() => ({
-    labels: allFews.map(() => ""),
-      datasets: [{
-        label: "FEWS 1",
-        data: allFews.map(f => fews1Connected ? f.battery : 0),
-        backgroundColor: fews1Connected ? "#38bdf8" : "rgba(255,255,255,0.10)",
-        borderColor: "transparent",
-        borderWidth: 0,
-        borderSkipped: false,
-        borderRadius: 8,
-        barThickness: 48,
-        barThickness: 32,
-        barPercentage: 0.4,
-        categoryPercentage: 0.5,
-      }],
-  }), [allFews, fews1Connected]);
-
-  const batteryOptions = useMemo(() => ({
-    responsive: true,
-    maintainAspectRatio: false,
-    plugins: {
-      legend: {
-        display: true,
-        position: "top",
-        align: "center",
-        labels: {
-          color: "#94a3b8",
-          font: { size: 9 },
-          boxWidth: 8,
-          boxHeight: 8,
-          padding: 8,
-          generateLabels: () => [{
-            text: "FEWS 1",
-            fillStyle: "#38bdf8",
-            strokeStyle: "#38bdf8",
-            fontColor: "#94a3b8",
-            textColor: "#94a3b8",
-            color: "#94a3b8",
-            lineWidth: 0,
-            hidden: false,
-            datasetIndex: 0,
-          }],
-        },
-      },
-      tooltip: {
-        backgroundColor: "#1e293b", titleColor: "#fff", bodyColor: "#94a3b8",
-        borderColor: "#334155", borderWidth: 1,
-        callbacks: {
-          label: (ctx) => {
-            const v = ctx.parsed.y;
-            if (!fews1Connected) return " Offline";
-            const status = v >= 70 ? "GOOD" : v >= 40 ? "LOW" : "CRITICAL";
-            return ` ${v}%  [${status}]`;
-          },
-          labelColor: (ctx) => {
-            const v = ctx.parsed.y;
-            const color = v >= 70 ? "#22c55e" : v >= 40 ? "#f59e0b" : "#ef4444";
-            return { borderColor: color, backgroundColor: color };
-          },
-        },
-      },
-      annotation: {
-        annotations: {
-          zoneGreen:  { type: "box", yMin: 70, yMax: 100, backgroundColor: "rgba(34,197,94,0.10)",  borderWidth: 0 },
-          zoneOrange: { type: "box", yMin: 40, yMax: 70,  backgroundColor: "rgba(245,158,11,0.13)", borderWidth: 0 },
-          zoneRed:    { type: "box", yMin: 0,  yMax: 40,  backgroundColor: "rgba(239,68,68,0.13)",  borderWidth: 0 },
-        },
-      },
-    },
-    scales: {
-      y: {
-        min: 0, max: 100,
-        grid: { color: "rgba(255,255,255,0.05)" },
-        ticks: { color: "#64748b", font: { size: 9 }, callback: v => `${v}%` },
-      },
-      x: {
-        grid: { display: false },
-        ticks: { display: false },
-        offset: true,
-      },
-    },
-    layout: { padding: { top: 4 } },
-  }), [fews1Connected]);
-
   // Connected = either recent sensor reading OR recent status ping
   const isHardwareOnline = fews1Connected || fews1StatusOnline;
 
@@ -2951,16 +2858,11 @@ const waterChartOptions = useMemo(() => ({
                           <Popup minWidth={180}>
                             <div style={{ fontFamily:"sans-serif", fontSize:"11px", lineHeight:"1.8" }}>
                               <strong style={{ fontSize:"12px" }}>{f.name} - {f.location}</strong>
-                              {f.isLive && (
-                                <span style={{ marginLeft:6, fontSize:9, color: fews1Connected ? "#22c55e" : "#94a3b8", fontWeight:700 }}>
-                                  {fews1Connected ? "● LIVE" : "◌ WAITING"}
-                                </span>
-                              )}
+                              <span style={{ marginLeft:6, fontSize:9, color: fews1Connected ? "#22c55e" : "#94a3b8", fontWeight:700 }}>
+                                {fews1Connected ? "● LIVE" : "◌ WAITING"}
+                              </span>
                               <br />
-                              {fews1Connected && (
-                                <><span style={{ color: cfg.color, fontWeight:700 }}>{cfg.label}</span>{" · "}</>
-                              )}
-                              Water: {fews1Connected ? `${f.waterLevel}cm` : "—"} · Battery: {fews1Connected ? `${f.battery}%` : "—"}<br />
+                              Water: {fews1Connected ? `${f.waterLevel}cm` : "—"}<br />
                               <button onClick={() => {
                                 navigator.clipboard.writeText(`${f.lat}, ${f.lng}`);
                                 setCopiedId(f.id);
@@ -3006,19 +2908,16 @@ const waterChartOptions = useMemo(() => ({
                   )}
               </div>
 
-                {/* ─── BATTERY CHART ─── */}
-                <div className="card card-battery">
+                {/* ─── BATTERY PLACEHOLDER ─── */}
+              <div className="card card-battery">
                 <div className="card-header">
                   <h2>Battery Level</h2>
-                  <span className="card-tag">{isHardwareOnline ? "FEWS 1" : "Offline"}</span>
+                  <span className="card-tag">Coming Soon</span>
                 </div>
-                {fews1Connected && !hasEverHadData ? (
-                  <div className="chart-wrap skeleton" />
-                ) : (
-                  <div className="chart-wrap">
-                    <Bar data={batteryData} options={batteryOptions} />
-                  </div>
-                )}
+                <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:8 }}>
+                  <div style={{ fontSize:24 }}>🔋</div>
+                  <div style={{ color:"var(--text-3)", fontSize:12, fontWeight:600 }}>Battery monitoring unavailable</div>
+                </div>
               </div>
             </main>
 
@@ -3076,7 +2975,6 @@ const waterChartOptions = useMemo(() => ({
                       )}
                     </div>
                     <div className="rsb-stat"><span>Water Level</span><strong style={{ color: isActuallyLive ? cfg.color : "var(--text-3)" }}>{isActuallyLive ? `${f.waterLevel}cm` : "—"}</strong></div>
-                    <div className="rsb-stat"><span>Battery</span><strong>{isActuallyLive ? `${f.battery}%` : "—"}</strong></div>
                     <div className="rsb-stat"><span>Status</span><strong style={{ color: isActuallyLive ? cfg.color : "var(--text-3)" }}>{isActuallyLive ? cfg.label : "WAITING"}</strong></div>
                     <div className="rsb-stat"><span>Last sync</span><strong>{isActuallyLive && lastUpdatedStr ? lastUpdatedStr : "—"}</strong></div>
                     {canSiren && (

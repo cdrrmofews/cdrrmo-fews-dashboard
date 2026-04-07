@@ -130,7 +130,6 @@ def on_message(client, userdata, msg):
 
         station_id     = data.get("station_id")
         water_level_cm = data.get("water_level_cm")
-        battery_pct    = data.get("battery_pct")
         status         = data.get("status")
         latitude       = data.get("latitude")
         longitude      = data.get("longitude")
@@ -141,12 +140,11 @@ def on_message(client, userdata, msg):
         try:
             cur.execute("""
                 INSERT INTO sensor_readings
-                    (device_id, water_level_cm, battery_pct, status, latitude, longitude, is_immediate)
-                VALUES (%s, %s, %s, %s, %s, %s, %s)
+                    (device_id, water_level_cm, status, latitude, longitude, is_immediate)
+                VALUES (%s, %s, %s, %s, %s, %s)
             """, (
                 station_id,
                 water_level_cm,
-                battery_pct,
                 status,
                 latitude,
                 longitude,
@@ -157,13 +155,11 @@ def on_message(client, userdata, msg):
             log_type     = water_level_to_type(water_level_cm, threshold_warning, threshold_danger)
             status_label = water_level_to_status_label(water_level_cm, threshold_warning, threshold_danger)
             station_name = "FEWS 1"
-            battery_str  = f"{battery_pct}%" if battery_pct is not None else "N/A"
             water_str    = f"{water_level_cm} cm" if water_level_cm is not None else "N/A"
 
             log_message = (
                 f"{station_name} reading — "
-                f"Water Level: {water_str} [{status_label}] · "
-                f"Battery: {battery_str}"
+                f"Water Level: {water_str} [{status_label}]"
             )
 
             cur.execute("""
