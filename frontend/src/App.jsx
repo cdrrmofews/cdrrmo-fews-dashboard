@@ -3013,23 +3013,25 @@ const waterChartOptions = useMemo(() => ({
                       padding: "12px 10px",
                       minHeight: 0,
                     }}>
-                      {/* Square icon */}
-                      <div style={{
-                        width: 38, height: 38, flexShrink: 0,
-                        borderRadius: 8,
-                        border: `2px solid ${cfg.sqBor}`,
-                        background: cfg.sqBg,
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        fontSize: worstStatus === "danger" ? 15 : 18,
-                        fontWeight: 900,
-                        fontFamily: "var(--mono)",
-                        color: cfg.color,
-                        letterSpacing: worstStatus === "danger" ? "-1px" : "0",
-                        animation: cfg.anim ? "pulse 1.8s ease-in-out infinite" : "none",
-                      }}>
-                        {cfg.icon}
+                      {/* Square icon — fixed wrapper prevents pulse from shifting layout */}
+                      <div style={{ width: 38, height: 38, flexShrink: 0 }}>
+                        <div style={{
+                          width: 38, height: 38,
+                          borderRadius: 8,
+                          border: `2px solid ${cfg.sqBor}`,
+                          background: cfg.sqBg,
+                          display: "flex",
+                          alignItems: "center",
+                          justifyContent: "center",
+                          fontSize: worstStatus === "danger" ? 15 : 18,
+                          fontWeight: 900,
+                          fontFamily: "var(--mono)",
+                          color: cfg.color,
+                          letterSpacing: worstStatus === "danger" ? "-1px" : "0",
+                          animation: cfg.anim ? "pulse 1.8s ease-in-out infinite" : "none",
+                        }}>
+                          {cfg.icon}
+                        </div>
                       </div>
 
                       {/* Label */}
