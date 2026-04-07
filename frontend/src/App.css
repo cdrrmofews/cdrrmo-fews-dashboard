@@ -625,7 +625,6 @@ body {
   margin-top: 14px;
   background: var(--bg-raised);
   border: 1px solid var(--border);
-  border-left: 3px solid var(--status-color, var(--blue));
   border-radius: 10px;
   padding: 12px;
   display: flex;
@@ -975,7 +974,6 @@ select.settings-input {
 .uc-card {
   background: var(--bg-card);
   border: 1px solid var(--border);
-  border-left: 3px solid var(--status-color, var(--blue));
   border-radius: var(--radius);
   padding: 20px 22px;
   display: flex;
