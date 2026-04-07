@@ -2866,14 +2866,17 @@ const waterChartOptions = useMemo(() => ({
                         <Marker key={f.id} position={[f.lat, f.lng]} icon={icon}
                           ref={el => { markerRefs.current[f.id] = el; }}
                           eventHandlers={{ click: () => setSelectedFEWS(selectedFEWS === f.id ? null : f.id) }}>
-                          <Popup minWidth={180}>
-                            <div style={{ fontFamily:"sans-serif", fontSize:"11px", lineHeight:"1.8" }}>
-                              <strong style={{ fontSize:"12px" }}>{f.name} - {f.location}</strong>
-                              <span style={{ marginLeft:6, fontSize:9, color: fews1Connected ? "#22c55e" : "#94a3b8", fontWeight:700 }}>
+                          <Popup minWidth={220}>
+                          <div style={{ fontFamily:"sans-serif", padding:"2px 0" }}>
+                            <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
+                              <strong style={{ fontSize:"13px", color:"#1e293b" }}>{f.name}</strong>
+                              <span style={{ fontSize:9, color: fews1Connected ? "#22c55e" : "#94a3b8", fontWeight:700 }}>
                                 {fews1Connected ? "● LIVE" : "◌ WAITING"}
                               </span>
-                              <br />
-                              Water: {fews1Connected ? `${f.waterLevel}cm` : "—"}<br />
+                            </div>
+                            <div style={{ fontSize:"11px", color:"#475569", lineHeight:1.6, marginBottom:4 }}>
+                              {f.location} · Water: {fews1Connected ? `${f.waterLevel} cm` : "—"}
+                            </div>
                               <button onClick={() => {
                                 navigator.clipboard.writeText(`${f.lat}, ${f.lng}`);
                                 setCopiedId(f.id);
@@ -3025,7 +3028,7 @@ const waterChartOptions = useMemo(() => ({
                       minHeight: 0,
                     }}>
                       {/* Square icon — fixed wrapper prevents pulse from shifting layout */}
-                      <div style={{ width: 38, height: 38, flexShrink: 0 }}>
+                      <div style={{ width: 38, height: 38, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
                         <div style={{
                           width: 38, height: 38,
                           borderRadius: 8,
@@ -3127,7 +3130,7 @@ const waterChartOptions = useMemo(() => ({
                         </span>
                       )}
                     </div>
-                    <div className="rsb-stat"><span>Water Level</span><strong style={{ color: isActuallyLive ? cfg.color : "var(--text-3)" }}>{isActuallyLive ? `${f.waterLevel}cm` : "—"}</strong></div>
+                    <div className="rsb-stat"><span>Water Level</span><strong style={{ color: isActuallyLive ? cfg.color : "var(--text-3)" }}>{isActuallyLive ? `${f.waterLevel} cm` : "—"}</strong></div>
                     <div className="rsb-stat"><span>Status</span><strong style={{ color: isActuallyLive ? cfg.color : "var(--text-3)" }}>{isActuallyLive ? cfg.label : "WAITING"}</strong></div>
                     <div className="rsb-stat"><span>Last sync</span><strong>{isActuallyLive && lastUpdatedStr ? lastUpdatedStr : "—"}</strong></div>
                     {canSiren && (
