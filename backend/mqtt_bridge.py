@@ -176,6 +176,9 @@ def on_message(client, userdata, msg):
                         (station_id,)
                     )
                     conn.commit()
+                    if cur.rowcount > 0:
+                        publish_siren(station_id, "off")
+                        print(f"[BRIDGE] Auto-siren OFF published to Arduino for {station_id}")
                     print(f"[BRIDGE] Auto-siren OFF cleared in DB for {station_id} — status is {status}")
                 except Exception as e:
                     print(f"[BRIDGE] Failed to clear auto-siren state: {e}")
