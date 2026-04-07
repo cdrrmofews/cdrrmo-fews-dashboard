@@ -2480,12 +2480,23 @@ const [fews1Live, setFews1Live]                   = useState(null);
     const prevCriticalRef = useRef(false);
     useEffect(() => {
       if (isCritical && !prevCriticalRef.current) {
-        if (typeof Notification !== "undefined" && Notification.permission === "granted") {
-          new Notification("⚠ CDRRMO FEWS ALERT", {
-            body: "FEWS 1 has reached CRITICAL water level! Immediate action required.",
+        const alreadyNotified = localStorage.getItem("fews_critical_notified") === "true";
+        if (!alreadyNotified && typeof Notification !== "undefined" && Notification.permission === "granted") {
+          const n = new Notification("⚠ CDRRMO FEWS ALERT", {
+            body: "Critical water level detected! Tap to open the dashboard.",
             icon: "/cdrrmo-seal.png",
+            tag:  "fews-critical",
+            requireInteraction: true,
           });
+          n.onclick = () => {
+            window.open("https://cdrrmo-fews.vercel.app/", "_blank");
+            n.close();
+          };
+          localStorage.setItem("fews_critical_notified", "true");
         }
+      }
+      if (!isCritical && prevCriticalRef.current) {
+        localStorage.removeItem("fews_critical_notified");
       }
       prevCriticalRef.current = isCritical;
     }, [isCritical]);
