@@ -2918,7 +2918,6 @@ const waterChartOptions = useMemo(() => ({
                     sqBg:   "rgba(34,197,94,0.18)",
                     sqBor:  "rgba(34,197,94,0.35)",
                     label:  "ALL CLEAR",
-                    sub:    "No critical advisories at this time.",
                     icon:   "✓",
                     anim:   false,
                   },
@@ -2929,7 +2928,6 @@ const waterChartOptions = useMemo(() => ({
                     sqBg:   "rgba(245,158,11,0.18)",
                     sqBor:  "rgba(245,158,11,0.38)",
                     label:  "WARNING",
-                    sub:    "Water level is rising. Monitor closely.",
                     icon:   "!",
                     anim:   true,
                   },
@@ -2940,7 +2938,6 @@ const waterChartOptions = useMemo(() => ({
                     sqBg:   "rgba(239,68,68,0.20)",
                     sqBor:  "rgba(239,68,68,0.40)",
                     label:  "CRITICAL",
-                    sub:    "Immediate action required.",
                     icon:   "!!",
                     anim:   true,
                   },
@@ -2951,7 +2948,6 @@ const waterChartOptions = useMemo(() => ({
                     sqBg:   "rgba(74,96,126,0.18)",
                     sqBor:  "rgba(74,96,126,0.35)",
                     label:  "OFFLINE",
-                    sub:    "No stations online.",
                     icon:   "◌",
                     anim:   false,
                   },
@@ -2968,22 +2964,42 @@ const waterChartOptions = useMemo(() => ({
 
                 const cfg = ALARM_CFG[worstStatus];
 
-                // For the single water level line — worst station's data
-                const worstFews = anyLive
-                  ? allFews.find(f => f.isLive && isHardwareOnline && f.status === worstStatus) || allFews[0]
-                  : null;
-                const sCfg = worstFews && anyLive
-                  ? (STATUS_CONFIG[worstFews.status] || STATUS_CONFIG["safe"])
-                  : null;
+                // Build dynamic sub message based on affected stations
+                const buildSub = () => {
+                  if (worstStatus === "offline") return "No stations online.";
+                  if (worstStatus === "safe")    return "No critical advisories at this time.";
+
+                  const affected = allFews.filter(f =>
+                    f.isLive && isHardwareOnline && f.status === worstStatus
+                  );
+                  const names = affected.map(f => f.name);
+
+                  const prefix = worstStatus === "warning"
+                    ? "Water level is rising"
+                    : "Immediate action required";
+
+                  if (names.length === 0) return `${prefix}.`;
+
+                  const allMatch = allFews
+                    .filter(f => f.isLive && isHardwareOnline)
+                    .length === names.length;
+
+                  if (allMatch) return `${prefix} for All Fews.`;
+
+                  if (names.length === 1) return `${prefix} for ${names[0]}.`;
+
+                  const last = names[names.length - 1];
+                  const rest = names.slice(0, -1).join(", ");
+                  return `${prefix} for ${rest} and ${last}.`;
+                };
 
                 return (
                   <div className="card card-battery">
                     <div className="card-header">
                       <h2>Alarm Status</h2>
-                      <span className="card-tag">ALL FEWS</span>
+                      <span className="card-tag">All Fews</span>
                     </div>
 
-                    {/* Big status block — fills remaining card space */}
                     <div style={{
                       flex: 1,
                       borderRadius: 10,
@@ -2993,7 +3009,7 @@ const waterChartOptions = useMemo(() => ({
                       flexDirection: "column",
                       alignItems: "center",
                       justifyContent: "center",
-                      gap: 6,
+                      gap: 10,
                       padding: "12px 10px",
                       minHeight: 0,
                     }}>
@@ -3006,7 +3022,7 @@ const waterChartOptions = useMemo(() => ({
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "center",
-                        fontSize: worstStatus === "offline" ? 18 : worstStatus === "danger" ? 15 : 18,
+                        fontSize: worstStatus === "danger" ? 15 : 18,
                         fontWeight: 900,
                         fontFamily: "var(--mono)",
                         color: cfg.color,
@@ -3028,7 +3044,7 @@ const waterChartOptions = useMemo(() => ({
                         {cfg.label}
                       </div>
 
-                      {/* Sub message */}
+                      {/* Dynamic sub message */}
                       <div style={{
                         fontSize: 10,
                         color: cfg.color,
@@ -3037,23 +3053,8 @@ const waterChartOptions = useMemo(() => ({
                         opacity: 0.75,
                         maxWidth: 160,
                       }}>
-                        {cfg.sub}
+                        {buildSub()}
                       </div>
-
-                      {/* Single water level line — only when live */}
-                      {anyLive && worstFews && (
-                        <div style={{
-                          fontSize: 10,
-                          fontWeight: 700,
-                          fontFamily: "var(--mono)",
-                          color: cfg.color,
-                          opacity: 0.85,
-                          letterSpacing: "0.04em",
-                          marginTop: 2,
-                        }}>
-                          {worstFews.name} · {worstFews.waterLevel} cm · {sCfg?.label}
-                        </div>
-                      )}
                     </div>
                   </div>
                 );
