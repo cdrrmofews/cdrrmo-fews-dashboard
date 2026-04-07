@@ -2909,114 +2909,113 @@ const waterChartOptions = useMemo(() => ({
               </div>
 
                 {/* ─── ALARM STATUS ─── */}
-              <div className="card card-battery">
-                <div className="card-header">
-                  <h2>Alarm Status</h2>
-                  <span className="card-tag">FEWS 1</span>
-                </div>
-                {(() => {
-                  const f = allFews[0];
-                  const isLive = f.isLive && isHardwareOnline;
-                  const status = isLive ? f.status : null;
+              {(() => {
+                const ALARM_CFG = {
+                  safe:    { color: "#22c55e", bg: "rgba(34,197,94,0.08)",  border: "rgba(34,197,94,0.20)",  label: "ALL CLEAR", sub: "No critical advisories at this time.",               anim: false },
+                  warning: { color: "#f59e0b", bg: "rgba(245,158,11,0.08)", border: "rgba(245,158,11,0.28)", label: "WARNING",   sub: "Water level is rising. Monitor closely.",              anim: true  },
+                  danger:  { color: "#ef4444", bg: "rgba(239,68,68,0.08)",  border: "rgba(239,68,68,0.28)",  label: "CRITICAL",  sub: "Critical water level detected. Take immediate action.", anim: true  },
+                  offline: { color: "#4a607e", bg: "rgba(74,96,126,0.06)",  border: "rgba(74,96,126,0.18)",  label: "OFFLINE",   sub: "No data received. Waiting for stations to come online.", anim: false },
+                };
 
-                  const alarmCfg = {
-                    safe: {
-                      color:   "#22c55e",
-                      bg:      "rgba(34,197,94,0.08)",
-                      border:  "rgba(34,197,94,0.25)",
-                      label:   "ALL CLEAR",
-                      sub:     "No critical advisories at this time.",
-                      icon:    "✓",
-                      pulse:   false,
-                    },
-                    warning: {
-                      color:   "#f59e0b",
-                      bg:      "rgba(245,158,11,0.10)",
-                      border:  "rgba(245,158,11,0.35)",
-                      label:   "WARNING",
-                      sub:     "Water level is rising. Monitor closely.",
-                      icon:    "⚠",
-                      pulse:   true,
-                    },
-                    danger: {
-                      color:   "#ef4444",
-                      bg:      "rgba(239,68,68,0.10)",
-                      border:  "rgba(239,68,68,0.35)",
-                      label:   "CRITICAL",
-                      sub:     "Critical water level detected. Immediate action required.",
-                      icon:    "!",
-                      pulse:   true,
-                    },
-                  };
+                // Derive worst status across ALL stations
+                const anyLive    = allFews.some(f => f.isLive && isHardwareOnline);
+                const worstStatus = anyLive
+                  ? allFews.reduce((worst, f) => {
+                      if (!f.isLive || !isHardwareOnline) return worst;
+                      const rank = { safe: 0, warning: 1, danger: 2 };
+                      return (rank[f.status] ?? 0) > (rank[worst] ?? 0) ? f.status : worst;
+                    }, "safe")
+                  : "offline";
 
-                  if (!isLive) {
-                    return (
-                      <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:8 }}>
-                        <div style={{ fontSize:22, color:"var(--text-3)" }}>◌</div>
-                        <div style={{ color:"var(--text-3)", fontSize:12, fontWeight:600 }}>Waiting for station data</div>
-                        <div style={{ color:"var(--text-3)", fontSize:10, fontFamily:"var(--mono)" }}>Status available once FEWS 1 is online</div>
-                      </div>
-                    );
-                  }
+                const cfg = ALARM_CFG[worstStatus];
 
-                  const cfg = alarmCfg[status] || alarmCfg["safe"];
+                // Stations summary rows
+                const stationRows = allFews.map(f => {
+                  const live = f.isLive && isHardwareOnline;
+                  const sCfg = live ? (STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"]) : null;
+                  return { f, live, sCfg };
+                });
 
-                  return (
-                    <div style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:14, padding:"8px 4px" }}>
-                      {/* Big status circle */}
-                      <div style={{
-                        width: 80, height: 80,
-                        borderRadius: "50%",
-                        background: cfg.bg,
-                        border: `2px solid ${cfg.border}`,
-                        display: "flex", alignItems: "center", justifyContent: "center",
-                        fontSize: 32, fontWeight: 900,
+                return (
+                  <div className="card card-battery" style={{
+                    borderLeft: `3px solid ${cfg.color}`,
+                    transition: "border-color 0.4s",
+                  }}>
+                    <div className="card-header" style={{ marginBottom: 10 }}>
+                      <h2>Alarm Status</h2>
+                      <span className="card-tag" style={{
                         color: cfg.color,
-                        boxShadow: `0 0 24px ${cfg.bg}`,
-                        animation: cfg.pulse ? "pulse 1.5s ease-in-out infinite" : "none",
-                        fontFamily: "var(--mono)",
-                        flexShrink: 0,
-                      }}>
-                        {cfg.icon}
-                      </div>
-
-                      {/* Label */}
-                      <div style={{
-                        fontSize: 13, fontWeight: 800,
-                        color: cfg.color,
-                        fontFamily: "var(--mono)",
-                        letterSpacing: "0.12em",
-                      }}>
-                        {cfg.label}
-                      </div>
-
-                      {/* Description */}
-                      <div style={{
-                        fontSize: 11,
-                        color: "var(--text-2)",
-                        textAlign: "center",
-                        lineHeight: 1.6,
-                        maxWidth: 160,
-                        padding: "8px 12px",
                         background: cfg.bg,
                         border: `1px solid ${cfg.border}`,
-                        borderRadius: 10,
+                        borderRadius: 999,
+                        padding: "2px 8px",
+                        fontWeight: 700,
+                        letterSpacing: "0.07em",
+                        animation: cfg.anim ? "blink 1.2s infinite" : "none",
                       }}>
-                        {cfg.sub}
-                      </div>
-
-                      {/* Water level reading */}
-                      <div style={{ display:"flex", gap:16, fontSize:10, fontFamily:"var(--mono)", color:"var(--text-3)" }}>
-                        <span>LEVEL <strong style={{ color:"var(--text-1)" }}>{f.waterLevel} cm</strong></span>
-                        <span style={{ color:"var(--border)" }}>|</span>
-                        <span>FEWS 1 <strong style={{ color: isHardwareOnline ? "var(--green)" : "var(--text-3)" }}>
-                          {isHardwareOnline ? "LIVE" : "WAITING"}
-                        </strong></span>
-                      </div>
+                        {cfg.label}
+                      </span>
                     </div>
-                  );
-                })()}
-              </div>
+
+                    {/* Status message bar */}
+                    <div style={{
+                      background: cfg.bg,
+                      border: `1px solid ${cfg.border}`,
+                      borderRadius: 8,
+                      padding: "8px 12px",
+                      fontSize: 11,
+                      color: worstStatus === "offline" ? "var(--text-3)" : cfg.color,
+                      fontWeight: 600,
+                      lineHeight: 1.5,
+                      flexShrink: 0,
+                    }}>
+                      {cfg.sub}
+                    </div>
+
+                    {/* Station rows */}
+                    <div style={{ display:"flex", flexDirection:"column", gap:6, flex:1, justifyContent:"center", marginTop: 4 }}>
+                      {stationRows.map(({ f, live, sCfg }) => (
+                        <div key={f.id} style={{
+                          display: "flex",
+                          alignItems: "center",
+                          gap: 8,
+                          background: "var(--bg-raised)",
+                          border: `1px solid ${live ? (sCfg?.color ? sCfg.color + "22" : "var(--border)") : "var(--border)"}`,
+                          borderRadius: 8,
+                          padding: "7px 10px",
+                          opacity: live ? 1 : 0.5,
+                        }}>
+                          {/* Status dot */}
+                          <div style={{
+                            width: 7, height: 7, borderRadius: "50%", flexShrink: 0,
+                            background: live ? sCfg?.color : "#334155",
+                            animation: live && (f.status === "danger" || f.status === "warning") ? "pulse 2s infinite" : "none",
+                          }} />
+                          {/* Name + location */}
+                          <div style={{ flex:1, minWidth:0 }}>
+                            <div style={{ fontSize:11, fontWeight:700, color:"var(--text-1)", display:"flex", alignItems:"center", gap:5 }}>
+                              {f.name}
+                              <span style={{ fontSize:8, fontFamily:"var(--mono)", fontWeight:700, color: live ? "var(--green)" : "var(--text-3)" }}>
+                                {live ? "LIVE" : "WAITING"}
+                              </span>
+                            </div>
+                            <div style={{ fontSize:9, color:"var(--text-3)", fontFamily:"var(--mono)" }}>{f.location}</div>
+                          </div>
+                          {/* Water level */}
+                          <div style={{ textAlign:"right", flexShrink:0 }}>
+                            <div style={{ fontSize:12, fontWeight:700, fontFamily:"var(--mono)", color: live ? sCfg?.color : "var(--text-3)" }}>
+                              {live ? `${f.waterLevel} cm` : "—"}
+                            </div>
+                            <div style={{ fontSize:9, fontWeight:700, color: live ? sCfg?.color : "var(--text-3)", fontFamily:"var(--mono)", letterSpacing:"0.05em" }}>
+                              {live ? sCfg?.label : "OFFLINE"}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })()}
             </main>
 
             <aside className="right-sidebar">
