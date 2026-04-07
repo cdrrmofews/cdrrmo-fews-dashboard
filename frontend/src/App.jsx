@@ -2866,7 +2866,7 @@ const waterChartOptions = useMemo(() => ({
                         <Marker key={f.id} position={[f.lat, f.lng]} icon={icon}
                           ref={el => { markerRefs.current[f.id] = el; }}
                           eventHandlers={{ click: () => setSelectedFEWS(selectedFEWS === f.id ? null : f.id) }}>
-                          <Popup minWidth={220}>
+                          <Popup minWidth={160}>
                           <div style={{ fontFamily:"sans-serif", padding:"2px 0" }}>
                             <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
                               <strong style={{ fontSize:"13px", color:"#1e293b" }}>{f.name}</strong>
@@ -2875,7 +2875,7 @@ const waterChartOptions = useMemo(() => ({
                               </span>
                             </div>
                             <div style={{ fontSize:"11px", color:"#475569", lineHeight:1.6, marginBottom:4 }}>
-                              {f.location} · Water: {fews1Connected ? `${f.waterLevel} cm` : "—"}
+                              <strong style={{ color:"#1e293b" }}>{f.location}</strong> · Water: {fews1Connected ? `${f.waterLevel} cm` : "—"}
                             </div>
                               <button onClick={() => {
                                 navigator.clipboard.writeText(`${f.lat}, ${f.lng}`);
@@ -2956,14 +2956,15 @@ const waterChartOptions = useMemo(() => ({
                     anim:   true,
                   },
                   offline: {
-                    color:  "#4a607e",
-                    bg:     "rgba(74,96,126,0.13)",
-                    border: "rgba(74,96,126,0.22)",
-                    sqBg:   "rgba(74,96,126,0.18)",
-                    sqBor:  "rgba(74,96,126,0.35)",
-                    label:  "OFFLINE",
-                    icon:   "◌",
-                    anim:   false,
+                    color:    "#4a607e",
+                    bg:       "rgba(74,96,126,0.13)",
+                    border:   "rgba(74,96,126,0.22)",
+                    sqBg:     "rgba(74,96,126,0.18)",
+                    sqBor:    "rgba(74,96,126,0.35)",
+                    label:    "OFFLINE",
+                    icon:     "◌",
+                    anim:     false,
+                    iconFont: "sans-serif",
                   },
                 };
 
@@ -3039,7 +3040,8 @@ const waterChartOptions = useMemo(() => ({
                           justifyContent: "center",
                           fontSize: worstStatus === "danger" ? 15 : 18,
                           fontWeight: 900,
-                          fontFamily: "var(--mono)",
+                          fontFamily: cfg.iconFont || "var(--mono)",
+                          lineHeight: 1,
                           color: cfg.color,
                           letterSpacing: worstStatus === "danger" ? "-1px" : "0",
                           animation: cfg.anim ? "pulse 1.8s ease-in-out infinite" : "none",
