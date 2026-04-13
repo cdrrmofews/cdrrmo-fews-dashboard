@@ -2956,7 +2956,7 @@ const waterChartOptions = useMemo(() => ({
                     anim:   true,
                   },
                   offline: {
-                    color:    "#4a607e",
+                    color:    "#94a3b8",
                     bg:       "rgba(74,96,126,0.50)",
                     border:   "rgba(74,96,126,0.60)",
                     sqBg:     "rgba(74,96,126,0.55)",
