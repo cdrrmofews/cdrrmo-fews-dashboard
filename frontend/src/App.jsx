@@ -2634,11 +2634,11 @@ const waterChartOptions = useMemo(() => ({
       },
       annotation: {
         annotations: {
-          zoneSafe:    { type: "box", yMin: 0,                    yMax: thresholds.warning, backgroundColor: "rgba(34,197,94,0.10)",  borderWidth: 0 },
-          zoneWarning: { type: "box", yMin: thresholds.warning,   yMax: thresholds.danger,  backgroundColor: "rgba(245,158,11,0.13)", borderWidth: 0 },
-          zoneCritical:{ type: "box", yMin: thresholds.danger,    yMax: 500,                backgroundColor: "rgba(239,68,68,0.13)",  borderWidth: 0 },
-          lineWarning: { type: "line", yMin: thresholds.warning, yMax: thresholds.warning, borderColor: "rgba(245,158,11,0.55)", borderWidth: 1, borderDash: [4, 4], label: { display: false } },
-          lineCritical:{ type: "line", yMin: thresholds.danger,  yMax: thresholds.danger,  borderColor: "rgba(239,68,68,0.55)",  borderWidth: 1, borderDash: [4, 4], label: { display: false } },
+          zoneSafe:    { type: "box", yMin: 0,                    yMax: thresholds.warning, backgroundColor: "rgba(34,197,94,0.18)",  borderWidth: 0 },
+          zoneWarning: { type: "box", yMin: thresholds.warning,   yMax: thresholds.danger,  backgroundColor: "rgba(245,158,11,0.22)", borderWidth: 0 },
+          zoneCritical:{ type: "box", yMin: thresholds.danger,    yMax: 500,                backgroundColor: "rgba(239,68,68,0.22)",  borderWidth: 0 },
+          lineWarning: { type: "line", yMin: thresholds.warning, yMax: thresholds.warning, borderColor: "rgba(245,158,11,0.7)", borderWidth: 1.5, borderDash: [4, 4], label: { display: false } },
+          lineCritical:{ type: "line", yMin: thresholds.danger,  yMax: thresholds.danger,  borderColor: "rgba(239,68,68,0.7)",  borderWidth: 1.5, borderDash: [4, 4], label: { display: false } },
         },
       },
     },
