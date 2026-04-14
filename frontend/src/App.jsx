@@ -2531,7 +2531,7 @@ const [fews1Live, setFews1Live]                   = useState(null);
     if (f) {
       addLog({
         station: f.name,
-        type: turningOn ? "warning" : "system",
+        type: "system",
         message: turningOn
           ? `Siren for ${f.name} (${f.location}) has been manually activated by ${user.name}`
           : `Siren for ${f.name} (${f.location}) has been silenced by ${user.name}`,

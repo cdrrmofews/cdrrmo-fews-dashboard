@@ -186,6 +186,15 @@ def on_message(client, userdata, msg):
                         "UPDATE fews_units SET siren_state = TRUE, siren_auto_triggered = TRUE WHERE device_id = %s",
                         (station_id,)
                     )
+                    cur.execute("""
+                        INSERT INTO system_logs (station, type, message, user_name)
+                        VALUES (%s, %s, %s, %s)
+                    """, (
+                        station_name,
+                        "warning",
+                        f"{station_name} siren has been automatically activated due to sustained CRITICAL water level",
+                        "System",
+                    ))
                     conn.commit()
                     print(f"[BRIDGE] Auto-siren ON written to DB for {station_id}")
                 except Exception as e:
@@ -201,6 +210,16 @@ def on_message(client, userdata, msg):
                     conn.commit()
                     if cur.rowcount > 0:
                         publish_siren(station_id, "off")
+                        cur.execute("""
+                            INSERT INTO system_logs (station, type, message, user_name)
+                            VALUES (%s, %s, %s, %s)
+                        """, (
+                            station_name,
+                            "system",
+                            f"{station_name} siren has been automatically silenced — water level returned to {status_label}",
+                            "System",
+                        ))
+                        conn.commit()
                         print(f"[BRIDGE] Auto-siren OFF published to dashboard for {station_id}")
                     print(f"[BRIDGE] Auto-siren OFF cleared in DB for {station_id} — status is {status}")
                 except Exception as e:
