@@ -17,12 +17,54 @@ MQTT_SIREN_STATUS_TOPIC = "cdrrmo/fews1/siren_status"
 
 # In-memory last online timestamp per station
 _last_online: dict = {}
+_offline_logged: dict = {}
 
 def mark_station_online(station_id: str):
     _last_online[station_id] = time.time()
+    _offline_logged[station_id] = False  # reset so next dropout gets logged
 
 def get_last_online(station_id: str) -> float:
     return _last_online.get(station_id, 0)
+
+def start_offline_watcher():
+    """Background thread — logs when a station stops sending data for 10+ minutes."""
+    def watch():
+        while True:
+            time.sleep(60)  # check every minute
+            now = time.time()
+            for station_id, last in list(_last_online.items()):
+                age = now - last
+                already_logged = _offline_logged.get(station_id, False)
+                if age >= 600 and not already_logged:
+                    _offline_logged[station_id] = True
+                    station_name = "FEWS 1" if station_id == "fews_1" else station_id
+                    try:
+                        conn = get_db()
+                        cur  = conn.cursor()
+                        try:
+                            cur.execute("""
+                                INSERT INTO system_logs (station, type, message, user_name)
+                                VALUES (%s, %s, %s, %s)
+                            """, (
+                                station_name,
+                                "warning",
+                                f"{station_name} went offline — no data received for 10 minutes",
+                                "System",
+                            ))
+                            conn.commit()
+                            print(f"[WATCHER] Offline logged for {station_id}")
+                        finally:
+                            cur.close()
+                            release_db(conn)
+                    except Exception as e:
+                        print(f"[WATCHER] Error logging offline: {e}")
+                elif age < 600 and already_logged:
+                    # Reset so next offline event gets logged again
+                    _offline_logged[station_id] = False
+
+    t = threading.Thread(target=watch, daemon=True)
+    t.start()
+    print("[WATCHER] Offline watcher thread started")
 
 def get_thresholds(device_id="fews_1"):
     try:
@@ -82,45 +124,62 @@ def on_message(client, userdata, msg):
 
         # ── Handle siren auto-off from Arduino ────────────────────────────
         if msg.topic == MQTT_SIREN_STATUS_TOPIC:
-            if data.get("siren_auto_off") and data.get("station_id"):
-                sid = data.get("station_id")
-                try:
-                    conn = get_db()
-                    cur  = conn.cursor()
+                if data.get("siren_auto_off") and data.get("station_id"):
+                    sid = data.get("station_id")
                     try:
-                        cur.execute(
-                            "UPDATE fews_units SET siren_state = FALSE, siren_auto_triggered = FALSE WHERE device_id = %s AND siren_auto_triggered = TRUE RETURNING siren_state",
-                            (sid,)
-                        )
-                        conn.commit()
-                        if cur.rowcount > 0:
-                            print(f"[BRIDGE] Siren auto-off synced to DB for {sid}")
-                        else:
-                            print(f"[BRIDGE] Siren auto-off received but nothing to clear for {sid}")
-                    finally:
-                        cur.close()
-                        release_db(conn)
-                except Exception as e:
-                    print(f"[BRIDGE] Siren auto-off DB error: {e}")
-            return
+                        conn = get_db()
+                        cur  = conn.cursor()
+                        try:
+                            cur.execute(
+                                "UPDATE fews_units SET siren_state = FALSE, siren_auto_triggered = FALSE WHERE device_id = %s AND siren_auto_triggered = TRUE RETURNING siren_state",
+                                (sid,)
+                            )
+                            if cur.rowcount > 0:
+                                station_name = "FEWS 1"
+                                cur.execute("""
+                                    INSERT INTO system_logs (station, type, message, user_name)
+                                    VALUES (%s, %s, %s, %s)
+                                """, (
+                                    station_name,
+                                    "system",
+                                    f"{station_name} siren has been automatically silenced by the device — water level returned to safe",
+                                    "System",
+                                ))
+                                conn.commit()
+                                print(f"[BRIDGE] Siren auto-off synced and logged for {sid}")
+                            else:
+                                conn.commit()
+                                print(f"[BRIDGE] Siren auto-off received but nothing to clear for {sid}")
+                        finally:
+                            cur.close()
+                            release_db(conn)
+                    except Exception as e:
+                        print(f"[BRIDGE] Siren auto-off DB error: {e}")
+                return
 
         # ── Handle startup status message ─────────────────────────────────
         if msg.topic == MQTT_STATUS_TOPIC:
             if data.get("online") and data.get("station_id"):
-                station_id = data.get("station_id")
+                station_id   = data.get("station_id")
+                station_name = "FEWS 1"
+                was_online   = get_last_online(station_id)
                 mark_station_online(station_id)
+
                 conn = get_db()
                 cur  = conn.cursor()
                 try:
-                    cur.execute("""
-                        INSERT INTO system_logs (station, type, message, user_name)
-                        VALUES (%s, %s, %s, %s)
-                    """, (
-                        "FEWS 1",
-                        "system",
-                        "FEWS 1 is online and transmitting data",
-                        "System",
-                    ))
+                    # If was offline before (last_seen > 10 min ago or never seen), log comeback
+                    age = time.time() - was_online if was_online else None
+                    if age is None or age >= 600:
+                        cur.execute("""
+                            INSERT INTO system_logs (station, type, message, user_name)
+                            VALUES (%s, %s, %s, %s)
+                        """, (
+                            station_name,
+                            "system",
+                            f"{station_name} is online and transmitting data",
+                            "System",
+                        ))
                     conn.commit()
                     print("[BRIDGE] Startup status logged")
                 finally:
@@ -255,6 +314,7 @@ def start_bridge_thread():
     t = threading.Thread(target=start_bridge, daemon=True)
     t.start()
     print("[BRIDGE] Thread started")
+    start_offline_watcher()
 
 # ── NEW: Publish siren command to Arduino ─────────────────────────────────────
 def publish_siren(device_id: str, state: str):
