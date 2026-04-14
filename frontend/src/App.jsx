@@ -378,7 +378,7 @@ function LogsPage({ token, userRole }) {
   const stationOptions = [
     { value: "All",    label: "All Stations" },
     { value: "System", label: "System"       },
-    { value: "FEWS 1", label: "FEWS 1"       },
+    { value: "FEWS 1", label: "Fews 1"       },
   ];
 
   const typeOptions = [
