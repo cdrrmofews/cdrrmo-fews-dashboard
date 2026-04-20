@@ -124,32 +124,6 @@ function normalizeUser(parsed) {
   };
 }
 
-function MapSkeleton() {
-  const [ready, setReady] = useState(false);
-  useEffect(() => {
-    const t = setTimeout(() => setReady(true), 1800);
-    return () => clearTimeout(t);
-  }, []);
-  if (ready) return null;
-  return (
-    <div style={{
-      position: "absolute", inset: 0, borderRadius: 10,
-      background: "var(--bg-raised)", zIndex: 999,
-      display: "flex", flexDirection: "column",
-      alignItems: "center", justifyContent: "center", gap: 10,
-      animation: "skeleton-pulse 1.5s ease-in-out infinite",
-      pointerEvents: "none",
-    }}>
-      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-        <circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 1 8 8c0 5.25-8 13-8 13S4 15.25 4 10a8 8 0 0 1 8-8z"/>
-      </svg>
-      <span style={{ fontSize: 11, color: "var(--text-3)", fontFamily: "var(--mono)", fontWeight: 600, letterSpacing: "0.06em" }}>
-        LOADING MAP...
-      </span>
-    </div>
-  );
-}
-
 // ─── FEWS BASE DATA ───────────────────────────────────────────────────────────
 const FEWS1_BASE = {
   id: 1, name: "FEWS 1", location: "Bolbok",
@@ -2950,7 +2924,7 @@ const waterChartOptions = useMemo(() => ({
                   <h2>FEWS Locations</h2>
                   <span className="card-tag">Batangas City</span>
                 </div>
-                <div className="map-wrap" style={{ position: "relative" }}>
+                <div className="map-wrap">
                   <MapContainer center={[13.7703472, 121.0525449]} zoom={15} style={{ height:"100%", width:"100%", borderRadius:"10px" }} scrollWheelZoom={false}>
                     <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                     <FlyToStation fews={selectedStation} />
@@ -2998,7 +2972,6 @@ const waterChartOptions = useMemo(() => ({
                       );
                     })}
                   </MapContainer>
-                 <MapSkeleton />
                 </div>
               </div>
 
