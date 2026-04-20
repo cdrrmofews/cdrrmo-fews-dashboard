@@ -126,6 +126,7 @@ def on_message(client, userdata, msg):
         if msg.topic == MQTT_SIREN_STATUS_TOPIC:
                 if data.get("siren_auto_off") and data.get("station_id"):
                     sid = data.get("station_id")
+                    station_name = "FEWS 1"
                     try:
                         conn = get_db()
                         cur  = conn.cursor()
@@ -134,22 +135,22 @@ def on_message(client, userdata, msg):
                                 "UPDATE fews_units SET siren_state = FALSE, siren_auto_triggered = FALSE WHERE device_id = %s AND siren_auto_triggered = TRUE RETURNING siren_state",
                                 (sid,)
                             )
+                            conn.commit()
                             if cur.rowcount > 0:
-                                station_name = "FEWS 1"
-                                cur.execute("""
-                                    INSERT INTO system_logs (station, type, message, user_name)
-                                    VALUES (%s, %s, %s, %s)
-                                """, (
-                                    station_name,
-                                    "system",
-                                    f"{station_name} siren has been automatically silenced by the device — water level returned to safe",
-                                    "System",
-                                ))
-                                conn.commit()
-                                print(f"[BRIDGE] Siren auto-off synced and logged for {sid}")
+                                print(f"[BRIDGE] Siren auto-off synced for {sid}")
                             else:
-                                conn.commit()
-                                print(f"[BRIDGE] Siren auto-off received but nothing to clear for {sid}")
+                                print(f"[BRIDGE] Siren auto-off received — already cleared for {sid}")
+                            cur.execute("""
+                                INSERT INTO system_logs (station, type, message, user_name)
+                                VALUES (%s, %s, %s, %s)
+                            """, (
+                                station_name,
+                                "system",
+                                f"{station_name} siren has been automatically silenced by the device — water level returned to safe",
+                                "System",
+                            ))
+                            conn.commit()
+                            print(f"[BRIDGE] Siren auto-off logged for {sid}")
                         finally:
                             cur.close()
                             release_db(conn)

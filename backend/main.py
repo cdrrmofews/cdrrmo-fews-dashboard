@@ -54,8 +54,11 @@ app.add_middleware(SecurityHeadersMiddleware)
 limiter = Limiter(key_func=get_remote_address)
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
-
 VALID_ROLES = {"Admin", "Operator"}
+LOG_TYPES_BY_ROLE = {
+    "Admin":    ["info", "warning", "danger", "system"],
+    "Operator": ["info", "warning", "danger"],
+}
 
 @app.on_event("startup")
 def startup():
@@ -166,10 +169,21 @@ def logout(user=Depends(get_current_user)):
     cur  = conn.cursor()
     try:
         user_id = int(user["sub"])
+        cur.execute("SELECT name, role, department FROM users WHERE id = %s", (user_id,))
+        row = cur.fetchone()
         cur.execute(
             "UPDATE users SET token_version = token_version + 1 WHERE id = %s",
             (user_id,)
         )
+        if row:
+            cur.execute("""
+                INSERT INTO system_logs (station, type, message, user_name)
+                VALUES (%s, %s, %s, %s)
+            """, (
+                "System", "system",
+                f"{row['name']} ({row['role']}, {row['department']}) has logged out of the system",
+                row["name"],
+            ))
         conn.commit()
         return {"ok": True}
     finally:
@@ -441,9 +455,16 @@ def get_logs(
         if station:
             filters.append("station = %s")
             params.append(station)
-        if type:
+        allowed_log_types = LOG_TYPES_BY_ROLE.get(user.get("role", "Operator"), LOG_TYPES_BY_ROLE["Operator"])
+        if type and type in allowed_log_types:
             filters.append("type = %s")
             params.append(type)
+        elif type and type not in allowed_log_types:
+            filters.append("type = ANY(%s)")
+            params.append(allowed_log_types)
+        else:
+            filters.append("type = ANY(%s)")
+            params.append(allowed_log_types)
         if date_from:
             filters.append("timestamp >= %s::date")
             params.append(date_from)
@@ -507,9 +528,16 @@ def export_logs(
         if station:
             filters.append("station = %s")
             params.append(station)
-        if type:
+        allowed_log_types = LOG_TYPES_BY_ROLE.get(user.get("role", "Operator"), LOG_TYPES_BY_ROLE["Operator"])
+        if type and type in allowed_log_types:
             filters.append("type = %s")
             params.append(type)
+        elif type and type not in allowed_log_types:
+            filters.append("type = ANY(%s)")
+            params.append(allowed_log_types)
+        else:
+            filters.append("type = ANY(%s)")
+            params.append(allowed_log_types)
         if date_from:
             filters.append("timestamp >= %s::date")
             params.append(date_from)
@@ -598,9 +626,24 @@ def update_user(user_id: int, req: UpdateUserRequest, admin=Depends(require_admi
 
 @app.delete("/users/{user_id}")
 def delete_user(user_id: int, admin=Depends(require_admin)):
+    admin_id = int(admin["sub"])
+    if user_id == admin_id:
+        raise HTTPException(status_code=400, detail="You cannot delete your own account.")
+
     conn = get_db()
     cur  = conn.cursor()
     try:
+        cur.execute("SELECT role FROM users WHERE id = %s", (user_id,))
+        target = cur.fetchone()
+        if not target:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        if target["role"] == "Admin":
+            cur.execute("SELECT COUNT(*) as cnt FROM users WHERE role = 'Admin'")
+            count = cur.fetchone()["cnt"]
+            if count <= 1:
+                raise HTTPException(status_code=400, detail="Cannot remove the last Admin account.")
+
         cur.execute(
             "UPDATE users SET token_version = token_version + 1 WHERE id = %s",
             (user_id,)
@@ -635,6 +678,11 @@ def get_units(user=Depends(get_current_user)):
 def update_unit(device_id: str, req: UpdateUnitRequest, user=Depends(get_current_user)):
     if user["role"] not in ("Admin", "Operator"):
         raise HTTPException(status_code=403, detail="Not authorized")
+
+    # Operators cannot edit informational fields
+    if user["role"] == "Operator":
+        if any(v is not None for v in [req.installed_date, req.technician, req.description]):
+            raise HTTPException(status_code=403, detail="Operators can only update alert thresholds.")
 
     # Server-side threshold validation
     if req.threshold_warning is not None or req.threshold_danger is not None:
@@ -692,6 +740,23 @@ def control_siren(device_id: str, req: SirenRequest, user=Depends(get_current_us
             "UPDATE fews_units SET siren_state = %s, siren_auto_triggered = FALSE WHERE device_id = %s",
             (req.state == "on", device_id)
         )
+        cur.execute("SELECT name, location FROM fews_units WHERE device_id = %s", (device_id,))
+        unit = cur.fetchone()
+        user_id = int(user["sub"])
+        cur.execute("SELECT name FROM users WHERE id = %s", (user_id,))
+        user_row = cur.fetchone()
+        user_name = user_row["name"] if user_row else "Unknown"
+        station_name = unit["name"] if unit else device_id
+        location     = unit["location"] if unit else ""
+        action_msg = (
+            f"{station_name} ({location}) siren has been manually activated by {user_name}"
+            if req.state == "on"
+            else f"{station_name} ({location}) siren has been silenced by {user_name}"
+        )
+        cur.execute("""
+            INSERT INTO system_logs (station, type, message, user_name)
+            VALUES (%s, %s, %s, %s)
+        """, (station_name, "system", action_msg, user_name))
         conn.commit()
     finally:
         cur.close()

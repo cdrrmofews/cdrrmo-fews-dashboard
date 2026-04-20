@@ -109,7 +109,7 @@ function normalizeUser(parsed) {
     return { name: "", role: "Operator", department: "", email: "", phone: "", photo: null, sms_enabled: false, initials: "?" };
   }
   const name = parsed.name || "";
-  const initials = parsed.initials ||
+  const initials =
     name.split(" ").filter(Boolean).map(w => w[0]).join("").slice(0, 2).toUpperCase() ||
     "?";
   return {
@@ -2069,6 +2069,7 @@ const [fews1Live, setFews1Live]                   = useState(null);
 
   const [token, setToken] = useState(() => getStoredToken());
   const [sirens, setSirens] = useState({ 1: false });
+  const [sirenLoading, setSirenLoading] = useState({});
   const [thresholds, setThresholds] = useState({ warning: 200, danger: 300 });
 
   useEffect(() => {
@@ -2089,7 +2090,16 @@ const [fews1Live, setFews1Live]                   = useState(null);
                     const f = [{ id: 1, deviceId: "fews_1" }].find(x => "fews_" + x.id === row.device_id);
                     if (f) sirenMap[f.id] = row.siren_state ?? false;
                 });
-                setSirens(prev => ({ ...prev, ...sirenMap }));
+                setSirenLoading(currentLoading => {
+                    setSirens(prev => {
+                        const next = { ...prev };
+                        Object.entries(sirenMap).forEach(([id, val]) => {
+                            if (!currentLoading[id]) next[id] = val;
+                        });
+                        return next;
+                    });
+                    return currentLoading;
+                });
 
                 const fews1Row = rows.find(r => r.device_id === "fews_1");
                 if (fews1Row) {
@@ -2154,30 +2164,26 @@ const [fews1Live, setFews1Live]                   = useState(null);
   useEffect(() => { userRef.current = user; }, [user]);
 
   const handleLogout = useCallback(async () => {
-    const currentUser = userRef.current;
     const tok = getStoredToken();
+
     if (tok) {
-          if (currentUser.name) {
-            try {
-              await fetch(`${API_BASE}/logs`, {
-                method:  "POST",
-                headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
-                body: JSON.stringify({
-                  station:   "System",
-                  type:      "system",
-                  message:   `${currentUser.name} (${currentUser.role}, ${currentUser.department}) has logged out of the system`,
-                  user_name: currentUser.name,
-                }),
-              });
-            } catch {}
-          }
-          try {
-            await fetch(`${API_BASE}/logout`, {
-              method:  "POST",
-              headers: { Authorization: `Bearer ${tok}` },
-            });
-          } catch {}
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 3000);
+      try {
+        await fetch(`${API_BASE}/logout`, {
+          method:  "POST",
+          headers: { Authorization: `Bearer ${tok}` },
+          signal:  controller.signal,
+        });
+      } catch (err) {
+        if (err.name === "AbortError") {
+          console.warn("[LOGOUT] Server unreachable — session cleared locally only. Token may still be valid on server.");
         }
+      } finally {
+        clearTimeout(timeout);
+      }
+    }
+
     clearStoredSession();
     sessionStorage.removeItem("fews1_offline_time");
     sessionStorage.removeItem("fews1_was_offline");
@@ -2239,19 +2245,18 @@ const [fews1Live, setFews1Live]                   = useState(null);
       [user.role]
     );
 
-  const wasConnectedRef = useRef(null);
-  const offlineTimeRef  = useRef(null);
+  const wasConnectedRef = useRef(
+    sessionStorage.getItem("fews1_was_offline") === "true" ? false : null
+  );
+  const offlineTimeRef = useRef(
+    (() => { const t = sessionStorage.getItem("fews1_offline_time"); return t ? parseInt(t, 10) : null; })()
+  );
 
   useEffect(() => {
-    const storedOfflineTime = sessionStorage.getItem("fews1_offline_time");
-    const storedWasOffline  = sessionStorage.getItem("fews1_was_offline");
-    if (storedWasOffline === "true") {
-      wasConnectedRef.current = false;
-      if (storedOfflineTime) {
-        offlineTimeRef.current = parseInt(storedOfflineTime, 10);
-      }
-    }
-  }, []);
+      wasConnectedRef.current = sessionStorage.getItem("fews1_was_offline") === "true" ? false : null;
+      const storedOfflineTime = sessionStorage.getItem("fews1_offline_time");
+      if (storedOfflineTime) offlineTimeRef.current = parseInt(storedOfflineTime, 10);
+    }, []);
 
   const handleOnline = useCallback(() => {
     setFews1Connected(true);
@@ -2509,8 +2514,13 @@ const [fews1Live, setFews1Live]                   = useState(null);
 
     const toggleSiren = async (id) => {
     if (!can(user.role, "sirenControl")) return;
+    if (sirenLoading[id]) return;
+
     const turningOn = !sirens[id];
     const deviceId = "fews_" + id;
+
+    setSirenLoading(prev => ({ ...prev, [id]: true }));
+    setSirens(prev => ({ ...prev, [id]: turningOn }));
 
     try {
       await authFetch(`${API_BASE}/siren/${deviceId}`, {
@@ -2524,19 +2534,14 @@ const [fews1Live, setFews1Live]                   = useState(null);
       console.log(`[SIREN] Command sent: ${turningOn ? "on" : "off"}`);
     } catch (e) {
       console.error("[SIREN] Control failed:", e);
+      setSirens(prev => ({ ...prev, [id]: !turningOn }));
     }
 
-    setSirens(prev => ({ ...prev, [id]: !prev[id] }));
-    const f = allFews.find(x => x.id === id);
-    if (f) {
-      addLog({
-        station: f.name,
-        type: "system",
-        message: turningOn
-          ? `Siren for ${f.name} (${f.location}) has been manually activated by ${user.name}`
-          : `Siren for ${f.name} (${f.location}) has been silenced by ${user.name}`,
-      });
-    }
+    // Siren log is now handled server-side in /siren/{device_id}
+
+    setTimeout(() => {
+      setSirenLoading(prev => ({ ...prev, [id]: false }));
+    }, 8000);
   };
 
   const chartPoints = useMemo(() =>
@@ -3134,7 +3139,16 @@ const waterChartOptions = useMemo(() => ({
                     </div>
                     <div className="rsb-stat"><span>Water Level</span><strong style={{ color: isActuallyLive ? cfg.color : "var(--text-3)" }}>{isActuallyLive ? `${f.waterLevel} cm` : "—"}</strong></div>
                     <div className="rsb-stat"><span>Status</span><strong style={{ color: isActuallyLive ? cfg.color : "var(--text-3)" }}>{isActuallyLive ? cfg.label : "WAITING"}</strong></div>
-                    <div className="rsb-stat"><span>Last sync</span><strong>{isActuallyLive && lastUpdatedStr ? lastUpdatedStr : "—"}</strong></div>
+                    <div className="rsb-stat">
+                      <span>Last sync</span>
+                      <strong style={{ color: !isActuallyLive && lastUpdatedStr ? "var(--text-3)" : "var(--text-1)" }}>
+                        {lastUpdatedStr
+                          ? isActuallyLive
+                            ? lastUpdatedStr
+                            : <span>{lastUpdatedStr} <span style={{ fontSize: 9, color: "var(--text-3)", fontFamily: "var(--mono)" }}>· last known</span></span>
+                          : "—"}
+                      </strong>
+                    </div>
                     {canSiren && (
                       <div className="rsb-siren">
                         <div className="rsb-siren-label">Siren Control</div>
@@ -3143,9 +3157,11 @@ const waterChartOptions = useMemo(() => ({
                           <button
                             className={`siren-btn ${sirenOn ? "siren-on" : "siren-off"}`}
                             onClick={() => toggleSiren(f.id)}
-                            disabled={!isActuallyLive}
+                            disabled={!isActuallyLive || sirenLoading[f.id]}
                           >
-                            {sirenOn ? "SILENCE" : "MANUAL ON"}
+                            {sirenLoading[f.id]
+                              ? <span className="btn-spinner" style={{ width: 10, height: 10, borderWidth: 1.5, borderTopColor: sirenOn ? "#fff" : "var(--text-2)", borderColor: sirenOn ? "rgba(255,255,255,0.25)" : "rgba(126,146,180,0.25)" }} />
+                              : sirenOn ? "SILENCE" : "MANUAL ON"}
                           </button>
                         </div>
                         <div className="rsb-siren-note">
