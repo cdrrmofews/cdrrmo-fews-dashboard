@@ -124,6 +124,32 @@ function normalizeUser(parsed) {
   };
 }
 
+function MapSkeleton() {
+  const [ready, setReady] = useState(false);
+  useEffect(() => {
+    const t = setTimeout(() => setReady(true), 1800);
+    return () => clearTimeout(t);
+  }, []);
+  if (ready) return null;
+  return (
+    <div style={{
+      position: "absolute", inset: 0, borderRadius: 10,
+      background: "var(--bg-raised)", zIndex: 999,
+      display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center", gap: 10,
+      animation: "skeleton-pulse 1.5s ease-in-out infinite",
+      pointerEvents: "none",
+    }}>
+      <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="var(--text-3)" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="10" r="3"/><path d="M12 2a8 8 0 0 1 8 8c0 5.25-8 13-8 13S4 15.25 4 10a8 8 0 0 1 8-8z"/>
+      </svg>
+      <span style={{ fontSize: 11, color: "var(--text-3)", fontFamily: "var(--mono)", fontWeight: 600, letterSpacing: "0.06em" }}>
+        LOADING MAP...
+      </span>
+    </div>
+  );
+}
+
 // ─── FEWS BASE DATA ───────────────────────────────────────────────────────────
 const FEWS1_BASE = {
   id: 1, name: "FEWS 1", location: "Bolbok",
@@ -229,7 +255,7 @@ const LOG_TYPES_BY_ROLE = {
 
 const ROWS_PER_PAGE = 30;
 
-function ExportMenu({ token, activeFilters, exporting, setExporting }) {
+function ExportMenu({ token, activeFilters, exporting, setExporting, showToast }) {
   const [open, setOpen] = useState(false);
   const ref = useRef();
   useEffect(() => {
@@ -266,8 +292,8 @@ function ExportMenu({ token, activeFilters, exporting, setExporting }) {
       if (!Array.isArray(data)) return;
       const rows = data.map(parseLog);
       const summary = buildFilterSummary();
-      if (format === "xlsx") exportToXLSX(rows, summary);
-      else                   exportToPDF(rows, summary);
+      if (format === "xlsx") exportToXLSX(rows, summary, showToast);
+      else                   exportToPDF(rows, summary, showToast);
     } catch (e) {
       console.error("Export failed", e);
     } finally {
@@ -299,7 +325,7 @@ function ExportMenu({ token, activeFilters, exporting, setExporting }) {
   );
 }
 
-function LogsPage({ token, userRole }) {
+function LogsPage({ token, userRole, showToast }) {
   const allowedTypes = LOG_TYPES_BY_ROLE[userRole] || LOG_TYPES_BY_ROLE["Operator"];
 
   const [rows,       setRows]       = useState([]);
@@ -432,6 +458,7 @@ function LogsPage({ token, userRole }) {
             activeFilters={activeFilters}
             exporting={exporting}
             setExporting={setExporting}
+            showToast={showToast}
           />
         </div>
         <div className="logs-stat-bar">
@@ -527,7 +554,7 @@ function LogsPage({ token, userRole }) {
 }
 
 // ─── EXPORT HELPERS ───────────────────────────────────────────────────────────
-function exportToXLSX(rows, filterSummary = "") {
+function exportToXLSX(rows, filterSummary = "", showToast = () => {}) {
   const header = ["Date", "Time", "Station", "Type", "Message"];
   const meta   = [
     ["CDRRMO – FEWS Incident Log Report"],
@@ -548,10 +575,11 @@ function exportToXLSX(rows, filterSummary = "") {
   const s = document.createElement("script");
   s.src = "https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js";
   s.onload = doIt;
+  s.onerror = () => showToast("Excel export failed — could not load required library. Check your internet connection.");
   document.head.appendChild(s);
 }
 
-function exportToPDF(rows, filterSummary = "") {
+function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
   const load = (src) => new Promise((res, rej) => {
     if (document.querySelector(`script[src="${src}"]`)) { res(); return; }
     const s = document.createElement("script");
@@ -672,7 +700,8 @@ function exportToPDF(rows, filterSummary = "") {
   if (window.jspdf?.jsPDF) { doIt(); return; }
   load("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js")
     .then(() => load("https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"))
-    .then(doIt);
+    .then(doIt)
+    .catch(() => showToast("PDF export failed — could not load required library. Check your internet connection."));
 }
 
 // ─── CUSTOM DATE PICKER ───────────────────────────────────────────────────────
@@ -2512,15 +2541,26 @@ const [fews1Live, setFews1Live]                   = useState(null);
       }
     }, []);
 
+    const [sirenConfirm, setSirenConfirm] = useState(null);
+
     const toggleSiren = async (id) => {
-    if (!can(user.role, "sirenControl")) return;
-    if (sirenLoading[id]) return;
+        if (!can(user.role, "sirenControl")) return;
+        if (sirenLoading[id]) return;
 
-    const turningOn = !sirens[id];
-    const deviceId = "fews_" + id;
+        const turningOn = !sirens[id];
+        if (turningOn) {
+          setSirenConfirm(id);
+          return;
+        }
 
-    setSirenLoading(prev => ({ ...prev, [id]: true }));
-    setSirens(prev => ({ ...prev, [id]: turningOn }));
+        await doToggleSiren(id, false);
+      };
+
+    const doToggleSiren = async (id, turningOn) => {
+        const deviceId = "fews_" + id;
+
+        setSirenLoading(prev => ({ ...prev, [id]: true }));
+        setSirens(prev => ({ ...prev, [id]: turningOn }));
 
     try {
       await authFetch(`${API_BASE}/siren/${deviceId}`, {
@@ -2535,6 +2575,7 @@ const [fews1Live, setFews1Live]                   = useState(null);
     } catch (e) {
       console.error("[SIREN] Control failed:", e);
       setSirens(prev => ({ ...prev, [id]: !turningOn }));
+      showToast("Siren command failed — check your connection and try again.");
     }
 
     // Siren log is now handled server-side in /siren/{device_id}
@@ -2708,7 +2749,23 @@ const waterChartOptions = useMemo(() => ({
 
   return (
       <ErrorBoundary>
+      <ToastContainer />
       <div className="app-shell" style={{ flexDirection: "column" }}>
+        {sirenConfirm !== null && (() => {
+        const f = allFews.find(x => x.id === sirenConfirm);
+        return (
+          <ConfirmModal
+            icon="🔊"
+            iconColor="var(--red)"
+            title="Activate Siren?"
+            message={`This will physically sound the siren at ${f?.name || "the station"} (${f?.location || ""}). Only activate during an actual emergency.`}
+            confirmLabel="Yes, Activate"
+            confirmColor="var(--red)"
+            onConfirm={() => { doToggleSiren(sirenConfirm, true); setSirenConfirm(null); }}
+            onCancel={() => setSirenConfirm(null)}
+          />
+        );
+      })()}
         {showLogoutModal && (
         <ConfirmModal title="Logout" message="Are you sure you want to log out of the CDRRMO dashboard?"
           confirmLabel="Yes, Logout" confirmColor="var(--red)"
@@ -2818,9 +2875,11 @@ const waterChartOptions = useMemo(() => ({
                 {user.photo ? <img src={user.photo} alt="avatar" style={{ width:"100%", height:"100%", borderRadius:"50%", objectFit:"cover" }} /> : user.initials}
               </div>
               {showProfileDropdown && (() => {
-                  const rect  = avatarBtnRef.current?.getBoundingClientRect();
-                  const top   = rect ? rect.bottom + 8 : 72;
-                  const right = rect ? window.innerWidth - rect.right : 16;
+                  const rect    = avatarBtnRef.current?.getBoundingClientRect();
+                  const top     = rect ? rect.bottom + 8 : 72;
+                  const rawRight = rect ? window.innerWidth - rect.right : 16;
+                  const dropdownWidth = 260;
+                  const right   = Math.max(8, Math.min(rawRight, window.innerWidth - dropdownWidth - 8));
                   return createPortal(
                       <div style={{ position:"fixed", top:`${top}px`, right:`${right}px`, zIndex:99999 }}
                           onKeyDown={e => { if (e.key === "Escape") setShowProfileDropdown(false); }}>
@@ -2851,7 +2910,7 @@ const waterChartOptions = useMemo(() => ({
                   <h2>FEWS Locations</h2>
                   <span className="card-tag">Batangas City</span>
                 </div>
-                <div className="map-wrap">
+                <div className="map-wrap" style={{ position: "relative" }}>
                   <MapContainer center={[13.7703472, 121.0525449]} zoom={15} style={{ height:"100%", width:"100%", borderRadius:"10px" }} scrollWheelZoom={false}>
                     <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                     <FlyToStation fews={selectedStation} />
@@ -2899,6 +2958,7 @@ const waterChartOptions = useMemo(() => ({
                       );
                     })}
                   </MapContainer>
+                 <MapSkeleton />
                 </div>
               </div>
 
@@ -3177,7 +3237,7 @@ const waterChartOptions = useMemo(() => ({
         )}
 
         {activeNav === "UnitControl" && <UnitControlPage allFews={allFews} fews1Connected={isHardwareOnline} userRole={user.role} userName={user.name} addLog={addLog} token={token} onThresholdSaved={(t) => setThresholds(t)} />}
-        {activeNav === "Logs"        && <LogsPage token={token} userRole={user.role} />}
+        {activeNav === "Logs"        && <LogsPage token={token} userRole={user.role} showToast={showToast} />}
         {activeNav === "Settings"    && <SettingsPage
           userRole={user.role}
           userName={user.name}
