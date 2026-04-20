@@ -450,11 +450,11 @@ body {
   position: relative;
   overflow: hidden;
   flex-shrink: 0;
-  border: 2px solid var(--border);
-  transition: border-color 0.2s;
+  border: none;
+  transition: opacity 0.2s, transform 0.2s;
 }
 
-.pd-edit-avatar:hover     { border-color: var(--blue); }
+.pd-edit-avatar:hover { opacity: 0.88; transform: scale(1.04); }
 
 .pd-photo-overlay {
   position: absolute;

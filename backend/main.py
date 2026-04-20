@@ -158,6 +158,7 @@ def login(request: Request, req: LoginRequest):
             "email":      user["email"],
             "id":         user["id"],
             "photo":      user.get("photo"),
+            "phone":      user.get("phone"),
         }
     finally:
         cur.close()
