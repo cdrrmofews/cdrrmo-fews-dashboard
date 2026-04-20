@@ -3004,7 +3004,7 @@ const waterChartOptions = useMemo(() => ({
               {(() => {
                 const ALARM_CFG = {
                   safe: {
-                    color:  "#22c55e",
+                    color:  "#34d399",
                     bg:     "rgba(34,197,94,0.60)",
                     border: "rgba(34,197,94,0.70)",
                     sqBg:   "rgba(34,197,94,0.65)",
@@ -3014,7 +3014,7 @@ const waterChartOptions = useMemo(() => ({
                     anim:   false,
                   },
                   warning: {
-                    color:  "#f59e0b",
+                    color:  "#fcd34d",
                     bg:     "rgba(245,158,11,0.60)",
                     border: "rgba(245,158,11,0.70)",
                     sqBg:   "rgba(245,158,11,0.65)",
@@ -3024,7 +3024,7 @@ const waterChartOptions = useMemo(() => ({
                     anim:   true,
                   },
                   danger: {
-                    color:  "#ef4444",
+                    color:  "#fc6f6f",
                     bg:     "rgba(239,68,68,0.60)",
                     border: "rgba(239,68,68,0.70)",
                     sqBg:   "rgba(239,68,68,0.65)",
@@ -3034,7 +3034,7 @@ const waterChartOptions = useMemo(() => ({
                     anim:   true,
                   },
                   offline: {
-                    color:    "#9facbe",
+                    color:    "#a8b8cc",
                     bg:       "rgba(74,96,126,0.60)",
                     border:   "rgba(74,96,126,0.70)",
                     sqBg:     "rgba(74,96,126,0.65)",
