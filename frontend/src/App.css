@@ -354,13 +354,13 @@ body {
   cursor: pointer;
   flex-shrink: 0;
   overflow: hidden;
-  border: 2px solid transparent;
-  transition: border-color 0.2s, box-shadow 0.2s;
+  border: none;
+  transition: opacity 0.2s, transform 0.2s;
 }
 
 .profile-avatar-btn:hover {
-  border-color: rgba(56,189,248,0.5);
-  box-shadow: 0 0 0 3px rgba(56,189,248,0.12);
+  opacity: 0.82;
+  transform: scale(1.07);
 }
 
 /* ================================

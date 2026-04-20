@@ -35,6 +35,7 @@ export default function Login({ onLogin }) {
         department: data.department,
         initials:   data.username.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase(),
         photo:      data.photo || null,
+        phone:      data.phone || "",
         dob:        "",
       });
       const storage = rememberMe ? localStorage : sessionStorage;
