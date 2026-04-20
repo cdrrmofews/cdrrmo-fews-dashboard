@@ -2049,6 +2049,45 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
   );
 }
 
+// ─── TOAST ───────────────────────────────────────────────────────────────────
+function useToast() {
+  const [toasts, setToasts] = useState([]);
+
+  const showToast = useCallback((msg) => {
+    const id = Date.now() + Math.random();
+    setToasts(prev => [...prev, { id, msg, leaving: false }]);
+    setTimeout(() => {
+      setToasts(prev => prev.map(t => t.id === id ? { ...t, leaving: true } : t));
+      setTimeout(() => {
+        setToasts(prev => prev.filter(t => t.id !== id));
+      }, 220);
+    }, 3500);
+  }, []);
+
+  const dismiss = useCallback((id) => {
+    setToasts(prev => prev.map(t => t.id === id ? { ...t, leaving: true } : t));
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 220);
+  }, []);
+
+  const ToastContainer = useCallback(() => (
+    toasts.length === 0 ? null : (
+      <div className="toast-container">
+        {toasts.map(t => (
+          <div key={t.id} className={`toast ${t.leaving ? "toast-leaving" : ""}`}>
+            <span className="toast-icon">⚠</span>
+            <span className="toast-msg">{t.msg}</span>
+            <button className="toast-close" onClick={() => dismiss(t.id)}>✕</button>
+          </div>
+        ))}
+      </div>
+    )
+  ), [toasts, dismiss]);
+
+  return { showToast, ToastContainer };
+}
+
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
@@ -2097,6 +2136,7 @@ const [fews1Live, setFews1Live]                   = useState(null);
   });
 
   const [token, setToken] = useState(() => getStoredToken());
+  const { showToast, ToastContainer: AppToastContainer } = useToast();
   const [sirens, setSirens] = useState({ 1: false });
   const [sirenLoading, setSirenLoading] = useState({});
   const [thresholds, setThresholds] = useState({ warning: 200, danger: 300 });
@@ -2749,7 +2789,7 @@ const waterChartOptions = useMemo(() => ({
 
   return (
       <ErrorBoundary>
-      <ToastContainer />
+      <AppToastContainer />
       <div className="app-shell" style={{ flexDirection: "column" }}>
         {sirenConfirm !== null && (() => {
         const f = allFews.find(x => x.id === sirenConfirm);
