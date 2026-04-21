@@ -2504,19 +2504,21 @@ export default function App() {
     };
   }, []);
 
+  const isHardwareOnline = fews1Connected || fews1StatusOnline;
+
   const allFews = useMemo(() => {
       let fews1 = { ...FEWS1_BASE };
       if (fews1Live) {
         fews1 = {
           ...fews1,
-          waterLevel: fews1Live.water_level_cm,
-          status:     backendStatusToKey(fews1Live.status),
+          waterLevel: isHardwareOnline ? fews1Live.water_level_cm : 0,
+          status:     isHardwareOnline ? backendStatusToKey(fews1Live.status) : "safe",
           lat:        fews1Live.latitude,
           lng:        fews1Live.longitude,
         };
       }
       return [fews1];
-    }, [fews1Live]);
+    }, [fews1Live, isHardwareOnline]);
 
     const isCritical = useMemo(() => allFews.some(f => f.status === "danger"), [allFews]);
 
@@ -2742,9 +2744,6 @@ const waterChartOptions = useMemo(() => ({
       },
     },
   }), [chartWinStart, chartWinEnd, historyData, thresholds]);
-
-  // Connected = either recent sensor reading OR recent status ping
-  const isHardwareOnline = fews1Connected || fews1StatusOnline;
 
   const alertCount      = allFews.filter(f => f.status === "danger").length;
   const selectedStation = allFews.find(f => f.id === selectedFEWS) || null;
@@ -3211,11 +3210,7 @@ const waterChartOptions = useMemo(() => ({
                     <div className="rsb-stat">
                       <span>Last sync</span>
                       <strong style={{ color: !isActuallyLive ? "var(--text-3)" : "var(--text-1)" }}>
-                        {lastUpdatedStr
-                          ? isActuallyLive
-                            ? lastUpdatedStr
-                            : <span>{lastUpdatedStr} <span style={{ fontSize: 9, color: "var(--text-3)", fontFamily: "var(--mono)" }}>· last known</span></span>
-                          : "—"}
+                        {lastUpdatedStr ? lastUpdatedStr : "—"}
                       </strong>
                     </div>
                     {canSiren && (
