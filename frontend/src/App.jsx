@@ -2342,7 +2342,6 @@ export default function App() {
   }, [addLog]);
 
   const handleOffline = useCallback(() => {
-    setFews1Live(null);
     setFews1Connected(false);
     // Note: fews1StatusOnline is driven by /status/fews1 poll independently
     // so we don't reset it here — the status poll will handle its own timeout
