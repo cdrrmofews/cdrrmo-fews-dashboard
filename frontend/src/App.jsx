@@ -2381,7 +2381,7 @@ const [fews1Live, setFews1Live]                   = useState(null);
             ? rawTs.replace(" ", "T").replace(/Z?$/, "Z")
             : null;
           const lastSeen = utcStr ? new Date(utcStr) : null;
-          const isRecent = lastSeen && (Date.now() - lastSeen.getTime()) < 600000;
+          const isRecent = lastSeen && (Date.now() - lastSeen.getTime()) < 180000;
 
           if (isRecent) {
             setFews1Live(data.fews_1);

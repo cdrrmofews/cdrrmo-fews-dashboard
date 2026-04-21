@@ -9,11 +9,13 @@ from database import get_db, release_db
 def send_sms_to_all():
     pass
 
-MQTT_BROKER        = "broker.emqx.io"
-MQTT_PORT          = 1883
-MQTT_TOPIC         = "cdrrmo/fews1/data"
-MQTT_STATUS_TOPIC  = "cdrrmo/fews1/status"
+MQTT_BROKER             = "broker.emqx.io"
+MQTT_PORT               = 1883
+MQTT_TOPIC              = "cdrrmo/fews1/data"
+MQTT_STATUS_TOPIC       = "cdrrmo/fews1/status"
 MQTT_SIREN_STATUS_TOPIC = "cdrrmo/fews1/siren_status"
+MQTT_HEARTBEAT_TOPIC    = "cdrrmo/fews1/heartbeat"
+OFFLINE_TIMEOUT         = 150  # 2.5 minutes in seconds
 
 # In-memory last online timestamp per station
 _last_online: dict = {}
@@ -27,15 +29,15 @@ def get_last_online(station_id: str) -> float:
     return _last_online.get(station_id, 0)
 
 def start_offline_watcher():
-    """Background thread — logs when a station stops sending data for 10+ minutes."""
+    """Background thread — logs when a station stops sending heartbeats for 2.5 minutes."""
     def watch():
         while True:
-            time.sleep(60)  # check every minute
+            time.sleep(30)  # check every 30 seconds
             now = time.time()
             for station_id, last in list(_last_online.items()):
                 age = now - last
                 already_logged = _offline_logged.get(station_id, False)
-                if age >= 600 and not already_logged:
+                if age >= OFFLINE_TIMEOUT and not already_logged:
                     _offline_logged[station_id] = True
                     station_name = "FEWS 1" if station_id == "fews_1" else station_id
                     try:
@@ -48,7 +50,7 @@ def start_offline_watcher():
                             """, (
                                 station_name,
                                 "warning",
-                                f"{station_name} went offline — no data received for 10 minutes",
+                                f"{station_name} went offline — no heartbeat received for 2.5 minutes",
                                 "System",
                             ))
                             conn.commit()
@@ -58,13 +60,13 @@ def start_offline_watcher():
                             release_db(conn)
                     except Exception as e:
                         print(f"[WATCHER] Error logging offline: {e}")
-                elif age < 600 and already_logged:
+                elif age < OFFLINE_TIMEOUT and already_logged:
                     # Reset so next offline event gets logged again
                     _offline_logged[station_id] = False
 
     t = threading.Thread(target=watch, daemon=True)
     t.start()
-    print("[WATCHER] Offline watcher thread started")
+    print("[WATCHER] Offline watcher thread started (2.5 min timeout)")
 
 def get_thresholds(device_id="fews_1"):
     try:
@@ -114,6 +116,8 @@ def on_connect(client, userdata, flags, rc):
         print(f"[BRIDGE] Subscribed to {MQTT_STATUS_TOPIC} result={result2} mid={mid2}")
         result3, mid3 = client.subscribe(MQTT_SIREN_STATUS_TOPIC, qos=0)
         print(f"[BRIDGE] Subscribed to {MQTT_SIREN_STATUS_TOPIC} result={result3} mid={mid3}")
+        result4, mid4 = client.subscribe(MQTT_HEARTBEAT_TOPIC, qos=0)
+        print(f"[BRIDGE] Subscribed to {MQTT_HEARTBEAT_TOPIC} result={result4} mid={mid4}")
     else:
         print(f"[BRIDGE] Connection failed rc={rc}")
 
@@ -122,7 +126,15 @@ def on_message(client, userdata, msg):
         data = json.loads(msg.payload.decode())
         print(f"[BRIDGE] Received on {msg.topic}: {data}")
 
-        # ── Handle siren auto-off from Arduino ────────────────────────────
+        # ── Handle heartbeat ──────────────────────────────────────────────────────
+        if msg.topic == MQTT_HEARTBEAT_TOPIC:
+            station_id = data.get("station_id")
+            if station_id:
+                mark_station_online(station_id)
+                print(f"[HB] Heartbeat received from {station_id}")
+            return
+
+        # ── Handle siren auto-off from Arduino ────────────────────────────────────
         if msg.topic == MQTT_SIREN_STATUS_TOPIC:
                 if data.get("siren_auto_off") and data.get("station_id"):
                     sid = data.get("station_id")
@@ -171,7 +183,7 @@ def on_message(client, userdata, msg):
                 try:
                     # If was offline before (last_seen > 10 min ago or never seen), log comeback
                     age = time.time() - was_online if was_online else None
-                    if age is None or age >= 600:
+                    if age is None or age >= OFFLINE_TIMEOUT:
                         cur.execute("""
                             INSERT INTO system_logs (station, type, message, user_name)
                             VALUES (%s, %s, %s, %s)

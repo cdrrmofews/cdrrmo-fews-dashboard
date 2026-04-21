@@ -386,10 +386,9 @@ def fews1_status():
         return { "online": False, "last_seen": None }
     age = time.time() - last
     return {
-        "online":    age < 600,
+        "online":    age < 180,
         "last_seen": last,
     }
-
 # --- SYSTEM LOGS ---
 
 @app.post("/logs")
