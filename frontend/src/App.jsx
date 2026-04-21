@@ -2378,8 +2378,10 @@ export default function App() {
           const lastSeen = utcStr ? new Date(utcStr) : null;
           const isRecent = lastSeen && (Date.now() - lastSeen.getTime()) < 180000;
 
-          if (isRecent) {
+          if (data.fews_1) {
             setFews1Live(data.fews_1);
+          }
+          if (isRecent) {
             handleOnline();
             failCount.current = 0;
           } else {
