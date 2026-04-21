@@ -2091,10 +2091,9 @@ export default function App() {
     };
   }, []);
 
-const [fews1Live, setFews1Live]                   = useState(null);
+  const [fews1Live, setFews1Live]                   = useState(null);
   const [fews1Connected, setFews1Connected]       = useState(false);
   const [fews1StatusOnline, setFews1StatusOnline] = useState(false);
-  const [lastUpdated, setLastUpdated]             = useState(null);
 
   const [user, setUser] = useState(() => {
     try {
@@ -2243,7 +2242,6 @@ const [fews1Live, setFews1Live]                   = useState(null);
     setFews1Connected(false);
     setHistoryData({ positions: [], values: [], exactLabels: [] });
     setHadDataBefore(false);
-    setLastUpdated(null);
     setShowProfileDropdown(false);
     setSidebarOpen(false);
     setActiveNav("Dashboard");
@@ -2266,7 +2264,6 @@ const [fews1Live, setFews1Live]                   = useState(null);
         setFews1Connected(false);
         setHistoryData({ positions: [], values: [], exactLabels: [] });
         setHadDataBefore(false);
-        setLastUpdated(null);
         setShowProfileDropdown(false);
         setSidebarOpen(false);
         setActiveNav("Dashboard");
@@ -2304,7 +2301,6 @@ const [fews1Live, setFews1Live]                   = useState(null);
   const handleOnline = useCallback(() => {
     setFews1Connected(true);
     setFews1StatusOnline(true);
-    setLastUpdated(new Date());
 
     if (wasConnectedRef.current === false) {
       const offlineTime = offlineTimeRef.current;
@@ -2755,9 +2751,10 @@ const waterChartOptions = useMemo(() => ({
   const selectedStation = allFews.find(f => f.id === selectedFEWS) || null;
   const pageInfo        = PAGE_TITLES[activeNav];
 
-  const lastUpdatedStr = lastUpdated
-    ? lastUpdated.toLocaleTimeString("en-PH", { timeZone: "Asia/Manila", hour:"2-digit", minute:"2-digit", second:"2-digit" })
-    : null;
+  const lastUpdatedStr = fews1Live?.timestamp
+  ? new Date(fews1Live.timestamp.replace(" ", "T").replace(/Z?$/, "Z"))
+      .toLocaleTimeString("en-PH", { timeZone: "Asia/Manila", hour:"2-digit", minute:"2-digit", second:"2-digit" })
+  : null;
 
   if (!isLoggedIn) return <Login onLogin={handleLogin} />;
 
