@@ -2459,7 +2459,7 @@ const [fews1Live, setFews1Live]                   = useState(null);
         }).format(new Date(utcStr));
       });
 
-      const GAP_THRESHOLD = 30 * 60 * 1000; // 30 minutes
+      const GAP_THRESHOLD = 90 * 60 * 1000;
       const positions = [];
       const values = [];
       const exactLabels = [];
@@ -2606,8 +2606,8 @@ const [fews1Live, setFews1Live]                   = useState(null);
     [historyData]
   );
 
-  const CHART_WINDOW  = 60 * 60 * 1000;
-  const CHART_PADDING = 2 * 60 * 1000;
+  const CHART_WINDOW  = 12 * 60 * 60 * 1000;
+  const CHART_PADDING = 10 * 60 * 1000;
   const chartWinEnd   = useMemo(() => Math.ceil(chartNow / 300000) * 300000, [chartNow]);
   const chartWinStart = useMemo(() => chartWinEnd - CHART_WINDOW - CHART_PADDING, [chartWinEnd]);
   const hasEverHadData = historyData?.values?.length > 0 || hadDataBefore;
@@ -2725,7 +2725,7 @@ const waterChartOptions = useMemo(() => ({
         grid: { color: "rgba(255,255,255,0.04)" },
         afterBuildTicks: (axis) => {
           const ticks = [];
-          const step = 5 * 60 * 1000;
+          const step = 60 * 60 * 1000;
           const start = Math.ceil(chartWinStart / step) * step;
           for (let t = start; t <= chartWinEnd; t += step) {
             ticks.push({ value: t });
@@ -2981,7 +2981,7 @@ const waterChartOptions = useMemo(() => ({
                   <h2>Water Level</h2>
                     <span className="card-tag">
                       {hasEverHadData
-                        ? (fews1Connected ? "Last 60 min" : "Last known data")
+                        ? (fews1Connected ? "Last 12 hrs" : "Last known data")
                         : fews1Connected ? "Loading…" : "Waiting for data"}
                     </span>
                 </div>
