@@ -58,6 +58,13 @@ class ErrorBoundary extends React.Component {
 }
 
 // ─── STORAGE HELPERS ─────────────────────────────────────────────────────────
+function isTokenExpired(token) {
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.exp * 1000 < Date.now();
+  } catch { return true; }
+}
+
 function getStorage() {
   return localStorage.getItem("rememberMe") === "true" ? localStorage : sessionStorage;
 }
@@ -2069,6 +2076,10 @@ export default function App() {
       const tok    = getStoredToken();
       const stored = getStoredUser();
       if (!tok || !stored) return false;
+      if (isTokenExpired(tok)) {
+        clearStoredSession();
+        return false;
+      }
       const parsed = JSON.parse(stored);
       return !!(parsed && typeof parsed.name === "string" && parsed.name && parsed.role);
     } catch { return false; }
