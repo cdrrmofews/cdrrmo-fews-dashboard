@@ -3214,7 +3214,7 @@ const waterChartOptions = useMemo(() => ({
                     <div className="rsb-stat"><span>Status</span><strong style={{ color: isActuallyLive ? cfg.color : "var(--text-3)" }}>{isActuallyLive ? cfg.label : "WAITING"}</strong></div>
                     <div className="rsb-stat">
                       <span>Last sync</span>
-                      <strong style={{ color: !isActuallyLive && lastUpdatedStr ? "var(--text-3)" : "var(--text-1)" }}>
+                      <strong style={{ color: !isActuallyLive ? "var(--text-3)" : "var(--text-1)" }}>
                         {lastUpdatedStr
                           ? isActuallyLive
                             ? lastUpdatedStr
