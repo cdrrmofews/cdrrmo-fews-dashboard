@@ -2596,7 +2596,7 @@ const [fews1Live, setFews1Live]                   = useState(null);
 
     setTimeout(() => {
       setSirenLoading(prev => ({ ...prev, [id]: false }));
-    }, 8000);
+    }, 7000);
   };
 
   const chartPoints = useMemo(() =>

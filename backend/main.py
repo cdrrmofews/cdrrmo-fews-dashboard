@@ -733,8 +733,8 @@ def control_siren(device_id: str, req: SirenRequest, user=Depends(get_current_us
     cur  = conn.cursor()
     try:
         cur.execute(
-            "UPDATE fews_units SET siren_state = %s, siren_auto_triggered = FALSE WHERE device_id = %s",
-            (req.state == "on", device_id)
+            "UPDATE fews_units SET siren_state = %s, siren_auto_triggered = FALSE, siren_manual_off = %s WHERE device_id = %s",
+            (req.state == "on", req.state == "off", device_id)
         )
         cur.execute("SELECT name, location FROM fews_units WHERE device_id = %s", (device_id,))
         unit = cur.fetchone()
