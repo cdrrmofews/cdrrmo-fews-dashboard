@@ -2379,7 +2379,7 @@ export default function App() {
             ? rawTs.replace(" ", "T").replace(/Z?$/, "Z")
             : null;
           const lastSeen = utcStr ? new Date(utcStr) : null;
-          const isRecent = lastSeen && (Date.now() - lastSeen.getTime()) < 180000;
+          const isRecent = lastSeen && (Date.now() - lastSeen.getTime()) < 4200000; // 70 mins
 
           setFews1Live(data.fews_1);
           if (isRecent) {
@@ -2530,7 +2530,10 @@ export default function App() {
       return [fews1];
     }, [fews1Live, fews1DataRecent]);
 
-    const isCritical = useMemo(() => allFews.some(f => f.status === "danger"), [allFews]);
+    const isCritical = useMemo(() => 
+      isHardwareOnline && fews1DataRecent && allFews.some(f => f.status === "danger"),
+      [allFews, isHardwareOnline, fews1DataRecent]
+    );
 
     const prevCriticalRef = useRef(false);
     useEffect(() => {
@@ -2755,7 +2758,9 @@ const waterChartOptions = useMemo(() => ({
     },
   }), [chartWinStart, chartWinEnd, historyData, thresholds]);
 
-  const alertCount      = allFews.filter(f => f.status === "danger").length;
+  const alertCount = (isHardwareOnline && fews1DataRecent)
+    ? allFews.filter(f => f.status === "danger").length
+    : 0;
   const selectedStation = allFews.find(f => f.id === selectedFEWS) || null;
   const pageInfo        = PAGE_TITLES[activeNav];
 
