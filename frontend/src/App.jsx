@@ -2511,17 +2511,23 @@ export default function App() {
 
   const allFews = useMemo(() => {
       let fews1 = { ...FEWS1_BASE };
-      if (fews1Live && fews1DataFresh) {   // ← only use live data if it's fresh
+      if (fews1Live) {
         fews1 = {
           ...fews1,
-          waterLevel: fews1Live.water_level_cm,
-          status:     backendStatusToKey(fews1Live.status),
-          lat:        fews1Live.latitude,
-          lng:        fews1Live.longitude,
+          lat:       fews1Live.latitude,
+          lng:       fews1Live.longitude,
+          timestamp: fews1Live.timestamp,   // ← always carry timestamp
         };
+        if (fews1DataFresh) {
+          fews1 = {
+            ...fews1,
+            waterLevel: fews1Live.water_level_cm,
+            status:     backendStatusToKey(fews1Live.status),
+          };
+        }
       }
       return [fews1];
-    }, [fews1Live, fews1DataFresh]);        // ← add fews1DataFresh to deps
+    }, [fews1Live, fews1DataFresh]);
 
     const isCritical = useMemo(() => allFews.some(f => f.status === "danger"), [allFews]);
 
@@ -2755,8 +2761,8 @@ const waterChartOptions = useMemo(() => ({
   const selectedStation = allFews.find(f => f.id === selectedFEWS) || null;
   const pageInfo        = PAGE_TITLES[activeNav];
 
-  const lastUpdatedStr = fews1Live?.timestamp
-  ? new Date(fews1Live.timestamp.replace(" ", "T").replace(/Z?$/, "Z"))
+  const lastUpdatedStr = allFews[0]?.timestamp
+  ? new Date(allFews[0].timestamp.replace(" ", "T").replace(/Z?$/, "Z"))
       .toLocaleTimeString("en-PH", { timeZone: "Asia/Manila", hour:"2-digit", minute:"2-digit", second:"2-digit" })
   : null;
 
