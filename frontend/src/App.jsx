@@ -58,13 +58,6 @@ class ErrorBoundary extends React.Component {
 }
 
 // ─── STORAGE HELPERS ─────────────────────────────────────────────────────────
-function isTokenExpired(token) {
-  try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
-    return payload.exp * 1000 < Date.now();
-  } catch { return true; }
-}
-
 function getStorage() {
   return localStorage.getItem("rememberMe") === "true" ? localStorage : sessionStorage;
 }
@@ -2076,10 +2069,6 @@ export default function App() {
       const tok    = getStoredToken();
       const stored = getStoredUser();
       if (!tok || !stored) return false;
-      if (isTokenExpired(tok)) {
-        clearStoredSession();
-        return false;
-      }
       const parsed = JSON.parse(stored);
       return !!(parsed && typeof parsed.name === "string" && parsed.name && parsed.role);
     } catch { return false; }
@@ -2102,9 +2091,10 @@ export default function App() {
     };
   }, []);
 
-  const [fews1Live, setFews1Live]                   = useState(null);
+const [fews1Live, setFews1Live]                   = useState(null);
   const [fews1Connected, setFews1Connected]       = useState(false);
   const [fews1StatusOnline, setFews1StatusOnline] = useState(false);
+  const [lastUpdated, setLastUpdated]             = useState(null);
 
   const [user, setUser] = useState(() => {
     try {
@@ -2253,6 +2243,7 @@ export default function App() {
     setFews1Connected(false);
     setHistoryData({ positions: [], values: [], exactLabels: [] });
     setHadDataBefore(false);
+    setLastUpdated(null);
     setShowProfileDropdown(false);
     setSidebarOpen(false);
     setActiveNav("Dashboard");
@@ -2275,6 +2266,7 @@ export default function App() {
         setFews1Connected(false);
         setHistoryData({ positions: [], values: [], exactLabels: [] });
         setHadDataBefore(false);
+        setLastUpdated(null);
         setShowProfileDropdown(false);
         setSidebarOpen(false);
         setActiveNav("Dashboard");
@@ -2312,6 +2304,7 @@ export default function App() {
   const handleOnline = useCallback(() => {
     setFews1Connected(true);
     setFews1StatusOnline(true);
+    setLastUpdated(new Date());
 
     if (wasConnectedRef.current === false) {
       const offlineTime = offlineTimeRef.current;
@@ -2353,6 +2346,7 @@ export default function App() {
   }, [addLog]);
 
   const handleOffline = useCallback(() => {
+    setFews1Live(null);
     setFews1Connected(false);
     // Note: fews1StatusOnline is driven by /status/fews1 poll independently
     // so we don't reset it here — the status poll will handle its own timeout
@@ -2389,8 +2383,8 @@ export default function App() {
           const lastSeen = utcStr ? new Date(utcStr) : null;
           const isRecent = lastSeen && (Date.now() - lastSeen.getTime()) < 180000;
 
-          setFews1Live(data.fews_1);
           if (isRecent) {
+            setFews1Live(data.fews_1);
             handleOnline();
             failCount.current = 0;
           } else {
@@ -2515,21 +2509,19 @@ export default function App() {
     };
   }, []);
 
-  const isHardwareOnline = fews1Connected || fews1StatusOnline;
-
   const allFews = useMemo(() => {
       let fews1 = { ...FEWS1_BASE };
       if (fews1Live) {
         fews1 = {
           ...fews1,
-          waterLevel: isHardwareOnline ? fews1Live.water_level_cm : 0,
-          status:     isHardwareOnline ? backendStatusToKey(fews1Live.status) : "safe",
+          waterLevel: fews1Live.water_level_cm,
+          status:     backendStatusToKey(fews1Live.status),
           lat:        fews1Live.latitude,
           lng:        fews1Live.longitude,
         };
       }
       return [fews1];
-    }, [fews1Live, isHardwareOnline]);
+    }, [fews1Live]);
 
     const isCritical = useMemo(() => allFews.some(f => f.status === "danger"), [allFews]);
 
@@ -2756,14 +2748,16 @@ const waterChartOptions = useMemo(() => ({
     },
   }), [chartWinStart, chartWinEnd, historyData, thresholds]);
 
+  // Connected = either recent sensor reading OR recent status ping
+  const isHardwareOnline = fews1Connected || fews1StatusOnline;
+
   const alertCount      = allFews.filter(f => f.status === "danger").length;
   const selectedStation = allFews.find(f => f.id === selectedFEWS) || null;
   const pageInfo        = PAGE_TITLES[activeNav];
 
-  const lastUpdatedStr = fews1Live?.timestamp
-  ? new Date(fews1Live.timestamp.replace(" ", "T").replace(/Z?$/, "Z"))
-      .toLocaleTimeString("en-PH", { timeZone: "Asia/Manila", hour:"2-digit", minute:"2-digit", second:"2-digit" })
-  : null;
+  const lastUpdatedStr = lastUpdated
+    ? lastUpdated.toLocaleTimeString("en-PH", { timeZone: "Asia/Manila", hour:"2-digit", minute:"2-digit", second:"2-digit" })
+    : null;
 
   if (!isLoggedIn) return <Login onLogin={handleLogin} />;
 
@@ -3221,7 +3215,11 @@ const waterChartOptions = useMemo(() => ({
                     <div className="rsb-stat">
                       <span>Last sync</span>
                       <strong style={{ color: !isActuallyLive ? "var(--text-3)" : "var(--text-1)" }}>
-                        {lastUpdatedStr ? lastUpdatedStr : "—"}
+                        {lastUpdatedStr
+                          ? isActuallyLive
+                            ? lastUpdatedStr
+                            : <span>{lastUpdatedStr} <span style={{ fontSize: 9, color: "var(--text-3)", fontFamily: "var(--mono)" }}>· last known</span></span>
+                          : "—"}
                       </strong>
                     </div>
                     {canSiren && (
