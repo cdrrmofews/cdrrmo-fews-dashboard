@@ -200,12 +200,13 @@ def on_message(client, userdata, msg):
                     release_db(conn)
             return
 
-        station_id     = data.get("station_id")
-        water_level_cm = data.get("water_level_cm")
-        status         = data.get("status")
-        latitude       = data.get("latitude")
-        longitude      = data.get("longitude")
-        is_immediate   = data.get("is_immediate", False)
+        station_id          = data.get("station_id")
+        water_level_cm      = data.get("water_level_cm")
+        status              = data.get("status")
+        latitude            = data.get("latitude")
+        longitude           = data.get("longitude")
+        is_immediate        = data.get("is_immediate", False)
+        safe_after_critical = data.get("safe_after_critical", False)
 
         conn = get_db()
         cur  = conn.cursor()
@@ -280,8 +281,9 @@ def on_message(client, userdata, msg):
                 except Exception as e:
                     print(f"[BRIDGE] Failed to write auto-siren state: {e}")
 
-            # Auto-siren OFF: only clear if it was auto-triggered, never touch manual
-            if status != "CRITICAL":
+            # Auto-siren OFF: only clear on the confirmed safe-after-critical publish
+            safe_after_critical = data.get("safe_after_critical", False)
+            if status != "CRITICAL" and safe_after_critical:
                 try:
                     cur.execute(
                         "UPDATE fews_units SET siren_manual_off = FALSE, siren_state = FALSE, siren_auto_triggered = FALSE WHERE device_id = %s RETURNING siren_state, siren_auto_triggered",
