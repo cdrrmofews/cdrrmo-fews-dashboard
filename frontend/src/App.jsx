@@ -2091,9 +2091,10 @@ export default function App() {
     };
   }, []);
 
-  const [fews1Live, setFews1Live]                   = useState(null);
+  const [fews1Live, setFews1Live]                 = useState(null);
   const [fews1Connected, setFews1Connected]       = useState(false);
   const [fews1StatusOnline, setFews1StatusOnline] = useState(false);
+  const [fews1DataFresh, setFews1DataFresh]       = useState(false);
 
   const [user, setUser] = useState(() => {
     try {
@@ -2240,6 +2241,7 @@ export default function App() {
     setSirens({ 1: false });
     setFews1Live(null);
     setFews1Connected(false);
+    setFews1DataFresh(false);
     setHistoryData({ positions: [], values: [], exactLabels: [] });
     setHadDataBefore(false);
     setShowProfileDropdown(false);
@@ -2344,6 +2346,7 @@ export default function App() {
   const handleOffline = useCallback(() => {
     setFews1Live(null);
     setFews1Connected(false);
+    setFews1DataFresh(false);   // ← add this lin
     // Note: fews1StatusOnline is driven by /status/fews1 poll independently
     // so we don't reset it here — the status poll will handle its own timeout
 
@@ -2381,6 +2384,7 @@ export default function App() {
 
           if (isRecent) {
             setFews1Live(data.fews_1);
+            setFews1DataFresh(true);    // ← add this line
             handleOnline();
             failCount.current = 0;
           } else {
@@ -2507,7 +2511,7 @@ export default function App() {
 
   const allFews = useMemo(() => {
       let fews1 = { ...FEWS1_BASE };
-      if (fews1Live) {
+      if (fews1Live && fews1DataFresh) {   // ← only use live data if it's fresh
         fews1 = {
           ...fews1,
           waterLevel: fews1Live.water_level_cm,
@@ -2517,7 +2521,7 @@ export default function App() {
         };
       }
       return [fews1];
-    }, [fews1Live]);
+    }, [fews1Live, fews1DataFresh]);        // ← add fews1DataFresh to deps
 
     const isCritical = useMemo(() => allFews.some(f => f.status === "danger"), [allFews]);
 
