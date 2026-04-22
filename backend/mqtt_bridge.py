@@ -283,17 +283,26 @@ def on_message(client, userdata, msg):
             # Auto-siren OFF: only clear if it was auto-triggered, never touch manual
             if status != "CRITICAL":
                 try:
-                    # Reset manual-off lock so next CRITICAL event can auto-trigger again
                     cur.execute(
-                        "UPDATE fews_units SET siren_manual_off = FALSE WHERE device_id = %s AND siren_manual_off = TRUE",
+                        "UPDATE fews_units SET siren_manual_off = FALSE, siren_state = FALSE, siren_auto_triggered = FALSE WHERE device_id = %s RETURNING siren_state, siren_auto_triggered",
                         (station_id,)
                     )
                     conn.commit()
-                    cur.execute(
-                        "UPDATE fews_units SET siren_state = FALSE, siren_auto_triggered = FALSE WHERE device_id = %s AND siren_auto_triggered = TRUE RETURNING siren_state",
-                        (station_id,)
-                    )
-                    conn.commit()
+                    prev_auto = cur.fetchone()
+                    if prev_auto and prev_auto["siren_auto_triggered"]:
+                        publish_siren(station_id, "off")
+                        cur.execute("""
+                            INSERT INTO system_logs (station, type, message, user_name)
+                            VALUES (%s, %s, %s, %s)
+                        """, (
+                            station_name,
+                            "system",
+                            f"{station_name} siren has been automatically silenced — water level returned to {status_label}",
+                            "System",
+                        ))
+                        conn.commit()
+                        print(f"[BRIDGE] Auto-siren OFF published to dashboard for {station_id}")
+                    print(f"[BRIDGE] Auto-siren OFF cleared in DB for {station_id} — status is {status}")
                     if cur.rowcount > 0:
                         publish_siren(station_id, "off")
                         cur.execute("""

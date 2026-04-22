@@ -2603,7 +2603,7 @@ export default function App() {
 
     setTimeout(() => {
       setSirenLoading(prev => ({ ...prev, [id]: false }));
-    }, 5000);
+    }, 6000);
   };
 
   const chartPoints = useMemo(() =>
