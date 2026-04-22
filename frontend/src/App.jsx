@@ -877,13 +877,7 @@ function OpenPopup({ fews, markerRefs }) {
 }
 
 // ─── MODALS ───────────────────────────────────────────────────────────────────
-function ConfirmModal({ icon, iconColor, title, message, confirmLabel, confirmColor, onConfirm, onCancel, noSaved }) {
-  const [saving, setSaving] = useState(false);
-  const handle = async () => {
-    setSaving(true);
-    await new Promise(r => setTimeout(r, 700));
-    onConfirm();
-  };
+function ConfirmModal({ icon, iconColor, title, message, confirmLabel, confirmColor, onConfirm, onCancel }) {
   return (
     <div className="modal-overlay">
       <div className="modal-box">
@@ -893,12 +887,10 @@ function ConfirmModal({ icon, iconColor, title, message, confirmLabel, confirmCo
         </div>
         <div className="modal-msg">{message}</div>
         <div className="modal-actions">
-          <button className="modal-btn modal-cancel" onClick={onCancel} disabled={saving}>Cancel</button>
+          <button className="modal-btn modal-cancel" onClick={onCancel}>Cancel</button>
           <button className="modal-btn" style={{ background: confirmColor || "var(--blue)", color: "#fff", minWidth: 90 }}
-            onClick={handle} disabled={saving}>
-            {saving
-              ? <span className="btn-spinner" style={{ borderTopColor: "#fff", borderColor: "rgba(255,255,255,0.25)" }} />
-              : confirmLabel}
+            onClick={onConfirm}>
+            {confirmLabel}
           </button>
         </div>
       </div>
@@ -2144,15 +2136,12 @@ export default function App() {
                     const f = [{ id: 1, deviceId: "fews_1" }].find(x => "fews_" + x.id === row.device_id);
                     if (f) sirenMap[f.id] = row.siren_state ?? false;
                 });
-                setSirenLoading(currentLoading => {
-                    setSirens(prev => {
-                        const next = { ...prev };
-                        Object.entries(sirenMap).forEach(([id, val]) => {
-                            if (!currentLoading[id]) next[id] = val;
-                        });
-                        return next;
-                    });
-                    return currentLoading;
+                setSirens(prev => {
+                  const next = { ...prev };
+                  Object.entries(sirenMap).forEach(([id, val]) => {
+                    next[id] = val;
+                  });
+                  return next;
                 });
 
                 const fews1Row = rows.find(r => r.device_id === "fews_1");
@@ -2165,7 +2154,7 @@ export default function App() {
             })
             .catch(() => { failCount += 1; })
             .finally(() => {
-                const delay = failCount === 0 ? 10000 : failCount <= 2 ? 20000 : 30000;
+                const delay = failCount === 0 ? 5000 : failCount <= 2 ? 15000 : 30000;
                 timeoutId = setTimeout(pollUnits, delay);
             });
     };
@@ -2439,9 +2428,9 @@ export default function App() {
       } catch {
         statusFailCount += 1;
       } finally {
-        const delay = statusFailCount === 0 ? 10000
-                    : statusFailCount === 1 ? 20000
-                    : statusFailCount === 2 ? 40000
+        const delay = statusFailCount === 0 ? 5000
+                    : statusFailCount === 1 ? 15000
+                    : statusFailCount === 2 ? 30000
                     : 60000;
         statusTimeoutId = setTimeout(pollStatus, delay);
       }
@@ -2506,9 +2495,9 @@ export default function App() {
       } catch {
         historyFailCount.current += 1;
       } finally {
-        const delay = historyFailCount.current === 0 ? 10000
-                    : historyFailCount.current === 1 ? 20000
-                    : historyFailCount.current === 2 ? 40000
+        const delay = historyFailCount.current === 0 ? 5000
+                    : historyFailCount.current === 1 ? 15000
+                    : historyFailCount.current === 2 ? 30000
                     : 60000;
         historyTimeoutId = setTimeout(scheduledFetch, delay);
       }
@@ -2614,7 +2603,7 @@ export default function App() {
 
     setTimeout(() => {
       setSirenLoading(prev => ({ ...prev, [id]: false }));
-    }, 7000);
+    }, 5000);
   };
 
   const chartPoints = useMemo(() =>
