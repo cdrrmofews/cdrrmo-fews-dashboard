@@ -2095,6 +2095,7 @@ export default function App() {
   const [fews1Connected, setFews1Connected]       = useState(false);
   const [fews1StatusOnline, setFews1StatusOnline] = useState(false);
   const [fews1DataFresh, setFews1DataFresh]       = useState(false);
+  const fews1LastKnownRef                         = useRef(null);   // ← here
 
   const [user, setUser] = useState(() => {
     try {
@@ -2383,8 +2384,9 @@ export default function App() {
           const isRecent = lastSeen && (Date.now() - lastSeen.getTime()) < 180000;
 
           if (isRecent) {
+            fews1LastKnownRef.current = data.fews_1;   // ← cache it
             setFews1Live(data.fews_1);
-            setFews1DataFresh(true);    // ← add this line
+            setFews1DataFresh(true);
             handleOnline();
             failCount.current = 0;
           } else {
@@ -2511,14 +2513,15 @@ export default function App() {
 
   const allFews = useMemo(() => {
       let fews1 = { ...FEWS1_BASE };
-      if (fews1Live) {
+      const liveOrLast = fews1Live || fews1LastKnownRef.current;
+      if (liveOrLast) {
         fews1 = {
           ...fews1,
-          lat:       fews1Live.latitude,
-          lng:       fews1Live.longitude,
-          timestamp: fews1Live.timestamp,   // ← always carry timestamp
+          lat:       liveOrLast.latitude,
+          lng:       liveOrLast.longitude,
+          timestamp: liveOrLast.timestamp,
         };
-        if (fews1DataFresh) {
+        if (fews1DataFresh && fews1Live) {
           fews1 = {
             ...fews1,
             waterLevel: fews1Live.water_level_cm,
