@@ -2519,7 +2519,7 @@ export default function App() {
           lat: fews1Live.latitude,
           lng: fews1Live.longitude,
         };
-        if (fews1DataRecent) {
+        if (fews1DataRecent && isHardwareOnline) {
           fews1 = {
             ...fews1,
             waterLevel: fews1Live.water_level_cm,
