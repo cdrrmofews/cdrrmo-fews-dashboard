@@ -150,18 +150,18 @@ def on_message(client, userdata, msg):
                             conn.commit()
                             if cur.rowcount > 0:
                                 print(f"[BRIDGE] Siren auto-off synced for {sid}")
+                                cur.execute("""
+                                    INSERT INTO system_logs (station, type, message, user_name)
+                                    VALUES (%s, %s, %s, %s)
+                                """, (
+                                    station_name,
+                                    "system",
+                                    f"{station_name} siren has been automatically silenced by the device — water level returned to safe",
+                                    "System",
+                                ))
+                                conn.commit()
                             else:
-                                print(f"[BRIDGE] Siren auto-off received — already cleared for {sid}")
-                            cur.execute("""
-                                INSERT INTO system_logs (station, type, message, user_name)
-                                VALUES (%s, %s, %s, %s)
-                            """, (
-                                station_name,
-                                "system",
-                                f"{station_name} siren has been automatically silenced by the device — water level returned to safe",
-                                "System",
-                            ))
-                            conn.commit()
+                                print(f"[BRIDGE] Siren auto-off received — already cleared for {sid}, skipping log")
                             print(f"[BRIDGE] Siren auto-off logged for {sid}")
                         finally:
                             cur.close()
@@ -286,39 +286,27 @@ def on_message(client, userdata, msg):
             if status != "CRITICAL" and safe_after_critical:
                 try:
                     cur.execute(
-                        "UPDATE fews_units SET siren_manual_off = FALSE, siren_state = FALSE, siren_auto_triggered = FALSE WHERE device_id = %s RETURNING siren_state, siren_auto_triggered",
+                        "SELECT siren_auto_triggered FROM fews_units WHERE device_id = %s",
+                        (station_id,)
+                    )
+                    prev = cur.fetchone()
+                    cur.execute(
+                        "UPDATE fews_units SET siren_manual_off = FALSE, siren_state = FALSE, siren_auto_triggered = FALSE WHERE device_id = %s",
                         (station_id,)
                     )
                     conn.commit()
-                    prev_auto = cur.fetchone()
-                    if prev_auto and prev_auto["siren_auto_triggered"]:
+                    if prev and prev["siren_auto_triggered"]:
                         publish_siren(station_id, "off")
-                        cur.execute("""
-                            INSERT INTO system_logs (station, type, message, user_name)
-                            VALUES (%s, %s, %s, %s)
-                        """, (
-                            station_name,
-                            "system",
-                            f"{station_name} siren has been automatically silenced — water level returned to {status_label}",
-                            "System",
-                        ))
-                        conn.commit()
-                        print(f"[BRIDGE] Auto-siren OFF published to dashboard for {station_id}")
-                    print(f"[BRIDGE] Auto-siren OFF cleared in DB for {station_id} — status is {status}")
-                    if cur.rowcount > 0:
-                        publish_siren(station_id, "off")
-                        cur.execute("""
-                            INSERT INTO system_logs (station, type, message, user_name)
-                            VALUES (%s, %s, %s, %s)
-                        """, (
-                            station_name,
-                            "system",
-                            f"{station_name} siren has been automatically silenced — water level returned to {status_label}",
-                            "System",
-                        ))
-                        conn.commit()
-                        print(f"[BRIDGE] Auto-siren OFF published to dashboard for {station_id}")
-                    print(f"[BRIDGE] Auto-siren OFF cleared in DB for {station_id} — status is {status}")
+                    cur.execute("""
+                        INSERT INTO system_logs (station, type, message, user_name)
+                        VALUES (%s, %s, %s, %s)
+                    """, (
+                        station_name, "system",
+                        f"{station_name} siren has been automatically silenced — water level returned to {status_label}",
+                        "System",
+                    ))
+                    conn.commit()
+                    print(f"[BRIDGE] Auto-siren OFF cleared for {station_id}")
                 except Exception as e:
                     print(f"[BRIDGE] Failed to clear auto-siren state: {e}")
         finally:
