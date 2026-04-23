@@ -342,12 +342,9 @@ def latest():
     cur  = conn.cursor()
     try:
         cur.execute("""
-            SELECT DISTINCT ON (sr.device_id)
-                sr.*,
-                fu.went_offline_at
-            FROM sensor_readings sr
-            LEFT JOIN fews_units fu ON fu.device_id = sr.device_id
-            ORDER BY sr.device_id, sr.timestamp DESC
+            SELECT DISTINCT ON (device_id) *
+            FROM sensor_readings
+            ORDER BY device_id, timestamp DESC
         """)
         rows = cur.fetchall()
         result = {}

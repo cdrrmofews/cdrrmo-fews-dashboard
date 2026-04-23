@@ -2355,21 +2355,11 @@ export default function App() {
           const utcStr = typeof rawTs === "string"
             ? rawTs.replace(" ", "T").replace(/Z?$/, "Z")
             : null;
-          const lastSeen   = utcStr ? new Date(utcStr) : null;
-          const lastSeenMs = lastSeen ? lastSeen.getTime() : 0;
-          const isRecent   = lastSeen && (Date.now() - lastSeenMs) < 4200000; // 70 mins
+          const lastSeen = utcStr ? new Date(utcStr) : null;
+          const isRecent = lastSeen && (Date.now() - lastSeen.getTime()) < 4200000; // 70 mins
 
-          // Gate: only show data that arrived AFTER the device went offline.
-          // went_offline_at comes from the DB — works for all users on all devices.
-          const wentOfflineRaw = data.fews_1.went_offline_at;
-          const wentOfflineMs  = wentOfflineRaw
-            ? new Date(wentOfflineRaw.replace(" ", "T").replace(/Z?$/, "Z")).getTime()
-            : null;
-          const isAfterReconnect = !wentOfflineMs || lastSeenMs > wentOfflineMs;
-          const isFresh = isRecent && isAfterReconnect;
-
-          setFews1Live(data.fews_1);
-          if (isFresh) {
+        setFews1Live(data.fews_1);
+          if (isRecent) {
             setFews1DataRecent(true);
             handleOnline();
             failCount.current = 0;
