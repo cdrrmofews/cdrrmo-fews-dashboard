@@ -2503,6 +2503,13 @@ export default function App() {
             waterLevel: fews1Live.water_level_cm,
             status:     backendStatusToKey(fews1Live.status),
           };
+        } else if (!fews1DataRecent && isHardwareOnline) {
+          // Online but data not confirmed fresh yet — show neutral
+          fews1 = {
+            ...fews1,
+            waterLevel: 0,
+            status:     "safe",
+          };
         }
       }
       return [fews1];
