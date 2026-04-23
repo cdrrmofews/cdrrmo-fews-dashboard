@@ -297,15 +297,15 @@ def on_message(client, userdata, msg):
                     conn.commit()
                     if prev and prev["siren_auto_triggered"]:
                         publish_siren(station_id, "off")
-                        cur.execute("""
-                            INSERT INTO system_logs (station, type, message, user_name)
-                            VALUES (%s, %s, %s, %s)
-                        """, (
-                            station_name, "system",
-                            f"{station_name} siren has been automatically silenced — water level returned to {status_label}",
-                            "System",
-                        ))
-                        conn.commit()
+                    cur.execute("""
+                        INSERT INTO system_logs (station, type, message, user_name)
+                        VALUES (%s, %s, %s, %s)
+                    """, (
+                        station_name, "system",
+                        f"{station_name} siren has been automatically silenced — water level returned to {status_label}",
+                        "System",
+                    ))
+                    conn.commit()
                     print(f"[BRIDGE] Auto-siren OFF cleared for {station_id}")
                 except Exception as e:
                     print(f"[BRIDGE] Failed to clear auto-siren state: {e}")
