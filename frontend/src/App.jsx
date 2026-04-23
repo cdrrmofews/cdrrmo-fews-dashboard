@@ -2115,12 +2115,12 @@ export default function App() {
   const [token, setToken] = useState(() => getStoredToken());
   const { showToast, ToastContainer: AppToastContainer } = useToast();
   const [sirens, setSirens] = useState({ 1: false });
+  const pollUnitsNowRef = useRef(null);
   const [sirenLoading, setSirenLoading] = useState({});
   const [thresholds, setThresholds] = useState({ warning: 200, danger: 300 });
 
   useEffect(() => {
     if (!token) return;
-
     let timeoutId = null;
     let failCount = 0;
 
@@ -2159,8 +2159,16 @@ export default function App() {
             });
     };
 
+    pollUnitsNowRef.current = () => {
+        if (timeoutId) clearTimeout(timeoutId);
+        pollUnits();
+    };
+
     pollUnits();
-    return () => { if (timeoutId) clearTimeout(timeoutId); };
+    return () => {
+        if (timeoutId) clearTimeout(timeoutId);
+        pollUnitsNowRef.current = null;
+    };
 }, [token]);
   const [historyData, setHistoryData] = useState({ positions: [], values: [], exactLabels: [] });
   const [hadDataBefore, setHadDataBefore] = useState(() => {
@@ -2302,7 +2310,7 @@ export default function App() {
 
   const handleOnline = useCallback(() => {
     setFews1Connected(true);
-    setFews1StatusOnline(true);
+    // fews1StatusOnline is driven purely by /status/fews1 poll — don't touch it here
 
     if (wasConnectedRef.current === false) {
       offlineTimeRef.current = null;
@@ -2349,11 +2357,13 @@ export default function App() {
           const lastSeen = utcStr ? new Date(utcStr) : null;
           const isRecent = lastSeen && (Date.now() - lastSeen.getTime()) < 4200000; // 70 mins
 
-          setFews1Live(data.fews_1);
+        setFews1Live(data.fews_1);
           if (isRecent) {
             setFews1DataRecent(true);
             handleOnline();
             failCount.current = 0;
+            // Kick units poll so siren state updates immediately
+            if (pollUnitsNowRef.current) pollUnitsNowRef.current();
           } else {
             setFews1DataRecent(false);
             handleOffline();
