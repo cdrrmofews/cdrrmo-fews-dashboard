@@ -2116,7 +2116,6 @@ export default function App() {
   const { showToast, ToastContainer: AppToastContainer } = useToast();
   const [sirens, setSirens] = useState({ 1: false });
   const pollUnitsNowRef = useRef(null);
-  const freshSinceOnlineRef = useRef(false);
   const [sirenLoading, setSirenLoading] = useState({});
   const [thresholds, setThresholds] = useState({ warning: 200, danger: 300 });
 
@@ -2315,8 +2314,7 @@ export default function App() {
 
     if (wasConnectedRef.current === false) {
       offlineTimeRef.current = null;
-      setFews1DataRecent(false);
-      freshSinceOnlineRef.current = false;
+      setFews1DataRecent(false); // Reset so stale data doesn't show on reconnect
       sessionStorage.removeItem("fews1_offline_time");
       sessionStorage.removeItem("fews1_was_offline");
     } else if (wasConnectedRef.current === null) {
@@ -2341,7 +2339,6 @@ export default function App() {
     }
 
     wasConnectedRef.current = false;
-    freshSinceOnlineRef.current = false;
   }, [addLog]);
 
   useEffect(() => {
@@ -2366,7 +2363,7 @@ export default function App() {
             setFews1DataRecent(true);
             handleOnline();
             failCount.current = 0;
-            freshSinceOnlineRef.current = true;
+            // Kick units poll so siren state updates immediately
             if (pollUnitsNowRef.current) pollUnitsNowRef.current();
           } else {
             setFews1DataRecent(false);
@@ -2501,13 +2498,14 @@ export default function App() {
           lat: fews1Live.latitude,
           lng: fews1Live.longitude,
         };
-        if (fews1DataRecent && isHardwareOnline && freshSinceOnlineRef.current) {
+        if (fews1DataRecent && isHardwareOnline) {
           fews1 = {
             ...fews1,
             waterLevel: fews1Live.water_level_cm,
             status:     backendStatusToKey(fews1Live.status),
           };
-        } else if (isHardwareOnline && !freshSinceOnlineRef.current) {
+        } else if (!fews1DataRecent && isHardwareOnline) {
+          // Online but data not confirmed fresh yet — show neutral
           fews1 = {
             ...fews1,
             waterLevel: 0,
