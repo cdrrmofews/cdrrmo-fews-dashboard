@@ -2574,6 +2574,10 @@ export default function App() {
         body: JSON.stringify({ state: turningOn ? "on" : "off" })
       });
       console.log(`[SIREN] Command sent: ${turningOn ? "on" : "off"}`);
+      // Give backend 800ms to write, then sync units state immediately
+      setTimeout(() => {
+        if (pollUnitsNowRef.current) pollUnitsNowRef.current();
+      }, 800);
     } catch (e) {
       console.error("[SIREN] Control failed:", e);
       setSirens(prev => ({ ...prev, [id]: !turningOn }));
