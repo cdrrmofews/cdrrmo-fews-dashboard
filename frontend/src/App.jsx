@@ -2314,6 +2314,7 @@ export default function App() {
 
     if (wasConnectedRef.current === false) {
       offlineTimeRef.current = null;
+      setFews1DataRecent(false); // Reset so stale data doesn't show on reconnect
       sessionStorage.removeItem("fews1_offline_time");
       sessionStorage.removeItem("fews1_was_offline");
     } else if (wasConnectedRef.current === null) {
