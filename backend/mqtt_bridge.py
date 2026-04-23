@@ -44,6 +44,11 @@ def start_offline_watcher():
                         conn = get_db()
                         cur  = conn.cursor()
                         try:
+                            # Write went_offline_at to DB so all dashboard users see it
+                            cur.execute(
+                                "UPDATE fews_units SET went_offline_at = NOW() WHERE device_id = %s",
+                                (station_id,)
+                            )
                             cur.execute("""
                                 INSERT INTO system_logs (station, type, message, user_name)
                                 VALUES (%s, %s, %s, %s)
@@ -181,9 +186,13 @@ def on_message(client, userdata, msg):
                 conn = get_db()
                 cur  = conn.cursor()
                 try:
-                    # If was offline before (last_seen > 10 min ago or never seen), log comeback
                     age = time.time() - was_online if was_online else None
                     if age is None or age >= OFFLINE_TIMEOUT:
+                        # Clear went_offline_at — device is back online
+                        cur.execute(
+                            "UPDATE fews_units SET went_offline_at = NULL WHERE device_id = %s",
+                            (station_id,)
+                        )
                         cur.execute("""
                             INSERT INTO system_logs (station, type, message, user_name)
                             VALUES (%s, %s, %s, %s)
@@ -252,16 +261,22 @@ def on_message(client, userdata, msg):
             if log_type == "danger":
                 print("[SMS] CRITICAL detected — SMS handled by Arduino directly")
 
-            # Auto-siren ON: after 2min CRITICAL — skip if manually silenced
+            # Auto-siren ON: after 2min CRITICAL — skip if manually silenced or already active
             if is_immediate and status == "CRITICAL":
                 try:
                     cur.execute(
-                        "SELECT siren_manual_off FROM fews_units WHERE device_id = %s",
+                        "SELECT siren_manual_off, siren_state, siren_auto_triggered FROM fews_units WHERE device_id = %s",
                         (station_id,)
                     )
                     unit_row = cur.fetchone()
                     if unit_row and unit_row["siren_manual_off"]:
                         print(f"[BRIDGE] Auto-siren skipped — manually silenced for {station_id}")
+                    elif unit_row and unit_row["siren_auto_triggered"]:
+                        # Already auto-triggered, don't log again
+                        print(f"[BRIDGE] Auto-siren already active for {station_id}, skipping duplicate log")
+                    elif unit_row and unit_row["siren_state"] and not unit_row["siren_auto_triggered"]:
+                        # Siren is ON but was manually activated — don't overwrite with auto log
+                        print(f"[BRIDGE] Auto-siren skipped — siren already manually ON for {station_id}")
                     else:
                         cur.execute(
                             "UPDATE fews_units SET siren_state = TRUE, siren_auto_triggered = TRUE WHERE device_id = %s",
