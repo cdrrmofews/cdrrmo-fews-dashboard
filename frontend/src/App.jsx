@@ -2513,7 +2513,7 @@ export default function App() {
         }
       }
       return [fews1];
-    }, [fews1Live, fews1DataRecent]);
+    }, [fews1Live, fews1DataRecent, isHardwareOnline]);
 
     const isCritical = useMemo(() => 
       isHardwareOnline && fews1DataRecent && allFews.some(f => f.status === "danger"),
