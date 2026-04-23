@@ -2305,43 +2305,15 @@ export default function App() {
     setFews1StatusOnline(true);
 
     if (wasConnectedRef.current === false) {
-      const offlineTime = offlineTimeRef.current;
-      if (offlineTime) {
-        const diffMs   = Date.now() - offlineTime;
-        const diffMins = Math.floor(diffMs / 60000);
-        const diffSecs = Math.floor((diffMs % 60000) / 1000);
-        let duration;
-        if (diffMins >= 60) {
-          const hours = Math.floor(diffMins / 60);
-          const mins  = diffMins % 60;
-          duration = mins > 0
-            ? `${hours} hour${hours !== 1 ? "s" : ""} ${mins} minute${mins !== 1 ? "s" : ""}`
-            : `${hours} hour${hours !== 1 ? "s" : ""}`;
-        } else if (diffMins > 0) {
-          duration = `${diffMins} minute${diffMins !== 1 ? "s" : ""}`;
-        } else {
-          duration = `${diffSecs} second${diffSecs !== 1 ? "s" : ""}`;
-        }
-        addLog({
-          station: "FEWS 1", type: "system",
-          message: `FEWS 1 is back online after ${duration} of inactivity`,
-        });
-      } else {
-        addLog({
-          station: "FEWS 1", type: "system",
-          message: `FEWS 1 is back online`,
-        });
-      }
       offlineTimeRef.current = null;
       sessionStorage.removeItem("fews1_offline_time");
       sessionStorage.removeItem("fews1_was_offline");
     } else if (wasConnectedRef.current === null) {
-      // Startup log is now handled by backend on receipt of cdrrmo/fews1/status
       sessionStorage.setItem("fews1_initial_logged", "true");
     }
 
     wasConnectedRef.current = true;
-  }, [addLog]);
+  }, []);
 
   const handleOffline = useCallback(() => {
     setFews1Connected(false);
@@ -2355,10 +2327,6 @@ export default function App() {
       sessionStorage.setItem("fews1_offline_time", String(offlineTime));
       sessionStorage.setItem("fews1_was_offline", "true");
       sessionStorage.removeItem("fews1_initial_logged");
-      addLog({
-        station: "FEWS 1", type: "warning",
-        message: `FEWS 1 went offline — no data received`,
-      });
     }
 
     wasConnectedRef.current = false;
