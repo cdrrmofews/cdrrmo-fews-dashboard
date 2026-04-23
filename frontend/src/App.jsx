@@ -2509,7 +2509,7 @@ export default function App() {
     };
   }, []);
 
-  const isHardwareOnline = fews1StatusOnline && (fews1Connected || fews1DataRecent);
+  const isHardwareOnline = fews1StatusOnline || fews1Connected;
 
   const allFews = useMemo(() => {
       let fews1 = { ...FEWS1_BASE };
