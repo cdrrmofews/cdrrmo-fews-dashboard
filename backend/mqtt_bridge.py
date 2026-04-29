@@ -298,7 +298,7 @@ def on_message(client, userdata, msg):
             if status != "CRITICAL" and safe_after_critical:
                 try:
                     cur.execute(
-                        "SELECT siren_auto_triggered FROM fews_units WHERE device_id = %s",
+                        "SELECT siren_auto_triggered, siren_state FROM fews_units WHERE device_id = %s",
                         (station_id,)
                     )
                     prev = cur.fetchone()
@@ -307,8 +307,10 @@ def on_message(client, userdata, msg):
                         (station_id,)
                     )
                     conn.commit()
-                    if prev and prev["siren_auto_triggered"]:
-                        publish_siren(station_id, "off")
+
+                    was_siren_on = prev and prev["siren_state"]   # covers BOTH manual and auto
+
+                    if was_siren_on:
                         cur.execute("""
                             INSERT INTO system_logs (station, type, message, user_name)
                             VALUES (%s, %s, %s, %s)
