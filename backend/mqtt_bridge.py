@@ -261,8 +261,16 @@ def on_message(client, userdata, msg):
                     )
                     unit_row = cur.fetchone()
                     if unit_row and unit_row["siren_manual_off"]:
-                        print(f"[BRIDGE] Auto-siren skipped — manually silenced for {station_id}")
-                    elif unit_row and unit_row["siren_auto_triggered"]:
+                        cur.execute(
+                            "UPDATE fews_units SET siren_manual_off = FALSE WHERE device_id = %s",
+                            (station_id,)
+                        )
+                        conn.commit()
+                        unit_row = dict(unit_row)
+                        unit_row["siren_manual_off"] = False
+                        print(f"[BRIDGE] siren_manual_off cleared — new critical event for {station_id}")
+
+                    if unit_row and unit_row["siren_auto_triggered"]:
                         print(f"[BRIDGE] Auto-siren already active for {station_id}, skipping duplicate log")
                     elif unit_row and unit_row["siren_state"] and not unit_row["siren_auto_triggered"]:
                         print(f"[BRIDGE] Auto-siren skipped — siren already manually ON for {station_id}")
