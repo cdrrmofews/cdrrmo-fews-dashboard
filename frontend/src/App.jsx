@@ -2356,7 +2356,7 @@ export default function App() {
             ? rawTs.replace(" ", "T").replace(/Z?$/, "Z")
             : null;
           const lastSeen = utcStr ? new Date(utcStr) : null;
-          const isRecent = lastSeen && (Date.now() - lastSeen.getTime()) < 4200000; // 70 mins
+          const isRecent = lastSeen && (Date.now() - lastSeen.getTime()) < 3600000; // 60 mins
 
         setFews1Live(data.fews_1);
           if (isRecent) {
@@ -2438,7 +2438,7 @@ export default function App() {
         }).format(new Date(utcStr));
       });
 
-      const GAP_THRESHOLD = 90 * 60 * 1000;
+      const GAP_THRESHOLD = 45 * 60 * 1000;
       const positions = [];
       const values = [];
       const exactLabels = [];
@@ -2606,7 +2606,7 @@ export default function App() {
     [historyData]
   );
 
-  const CHART_WINDOW  = 12 * 60 * 60 * 1000;
+  const CHART_WINDOW  = 5 * 60 * 60 * 1000;
   const CHART_PADDING = 10 * 60 * 1000;
   const chartWinEnd   = useMemo(() => Math.ceil(chartNow / 300000) * 300000, [chartNow]);
   const chartWinStart = useMemo(() => chartWinEnd - CHART_WINDOW - CHART_PADDING, [chartWinEnd]);
@@ -2981,7 +2981,7 @@ const waterChartOptions = useMemo(() => ({
                   <h2>Water Level</h2>
                     <span className="card-tag">
                       {hasEverHadData
-                        ? (fews1Connected ? "Last 12 hrs" : "Last known data")
+                        ? (fews1Connected ? "Last 5 hrs" : "Last known data")
                         : fews1Connected ? "Loading…" : "Waiting for data"}
                     </span>
                 </div>
