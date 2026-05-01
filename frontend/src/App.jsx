@@ -2725,7 +2725,7 @@ const waterChartOptions = useMemo(() => ({
         grid: { color: "rgba(255,255,255,0.04)" },
         afterBuildTicks: (axis) => {
           const ticks = [];
-          const step = 60 * 60 * 1000;
+          const step = 30 * 60 * 1000;
           const start = Math.ceil(chartWinStart / step) * step;
           for (let t = start; t <= chartWinEnd; t += step) {
             ticks.push({ value: t });
