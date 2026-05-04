@@ -646,16 +646,36 @@ body {
 .rsb-siren-row   { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--text-2); }
 
 .siren-btn {
-  font-size: 9px; font-weight: 700; font-family: var(--mono);
-  padding: 4px 10px; border-radius: 999px; border: none;
-  cursor: pointer; letter-spacing: 0.05em;
-  transition: background 0.2s, color 0.2s, box-shadow 0.2s;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 86px;
+  height: 32px;
+  padding: 0 16px;
+  border-radius: 999px;
+  border: none;
+  cursor: pointer;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background 0.2s, color 0.2s, box-shadow 0.2s, opacity 0.2s;
+  -webkit-appearance: none;
+  appearance: none;
+  outline: none;
+  line-height: 1;
 }
+.siren-btn:disabled { opacity: 0.4; cursor: not-allowed; }
 
-.siren-off       { background: var(--bg-card); color: var(--text-3); border: 1px solid var(--border); }
-.siren-off:hover { background: var(--bg-raised); color: var(--text-1); }
-.siren-on        { background: rgba(239,68,68,0.15); color: var(--red); border: 1px solid rgba(239,68,68,0.3); box-shadow: 0 0 8px rgba(239,68,68,0.2); animation: blink 1.2s infinite; }
-.rsb-siren-note  { font-size: 9px; color: var(--text-3); font-family: var(--mono); line-height: 1.4; }
+.siren-off { background: var(--bg-raised); color: var(--text-2); border: 1px solid var(--border); }
+.siren-off:hover:not(:disabled) { background: rgba(56,189,248,0.10); color: var(--blue); border-color: rgba(56,189,248,0.3); }
+
+.siren-on { background: rgba(239,68,68,0.18); color: #ff6b6b; border: 1.5px solid rgba(239,68,68,0.45); box-shadow: 0 0 10px rgba(239,68,68,0.25); animation: blink 1.2s infinite; }
+.siren-on:hover:not(:disabled) { background: rgba(239,68,68,0.28); }
+
+.rsb-siren-note { font-size: 9px; color: var(--text-3); font-family: var(--mono); line-height: 1.4; }
 
 /* ================================
    PAGES
@@ -2363,6 +2383,16 @@ select.settings-input {
     flex-shrink: 0;
     margin-right: 2px;
   }
+
+  .siren-btn {
+    min-width: 90px;
+    height: 36px;
+    font-size: 11px;
+    padding: 0 18px;
+    border-radius: 999px !important;
+    -webkit-appearance: none !important;
+    appearance: none !important;
+  }
 }
 
 .leaflet-container {
@@ -2404,6 +2434,13 @@ select.settings-input {
 
   .logs-table-head { grid-template-columns: 76px 56px 1fr; }
   .logs-row        { grid-template-columns: 76px 56px 1fr; }
+
+  .siren-btn {
+    min-width: 80px;
+    height: 34px;
+    font-size: 10px;
+    padding: 0 14px;
+  }
 }
 
 /* ================================
