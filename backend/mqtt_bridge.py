@@ -130,7 +130,30 @@ def on_message(client, userdata, msg):
         if msg.topic == MQTT_HEARTBEAT_TOPIC:
             station_id = data.get("station_id")
             if station_id:
+                was_offline = _offline_logged.get(station_id, False)
                 mark_station_online(station_id)
+                if was_offline:
+                    station_name = "FEWS 1" if station_id == "fews_1" else station_id
+                    try:
+                        conn = get_db()
+                        cur  = conn.cursor()
+                        try:
+                            cur.execute("""
+                                INSERT INTO system_logs (station, type, message, user_name)
+                                VALUES (%s, %s, %s, %s)
+                            """, (
+                                station_name,
+                                "system",
+                                f"{station_name} is back online and transmitting data after signal loss",
+                                "System",
+                            ))
+                            conn.commit()
+                            print(f"[HB] Comeback logged for {station_id}")
+                        finally:
+                            cur.close()
+                            release_db(conn)
+                    except Exception as e:
+                        print(f"[HB] Error logging comeback: {e}")
                 print(f"[HB] Heartbeat received from {station_id}")
             return
 
@@ -184,15 +207,16 @@ def on_message(client, userdata, msg):
                     # If was offline before (last_seen > 10 min ago or never seen), log comeback
                     age = time.time() - was_online if was_online else None
                     if age is None or age >= OFFLINE_TIMEOUT:
-                        cur.execute("""
-                            INSERT INTO system_logs (station, type, message, user_name)
-                            VALUES (%s, %s, %s, %s)
-                        """, (
-                            station_name,
-                            "system",
-                            f"{station_name} is online and transmitting data",
-                            "System",
-                        ))
+                        if not _offline_logged.get(station_id, False):
+                            cur.execute("""
+                                INSERT INTO system_logs (station, type, message, user_name)
+                                VALUES (%s, %s, %s, %s)
+                            """, (
+                                station_name,
+                                "system",
+                                f"{station_name} is online and transmitting data",
+                                "System",
+                            ))
                     conn.commit()
                     print("[BRIDGE] Startup status logged")
                 finally:
@@ -294,7 +318,6 @@ def on_message(client, userdata, msg):
                     print(f"[BRIDGE] Failed to write auto-siren state: {e}")
 
             # Auto-siren OFF: only clear on the confirmed safe-after-critical publish
-            safe_after_critical = data.get("safe_after_critical", False)
             if status != "CRITICAL" and safe_after_critical:
                 try:
                     cur.execute(
