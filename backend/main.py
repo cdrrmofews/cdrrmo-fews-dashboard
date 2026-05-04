@@ -462,10 +462,10 @@ def get_logs(
             filters.append("type = ANY(%s)")
             params.append(allowed_log_types)
         if date_from:
-            filters.append("timestamp >= (%s::date AT TIME ZONE 'Asia/Manila' AT TIME ZONE 'UTC')")
+            filters.append("(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date >= %s::date")
             params.append(date_from)
         if date_to:
-            filters.append("timestamp < ((%s::date + INTERVAL '1 day') AT TIME ZONE 'Asia/Manila' AT TIME ZONE 'UTC')")
+            filters.append("(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date <= %s::date")
             params.append(date_to)
 
         where = ("WHERE " + " AND ".join(filters)) if filters else ""
@@ -535,10 +535,10 @@ def export_logs(
             filters.append("type = ANY(%s)")
             params.append(allowed_log_types)
         if date_from:
-            filters.append("timestamp >= (%s::date AT TIME ZONE 'Asia/Manila' AT TIME ZONE 'UTC')")
+            filters.append("(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date >= %s::date")
             params.append(date_from)
         if date_to:
-            filters.append("timestamp < ((%s::date + INTERVAL '1 day') AT TIME ZONE 'Asia/Manila' AT TIME ZONE 'UTC')")
+            filters.append("(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date <= %s::date")
             params.append(date_to)
 
         where = ("WHERE " + " AND ".join(filters)) if filters else ""
