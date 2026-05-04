@@ -3224,6 +3224,7 @@ const waterChartOptions = useMemo(() => ({
                         <div className="rsb-siren-row">
                           <span style={{ color: isActuallyLive ? "var(--text-2)" : "var(--text-3)" }}>{sirenOn ? "🔊 Active" : "🔇 Off"}</span>
                           <button
+                            type="button"
                             className={`siren-btn ${sirenOn ? "siren-on" : "siren-off"}`}
                             onClick={() => toggleSiren(f.id)}
                             disabled={!isActuallyLive || sirenLoading[f.id]}
