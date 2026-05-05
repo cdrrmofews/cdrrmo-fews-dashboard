@@ -2356,7 +2356,7 @@ export default function App() {
             ? rawTs.replace(" ", "T").replace(/Z?$/, "Z")
             : null;
           const lastSeen = utcStr ? new Date(utcStr) : null;
-          const isRecent = lastSeen && (Date.now() - lastSeen.getTime()) < 3600000; // 60 mins
+          const isRecent = lastSeen && (Date.now() - lastSeen.getTime()) < 7200000; // 60 mins
 
         setFews1Live(data.fews_1);
           if (isRecent) {
