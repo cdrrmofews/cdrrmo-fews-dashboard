@@ -2401,7 +2401,7 @@ select.settings-input {
   border: none !important;
   border-radius: 8px !important;
   overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.4) !important;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.25) !important;
 }
 
 .leaflet-control-zoom-in,
@@ -2411,10 +2411,10 @@ select.settings-input {
   line-height: 28px !important;
   font-size: 16px !important;
   font-weight: 700 !important;
-  background: var(--bg-card) !important;
-  color: var(--text-1) !important;
+  background: rgba(8,14,26,0.65) !important;
+  color: rgba(226,232,240,0.85) !important;
   border: none !important;
-  border-bottom: 1px solid var(--border) !important;
+  border-bottom: 1px solid rgba(255,255,255,0.08) !important;
   transition: background 0.15s, color 0.15s !important;
 }
 
@@ -2424,7 +2424,7 @@ select.settings-input {
 
 .leaflet-control-zoom-in:hover,
 .leaflet-control-zoom-out:hover {
-  background: var(--bg-raised) !important;
+  background: rgba(8,14,26,0.85) !important;
   color: var(--blue) !important;
 }
 
