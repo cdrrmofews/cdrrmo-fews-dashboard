@@ -560,6 +560,14 @@ body {
   overflow: hidden;
 }
 
+@media (max-width: 768px) {
+  .map-wrap {
+    position: relative;
+    z-index: 0;
+    isolation: isolate;
+  }
+}
+
 /* ================================
    RIGHT SIDEBAR
 ================================ */
@@ -2388,12 +2396,7 @@ select.settings-input {
   image-rendering: crisp-edges;
 }
 
-/* ── Leaflet zoom controls ── */
-.leaflet-top.leaflet-left {
-  top: 8px;
-  left: 8px;
-}
-
+/* ── Leaflet zoom controls — desktop styling only ── */
 .leaflet-control-zoom {
   border: none !important;
   border-radius: 8px !important;
@@ -2438,8 +2441,22 @@ select.settings-input {
   color: var(--blue) !important;
 }
 
-/* ── Mobile overrides ── */
 @media (max-width: 768px) {
+  .leaflet-top.leaflet-left {
+    top: 8px;
+    left: 8px;
+    z-index: 400;
+  }
+
+  .leaflet-container .leaflet-top,
+  .leaflet-container .leaflet-bottom {
+    z-index: 400 !important;
+  }
+
+  .leaflet-container .leaflet-control {
+    z-index: 400 !important;
+  }
+
   .leaflet-control-zoom-in,
   .leaflet-control-zoom-out {
     width: 32px !important;
