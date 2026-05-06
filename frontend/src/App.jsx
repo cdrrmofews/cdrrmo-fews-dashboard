@@ -3222,16 +3222,18 @@ const waterChartOptions = useMemo(() => ({
                       <div className="rsb-siren">
                         <div className="rsb-siren-label">Siren Control</div>
                         <div className="rsb-siren-row">
-                          <span style={{ color: isActuallyLive ? "var(--text-2)" : "var(--text-3)" }}>{sirenOn ? "🔊 Active" : "🔇 Off"}</span>
+                          <span style={{ color: isActuallyLive ? "var(--text-2)" : "var(--text-3)" }}>
+                            {sirenOn && isActuallyLive ? "🔊 Active" : "🔇 Off"}
+                          </span>
                           <button
                             type="button"
-                            className={`siren-btn ${sirenOn ? "siren-on" : "siren-off"}`}
+                            className={`siren-btn ${sirenOn && isActuallyLive ? "siren-on" : "siren-off"}`}
                             onClick={() => toggleSiren(f.id)}
                             disabled={!isActuallyLive || sirenLoading[f.id]}
                           >
                             {sirenLoading[f.id]
-                              ? <span className="btn-spinner" style={{ width: 10, height: 10, borderWidth: 1.5, borderTopColor: sirenOn ? "#fff" : "var(--text-2)", borderColor: sirenOn ? "rgba(255,255,255,0.25)" : "rgba(126,146,180,0.25)" }} />
-                              : sirenOn ? "SILENCE" : "MANUAL ON"}
+                              ? <span className="btn-spinner" style={{ width: 10, height: 10, borderWidth: 1.5, borderTopColor: sirenOn && isActuallyLive ? "#fff" : "var(--text-2)", borderColor: sirenOn && isActuallyLive ? "rgba(255,255,255,0.25)" : "rgba(126,146,180,0.25)" }} />
+                              : sirenOn && isActuallyLive ? "SILENCE" : "MANUAL ON"}
                           </button>
                         </div>
                         <div className="rsb-siren-note">
