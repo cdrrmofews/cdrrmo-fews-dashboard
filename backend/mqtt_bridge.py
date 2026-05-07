@@ -295,7 +295,17 @@ def on_message(client, userdata, msg):
                         print(f"[BRIDGE] siren_manual_off cleared — new critical event for {station_id}")
 
                     if unit_row and unit_row["siren_auto_triggered"]:
-                        print(f"[BRIDGE] Auto-siren already active for {station_id}, skipping duplicate log")
+                        print(f"[BRIDGE] Auto-siren already active for {station_id}, logging new activation")
+                        cur.execute("""
+                            INSERT INTO system_logs (station, type, message, user_name)
+                            VALUES (%s, %s, %s, %s)
+                        """, (
+                            station_name,
+                            "warning",
+                            f"{station_name} siren has been automatically activated due to sustained CRITICAL water level",
+                            "System",
+                        ))
+                        conn.commit()
                     elif unit_row and unit_row["siren_state"] and not unit_row["siren_auto_triggered"]:
                         print(f"[BRIDGE] Auto-siren skipped — siren already manually ON for {station_id}")
                     else:
