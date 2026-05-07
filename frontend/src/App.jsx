@@ -2026,15 +2026,17 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
 function useToast() {
   const [toasts, setToasts] = useState([]);
 
-  const showToast = useCallback((msg) => {
+  const showToast = useCallback((msg, persistent = false) => {
     const id = Date.now() + Math.random();
-    setToasts(prev => [...prev, { id, msg, leaving: false }]);
-    setTimeout(() => {
-      setToasts(prev => prev.map(t => t.id === id ? { ...t, leaving: true } : t));
+    setToasts(prev => [...prev, { id, msg, leaving: false, persistent }]);
+    if (!persistent) {
       setTimeout(() => {
-        setToasts(prev => prev.filter(t => t.id !== id));
-      }, 220);
-    }, 3500);
+        setToasts(prev => prev.map(t => t.id === id ? { ...t, leaving: true } : t));
+        setTimeout(() => {
+          setToasts(prev => prev.filter(t => t.id !== id));
+        }, 220);
+      }, 3500);
+    }
   }, []);
 
   const dismiss = useCallback((id) => {
@@ -2048,16 +2050,18 @@ function useToast() {
     toasts.length === 0 ? null : (
       <div className="toast-container">
         {toasts.map(t => (
-          <div key={t.id} className={`toast ${t.leaving ? "toast-leaving" : ""}`}>
-            <span className="toast-icon">⚠</span>
+          <div key={t.id} className={`toast ${t.leaving ? "toast-leaving" : ""} ${t.persistent ? "toast-persistent" : ""}`}>
+            <span className="toast-icon">{t.persistent ? "🔄" : "⚠"}</span>
             <span className="toast-msg">{t.msg}</span>
-            <button className="toast-close" onClick={() => dismiss(t.id)}>✕</button>
+            {t.persistent
+              ? <button className="toast-close toast-refresh-btn" onClick={() => window.location.reload()}>↺</button>
+              : <button className="toast-close" onClick={() => dismiss(t.id)}>✕</button>
+            }
           </div>
         ))}
       </div>
     )
   ), [toasts, dismiss]);
-
   return { showToast, ToastContainer };
 }
 
@@ -2113,11 +2117,35 @@ export default function App() {
   });
 
   const [token, setToken] = useState(() => getStoredToken());
-  const { showToast, ToastContainer: AppToastContainer } = useToast();
   const [sirens, setSirens] = useState({ 1: false });
   const pollUnitsNowRef = useRef(null);
   const [sirenLoading, setSirenLoading] = useState({});
   const [thresholds, setThresholds] = useState({ warning: 200, danger: 300 });
+  const { showToast, ToastContainer: AppToastContainer } = useToast();
+
+  useEffect(() => {
+    if (!isLoggedIn) return;
+    let currentVersion = null;
+
+    const checkVersion = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/version`);
+        const data = await res.json();
+        if (currentVersion === null) {
+          currentVersion = data.deployed_at;
+        } else if (data.deployed_at !== currentVersion) {
+          showToast("CDRRMO FEWS Dashboard has been updated. Please refresh to get the latest version.", true);
+          currentVersion = data.deployed_at;
+        }
+      } catch {
+        // ignore
+      }
+    };
+
+    checkVersion();
+    const id = setInterval(checkVersion, 60000);
+    return () => clearInterval(id);
+  }, [isLoggedIn]);
 
   useEffect(() => {
     if (!token) return;

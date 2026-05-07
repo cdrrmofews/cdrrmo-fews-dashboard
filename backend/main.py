@@ -15,6 +15,8 @@ from slowapi.errors import RateLimitExceeded
 import os, uuid, base64, re, time, threading
 from supabase import create_client
 
+from datetime import datetime
+
 from models import (
     LoginRequest, CreateUserRequest, UpdateUserRequest,
     UpdateProfileRequest, ChangeEmailRequest, ChangePasswordRequest,
@@ -22,6 +24,7 @@ from models import (
     SirenRequest, UpdateUnitRequest,
 )
 
+DEPLOY_TIME          = datetime.utcnow().isoformat()
 SUPABASE_URL         = os.environ.get("SUPABASE_URL")
 SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
 supabase             = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY) if SUPABASE_URL and SUPABASE_SERVICE_KEY else None
@@ -652,6 +655,10 @@ def delete_user(user_id: int, admin=Depends(require_admin)):
     finally:
         cur.close()
         release_db(conn)
+
+@app.get("/version")
+def get_version():
+    return {"deployed_at": DEPLOY_TIME}
 
 @app.get("/")
 def root():

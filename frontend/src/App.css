@@ -2570,6 +2570,25 @@ select.settings-input {
 }
 .toast-close:hover { color: var(--red); }
 
+.toast-persistent {
+  border-color: rgba(56,189,248,0.35);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.55), 0 0 0 1px rgba(56,189,248,0.1);
+}
+
+.toast-refresh-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-3);
+  font-size: 13px;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+  flex-shrink: 0;
+  transition: color 0.15s;
+  pointer-events: all;
+}
+.toast-refresh-btn:hover { color: var(--blue); }
+
 .toast-leaving {
   animation: toast-out 0.2s ease forwards;
 }
