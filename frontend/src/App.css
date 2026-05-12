@@ -758,6 +758,57 @@ body {
 .login-footer       { text-align: center; font-size: 11px; color: var(--text-3); font-family: var(--mono); }
 
 /* ================================
+   LOGIN — PASSWORD REVEAL
+================================ */
+.login-pw-wrap {
+  position: relative;
+  display: flex;
+  align-items: center;
+}
+
+.login-pw-input {
+  width: 100%;
+  padding-right: 42px;
+}
+
+.login-pw-eye {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: transparent;
+  border: none;
+  padding: 4px;
+  border-radius: 6px;
+  cursor: pointer;
+  color: var(--text-3);
+  user-select: none;
+  -webkit-user-select: none;
+  transition: color 0.15s, background 0.15s;
+  line-height: 0;
+}
+
+.login-pw-eye:hover {
+  color: var(--text-2);
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.login-pw-eye:active {
+  color: var(--blue);
+  background: rgba(56, 189, 248, 0.10);
+}
+
+@media (max-width: 768px) {
+  .login-pw-eye {
+    right: 10px;
+    padding: 6px;
+  }
+}
+
+/* ================================
    MODALS
 ================================ */
 .modal-overlay {
