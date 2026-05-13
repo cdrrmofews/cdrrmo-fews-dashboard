@@ -607,23 +607,22 @@ body {
   width: 34px;
   height: 34px;
   border-radius: 50%;
-  background: rgba(8, 14, 26, 0.80);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #e2e8f0;
-  font-size: 16px;
+  background: transparent;
+  border: none;
+  color: #0f172a;
+  font-size: 20px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: color 0.15s;
   font-weight: 700;
   line-height: 1;
   pointer-events: all;
 }
 .map-fs-close:hover {
-  background: rgba(239, 68, 68, 0.25);
   color: #ef4444;
-  border-color: rgba(239, 68, 68, 0.35);
+  background: transparent;
 }
 
 /* Expand button on map card */
@@ -635,21 +634,20 @@ body {
   width: 28px;
   height: 28px;
   border-radius: 6px;
-  background: rgba(8, 14, 26, 0.70);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  color: #e2e8f0;
+  background: transparent;
+  border: none;
+  color: #0f172a;
   font-size: 13px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: background 0.15s, color 0.15s;
+  transition: color 0.15s;
   pointer-events: all;
 }
 .map-expand-btn:hover {
-  background: rgba(56, 189, 248, 0.20);
   color: #38bdf8;
-  border-color: rgba(56, 189, 248, 0.30);
+  background: transparent;
 }
 
 /* Station info panel ── bottom left */
@@ -683,7 +681,8 @@ body {
   gap: 6px;
   font-size: 13px;
   font-weight: 700;
-  color: #e2e8f0;
+  color: #0f172a;
+  text-shadow: none;
 }
 
 .map-fs-live {
@@ -719,7 +718,7 @@ body {
 
 .map-fs-water-unit {
   font-size: 11px;
-  color: #4a607e;
+  color: #475569;
   font-weight: 600;
 }
 
@@ -737,36 +736,38 @@ body {
 }
 
 .map-fs-row-label {
-  color: #4a607e;
+  color: #475569;
   display: flex;
   align-items: center;
   gap: 4px;
+  text-shadow: none;
 }
 
 .map-fs-row-val {
-  color: #e2e8f0;
+  color: #0f172a;
   font-weight: 600;
   font-family: var(--mono);
   font-size: 10px;
   text-align: right;
+  text-shadow: none;
 }
 
-/* Legend panel ── center right */
+/* Legend panel ── top center */
 .map-fs-legend {
   position: absolute;
-  top: 50%;
-  transform: translateY(-50%);
-  right: 18px;
+  top: 14px;
+  left: 50%;
+  transform: translateX(-50%);
   z-index: 1000;
   background: transparent;
   border: none;
   border-radius: 0;
   padding: 10px 12px;
   display: flex;
-  flex-direction: column;
-  gap: 7px;
+  flex-direction: row;
+  gap: 24px;
   backdrop-filter: none;
-  min-width: 100px;
+  min-width: 0;
 }
 
 .map-fs-legend-title {
@@ -777,14 +778,15 @@ body {
   text-transform: uppercase;
   margin-bottom: 2px;
 }
-
 .map-fs-legend-item {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 6px;
   font-size: 11px;
-  color: #7e92b4;
-  font-weight: 600;
+  color: #0f172a;
+  font-weight: 700;
+  text-shadow: none;
+  white-space: nowrap;
 }
 
 .map-fs-legend-dot {
@@ -793,10 +795,6 @@ body {
   border-radius: 50%;
   flex-shrink: 0;
   border: 2px solid rgba(255,255,255,0.25);
-}
-
-.map-tiles {
-  filter: invert(1) hue-rotate(200deg) brightness(0.55) saturate(0.8) contrast(0.9);
 }
 
 /* Radar pulse keyframe */
