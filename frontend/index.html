@@ -2,12 +2,58 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+
+    <!-- ── PWA: App identity ── -->
+    <link rel="manifest" href="/manifest.json" />
+
+    <!-- ── PWA: iOS home screen support ── -->
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="CDRRMO FEWS" />
+    <link rel="apple-touch-icon" href="/icon-apple-180.png" />
+
+    <!-- ── PWA: Theme color (matches --bg-base in App.css) ── -->
+    <meta name="theme-color" content="#080e1a" />
+
+    <!-- ── Viewport ── -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>CDRRMO FEWS Dashboard</title>
+
+    <!-- ── App meta ── -->
+    <meta name="description" content="CDRRMO Flood Early Warning System — Live sensor monitoring dashboard for Batangas City." />
+    <meta name="mobile-web-app-capable" content="yes" />
+
+    <title>CDRRMO FEWS</title>
+    <link rel="icon" type="image/png" href="/cdrrmo-seal.png" />
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
+
+    <!-- ── Service Worker Registration ── -->
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => {
+          navigator.serviceWorker
+            .register('/sw.js')
+            .then((reg) => {
+              console.log('[SW] Registered:', reg.scope);
+
+              // Notify user when a new version is available
+              reg.addEventListener('updatefound', () => {
+                const newWorker = reg.installing;
+                newWorker.addEventListener('statechange', () => {
+                  if (
+                    newWorker.state === 'installed' &&
+                    navigator.serviceWorker.controller
+                  ) {
+                    console.log('[SW] New version available — will update on next reload');
+                  }
+                });
+              });
+            })
+            .catch((err) => console.error('[SW] Registration failed:', err));
+        });
+      }
+    </script>
   </body>
 </html>
