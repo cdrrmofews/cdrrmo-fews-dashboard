@@ -558,6 +558,7 @@ body {
   min-height: 0;
   border-radius: 10px;
   overflow: hidden;
+  position: relative;
 }
 
 @media (max-width: 768px) {
@@ -602,7 +603,7 @@ body {
   position: absolute;
   top: 14px;
   right: 14px;
-  z-index: 1000;
+  z-index: 99999;
   width: 34px;
   height: 34px;
   border-radius: 50%;
@@ -617,6 +618,7 @@ body {
   transition: background 0.15s, color 0.15s;
   font-weight: 700;
   line-height: 1;
+  pointer-events: all;
 }
 .map-fs-close:hover {
   background: rgba(239, 68, 68, 0.25);
@@ -627,9 +629,9 @@ body {
 /* Expand button on map card */
 .map-expand-btn {
   position: absolute;
-  top: 10px;
-  right: 10px;
-  z-index: 1000;
+  top: 8px;
+  right: 8px;
+  z-index: 800;
   width: 28px;
   height: 28px;
   border-radius: 6px;
@@ -642,6 +644,7 @@ body {
   justify-content: center;
   cursor: pointer;
   transition: background 0.15s, color 0.15s;
+  pointer-events: all;
 }
 .map-expand-btn:hover {
   background: rgba(56, 189, 248, 0.20);
@@ -748,12 +751,12 @@ body {
   text-align: right;
 }
 
-/* Legend panel ── top right */
+/* Legend panel ── center right */
 .map-fs-legend {
   position: absolute;
-  top: 18px;
+  top: 50%;
+  transform: translateY(-50%);
   right: 18px;
-  transform: none;
   z-index: 1000;
   background: transparent;
   border: none;

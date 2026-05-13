@@ -2976,7 +2976,7 @@ const waterChartOptions = useMemo(() => ({
                     scrollWheelZoom={false}>
                     <TileLayer
                       attribution='&copy; <a href="https://carto.com/">CartoDB</a> &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>'
-                      url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
+                      url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
                     <FlyToStation fews={selectedStation} />
                     <OpenPopup fews={selectedStation} markerRefs={markerRefs} />
                     {allFews.map(f => {
@@ -3305,10 +3305,10 @@ const waterChartOptions = useMemo(() => ({
           {fullscreenMap && (
             <div className="map-fullscreen-overlay" onClick={() => { setFullscreenMap(false); setFsSelectedFEWS(null); }}>
               <div className="map-fullscreen-box" onClick={e => e.stopPropagation()}>
-                <button className="map-fs-close" onClick={() => { setFullscreenMap(false); setFsSelectedFEWS(null); }}>✕</button>
                 <div className="map-fullscreen-inner">
+                  <button className="map-fs-close" onClick={() => { setFullscreenMap(false); setFsSelectedFEWS(null); }}>✕</button>
                   <MapContainer center={[13.7703472, 121.0525449]} zoom={15} style={{ height:"100%", width:"100%" }} scrollWheelZoom={true}>
-                    <TileLayer attribution='&copy; <a href="https://carto.com/">CartoDB</a> &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>' url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" />
+                    <TileLayer attribution='&copy; <a href="https://carto.com/">CartoDB</a> &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>' url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
                     {allFews.map(f => {
                       const cfg = STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"];
                       const isActuallyLive = f.isLive && isHardwareOnline;
@@ -3329,7 +3329,6 @@ const waterChartOptions = useMemo(() => ({
                       );
                     })}
                   </MapContainer>
-                </div>
 
                 {/* Station info — bottom left, only when a marker is selected */}
                 {fsSelectedFEWS && (() => {
@@ -3367,11 +3366,11 @@ const waterChartOptions = useMemo(() => ({
                         <span className="map-fs-row-val">Bolbok, Batangas</span>
                       </div>
                     </div>
-                  );
-                })()}
+                );
+              })()}
 
-                {/* Legend — right center, no title */}
-                <div className="map-fs-legend">
+                  {/* Legend ── center right */}
+                  <div className="map-fs-legend">
                   {[
                     { color: "#22c55e", label: "Safe"    },
                     { color: "#f59e0b", label: "Warning" },
@@ -3384,7 +3383,7 @@ const waterChartOptions = useMemo(() => ({
                     </div>
                   ))}
                 </div>
-
+                </div>
               </div>
             </div>
           )}
