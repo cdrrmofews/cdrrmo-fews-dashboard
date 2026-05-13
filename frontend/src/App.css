@@ -583,8 +583,8 @@ body {
 }
 
 .map-fullscreen-box {
-  width: 80%;
-  height: 80%;
+  width: 90%;
+  height: 90%;
   border-radius: 16px;
   overflow: hidden;
   position: relative;
@@ -627,7 +627,7 @@ body {
 /* Expand button on map card */
 .map-expand-btn {
   position: absolute;
-  top: 8px;
+  top: 42px;
   right: 8px;
   z-index: 400;
   width: 28px;
@@ -655,7 +655,7 @@ body {
   bottom: 18px;
   left: 18px;
   z-index: 1000;
-  background: rgba(8, 14, 26, 0.88);
+  background: rgba(8, 14, 26, 0.45);
   border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: 14px;
   padding: 13px 15px;
@@ -751,18 +751,19 @@ body {
 /* Legend panel — bottom right */
 .map-fs-legend {
   position: absolute;
-  bottom: 18px;
+  top: 50%;
+  transform: translateY(-50%);
   right: 18px;
   z-index: 1000;
-  background: rgba(8, 14, 26, 0.88);
+  background: rgba(8, 14, 26, 0.45);
   border: 1px solid rgba(255, 255, 255, 0.09);
   border-radius: 14px;
-  padding: 12px 15px;
+  padding: 10px 12px;
   display: flex;
   flex-direction: column;
   gap: 7px;
   backdrop-filter: blur(8px);
-  min-width: 130px;
+  min-width: 100px;
 }
 
 .map-fs-legend-title {
@@ -806,8 +807,8 @@ body {
 
 @media (max-width: 768px) {
   .map-fullscreen-box {
-    width: 95%;
-    height: 80%;
+    width: 97%;
+    height: 90%;
     border-radius: 12px;
   }
 

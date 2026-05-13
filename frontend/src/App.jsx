@@ -2581,6 +2581,7 @@ export default function App() {
 
     const [sirenConfirm, setSirenConfirm] = useState(null);
     const [fullscreenMap, setFullscreenMap] = useState(false);
+    const [fsSelectedFEWS, setFsSelectedFEWS] = useState(null);
 
     const toggleSiren = async (id) => {
         if (!can(user.role, "sirenControl")) return;
@@ -2959,13 +2960,13 @@ const waterChartOptions = useMemo(() => ({
                   onClick={() => setFullscreenMap(true)}
                   title="Fullscreen map"
                 >
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" strokeWidth="2"
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" strokeWidth="2.5"
                     strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="15 3 21 3 21 9"/>
-                    <polyline points="9 21 3 21 3 15"/>
-                    <line x1="21" y1="3" x2="14" y2="10"/>
-                    <line x1="3" y1="21" x2="10" y2="14"/>
+                    <polyline points="3 8 3 3 8 3"/>
+                    <polyline points="16 3 21 3 21 8"/>
+                    <polyline points="21 16 21 21 16 21"/>
+                    <polyline points="8 21 3 21 3 16"/>
                   </svg>
                 </button>
                 <div className="map-wrap">
@@ -3301,9 +3302,9 @@ const waterChartOptions = useMemo(() => ({
 
           {/* ── FULLSCREEN MAP MODAL ── */}
           {fullscreenMap && (
-            <div className="map-fullscreen-overlay" onClick={() => setFullscreenMap(false)}>
+            <div className="map-fullscreen-overlay" onClick={() => { setFullscreenMap(false); setFsSelectedFEWS(null); }}>
               <div className="map-fullscreen-box" onClick={e => e.stopPropagation()}>
-                <button className="map-fs-close" onClick={() => setFullscreenMap(false)}>✕</button>
+                <button className="map-fs-close" onClick={() => { setFullscreenMap(false); setFsSelectedFEWS(null); }}>✕</button>
                 <div className="map-fullscreen-inner">
                   <MapContainer center={[13.7703472, 121.0525449]} zoom={15} style={{ height:"100%", width:"100%" }} scrollWheelZoom={true}>
                     <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
@@ -3321,25 +3322,22 @@ const waterChartOptions = useMemo(() => ({
                         iconAnchor: [9, 9],
                       });
                       return (
-                        <Marker key={f.id} position={[f.lat, f.lng]} icon={icon}>
-                          <Popup minWidth={140}>
-                            <div style={{ fontFamily:"sans-serif" }}>
-                              <strong style={{ fontSize:13, color:"#1e293b" }}>{f.name}</strong>
-                              <div style={{ fontSize:11, color:"#475569", marginTop:4 }}>
-                                {f.location} · {isActuallyLive ? `${f.waterLevel} cm` : "—"}
-                              </div>
-                            </div>
-                          </Popup>
+                        <Marker key={f.id} position={[f.lat, f.lng]} icon={icon}
+                          eventHandlers={{ click: () => setFsSelectedFEWS(fsSelectedFEWS === f.id ? null : f.id) }}>
                         </Marker>
                       );
                     })}
                   </MapContainer>
                 </div>
-                {allFews.map(f => {
+
+                {/* Station info — bottom left, only when a marker is selected */}
+                {fsSelectedFEWS && (() => {
+                  const f = allFews.find(x => x.id === fsSelectedFEWS);
+                  if (!f) return null;
                   const cfg = STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"];
                   const isActuallyLive = f.isLive && isHardwareOnline;
                   return (
-                    <div key={f.id} className="map-fs-station">
+                    <div className="map-fs-station">
                       <div className="map-fs-station-header">
                         <div className="map-fs-station-name">
                           <div style={{ width:9, height:9, borderRadius:"50%", background: isActuallyLive ? cfg.color : "#334155", flexShrink:0 }} />
@@ -3369,9 +3367,10 @@ const waterChartOptions = useMemo(() => ({
                       </div>
                     </div>
                   );
-                })}
+                })()}
+
+                {/* Legend — right center, no title */}
                 <div className="map-fs-legend">
-                  <div className="map-fs-legend-title">Legend</div>
                   {[
                     { color: "#22c55e", label: "Safe"    },
                     { color: "#f59e0b", label: "Warning" },
@@ -3384,6 +3383,7 @@ const waterChartOptions = useMemo(() => ({
                     </div>
                   ))}
                 </div>
+
               </div>
             </div>
           )}
