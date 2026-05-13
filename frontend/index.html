@@ -15,7 +15,7 @@
     <!-- ── PWA: Theme color (matches --bg-base in App.css) ── -->
     <meta name="theme-color" content="#080e1a" />
 
-    <!-- ── Viewport ── -->
+    <!-- ── Viewport: cover lets dark bg extend under iOS status bar ── -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
 
     <!-- ── App meta ── -->
@@ -23,13 +23,12 @@
     <meta name="mobile-web-app-capable" content="yes" />
 
     <title>CDRRMO FEWS</title>
-    <link rel="icon" type="image/png" href="/cdrrmo-seal.png" />
+    <link rel="icon" type="image/png" href="/icon-192.png" />
   </head>
   <body>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
 
-    <!-- ── Service Worker Registration ── -->
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
@@ -37,21 +36,74 @@
             .register('/sw.js')
             .then((reg) => {
               console.log('[SW] Registered:', reg.scope);
-
-              // Notify user when a new version is available
-              reg.addEventListener('updatefound', () => {
-                const newWorker = reg.installing;
-                newWorker.addEventListener('statechange', () => {
-                  if (
-                    newWorker.state === 'installed' &&
-                    navigator.serviceWorker.controller
-                  ) {
-                    console.log('[SW] New version available — will update on next reload');
-                  }
-                });
-              });
             })
             .catch((err) => console.error('[SW] Registration failed:', err));
+
+          // SW_UPDATED arrives when a new deploy activates.
+          // Instead of reloading instantly (which could interrupt an
+          // operator mid-siren or mid-log), show a dismissible banner
+          // that lets them reload when it is safe to do so.
+          navigator.serviceWorker.addEventListener('message', (event) => {
+            if (!event.data || event.data.type !== 'SW_UPDATED') return;
+            console.log('[SW] New version available');
+
+            // Reuse the app's existing toast styles from App.css
+            const container = document.createElement('div');
+            container.style.cssText = [
+              'position:fixed',
+              'top:calc(72px + env(safe-area-inset-top))',
+              'left:50%',
+              'transform:translateX(-50%)',
+              'z-index:999999',
+              'display:flex',
+              'align-items:center',
+              'gap:10px',
+              'background:#111d35',
+              'border:1px solid rgba(56,189,248,0.35)',
+              'border-radius:12px',
+              'padding:10px 16px',
+              'box-shadow:0 8px 32px rgba(0,0,0,0.55)',
+              'font-family:DM Sans,system-ui,sans-serif',
+              'font-size:12px',
+              'font-weight:600',
+              'color:#e2e8f0',
+              'white-space:nowrap',
+              'pointer-events:all',
+            ].join(';');
+
+            container.innerHTML = `
+              <span style="font-size:15px;">🔄</span>
+              <span style="color:#7e92b4;">Dashboard updated</span>
+              <button onclick="window.location.reload()" style="
+                background:transparent;
+                border:1px solid rgba(56,189,248,0.35);
+                color:#38bdf8;
+                border-radius:8px;
+                padding:4px 12px;
+                font-family:inherit;
+                font-size:11px;
+                font-weight:700;
+                cursor:pointer;
+                margin-left:4px;
+              ">Reload ↗</button>
+              <button onclick="this.parentElement.remove()" style="
+                background:transparent;
+                border:1px solid rgba(255,255,255,0.08);
+                color:#4a607e;
+                border-radius:8px;
+                padding:4px 8px;
+                font-family:inherit;
+                font-size:13px;
+                cursor:pointer;
+                line-height:1;
+              ">✕</button>
+            `;
+
+            document.body.appendChild(container);
+
+            // Auto-dismiss after 15 seconds if ignored
+            setTimeout(() => container.remove(), 15000);
+          });
         });
       }
     </script>

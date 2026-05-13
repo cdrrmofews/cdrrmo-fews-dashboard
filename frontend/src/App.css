@@ -2944,63 +2944,50 @@ select.settings-input {
 
 /* ================================
    SAFE AREA INSETS (iPhone PWA fix)
-   Add these to the BOTTOM of App.css
+   Paste at the very bottom of App.css
 ================================ */
 
-/* Push the entire app shell down/up to avoid status bar + home indicator */
-.app-shell {
-  padding-top:    env(safe-area-inset-top);
-  padding-bottom: env(safe-area-inset-bottom);
-}
-
-/* Topbar: add top padding so it clears the status bar */
-.topbar {
-  padding-top: max(0px, env(safe-area-inset-top));
-  height: calc(64px + env(safe-area-inset-top));
-}
-
-/* Sidebar (mobile bottom nav): add bottom padding for home indicator */
+/* Mobile only — desktop has no safe area insets */
 @media (max-width: 768px) {
-  .sidebar,
-  .sidebar.collapsed {
-    padding-bottom: env(safe-area-inset-bottom);
-    height: calc(52px + env(safe-area-inset-bottom));
+
+  /* Topbar: grow to clear iOS status bar.
+     Overrides the existing height:64px only on mobile. */
+  .topbar {
+    height: calc(64px + env(safe-area-inset-top));
+    padding-top: env(safe-area-inset-top);
+    padding-left:  max(12px, env(safe-area-inset-left));
+    padding-right: max(12px, env(safe-area-inset-right));
   }
 
-  /* Push main content up so it doesn't hide behind the bottom nav */
+  /* Bottom nav: lift above the home indicator */
+  .sidebar,
+  .sidebar.collapsed {
+    height: calc(52px + env(safe-area-inset-bottom));
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+
+  /* Page content: don't hide behind bottom nav */
   .main {
     padding-bottom: calc(52px + env(safe-area-inset-bottom));
   }
 
-  /* Sticky topbar on mobile: compensate for the safe area */
-  .topbar {
-    padding-left:  max(12px, env(safe-area-inset-left));
-    padding-right: max(12px, env(safe-area-inset-right));
+  /* Critical banner: clear the status bar */
+  .critical-banner.active {
+    max-height: calc(38px + env(safe-area-inset-top));
+    padding-top: env(safe-area-inset-top);
+  }
+
+  /* Toast: sits below the topbar */
+  .toast-container {
+    top: calc(72px + env(safe-area-inset-top));
   }
 }
 
-/* Fix the critical banner so it also respects the top safe area */
-.critical-banner.active {
-  max-height: calc(38px + env(safe-area-inset-top));
-  padding-top: env(safe-area-inset-top);
-}
-
-/* Modal overlay: respect safe areas on all sides */
+/* Modals use fixed positioning so they need insets on all sides
+   regardless of screen size */
 .modal-overlay {
   padding-top:    env(safe-area-inset-top);
   padding-bottom: env(safe-area-inset-bottom);
   padding-left:   env(safe-area-inset-left);
   padding-right:  env(safe-area-inset-right);
-}
-
-/* Toast container: push down so it clears the status bar */
-.toast-container {
-  top: calc(72px + env(safe-area-inset-top));
-}
-
-/* Profile dropdown portal: needs top offset to match new topbar height */
-@media (max-width: 768px) {
-  .profile-dropdown {
-    margin-top: env(safe-area-inset-top);
-  }
 }

@@ -1,79 +1,101 @@
 // ============================================================
-//  CDRRMO FEWS — Service Worker
-//  Cache-first for static assets, network-first for API calls
+//  CDRRMO FEWS — Service Worker v2
+//  - Cache-first for static assets
+//  - Network-first for API calls
+//  - Auto-reload on new deploy (no manual re-add needed)
 // ============================================================
 
-const CACHE_NAME = 'cdrrmo-fews-v1';
+const CACHE_NAME = 'cdrrmo-fews-v2';
 
-// Static assets to pre-cache on install
+// Only truly stable assets that never change filename.
+// JS/CSS bundles are excluded — Vite hashes their filenames
+// so they're always fresh from the network anyway.
 const PRECACHE_ASSETS = [
   '/',
   '/index.html',
   '/cdrrmo-seal.png',
   '/batscity-seal.png',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/icon-apple-180.png',
   '/leaflet/marker-icon.png',
   '/leaflet/marker-icon-2x.png',
   '/leaflet/marker-shadow.png',
 ];
 
-// ── Install: pre-cache shell assets ──────────────────────────
+// ── Install ───────────────────────────────────────────────────
 self.addEventListener('install', (event) => {
+  // skipWaiting OUTSIDE waitUntil — runs unconditionally even
+  // if cache.addAll() fails, so updates are never blocked.
+  self.skipWaiting();
+
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
-      console.log('[SW] Pre-caching assets');
-      return cache.addAll(PRECACHE_ASSETS);
+      // addAll with individual error handling — one missing asset
+      // won't abort the entire install.
+      return Promise.allSettled(
+        PRECACHE_ASSETS.map((url) =>
+          cache.add(url).catch((err) => {
+            console.warn('[SW] Failed to pre-cache:', url, err);
+          })
+        )
+      );
     })
   );
-  self.skipWaiting();
 });
 
-// ── Activate: remove old caches ───────────────────────────────
+// ── Activate: delete old caches, claim clients, notify tabs ──
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(
-        keys
-          .filter((key) => key !== CACHE_NAME)
-          .map((key) => {
-            console.log('[SW] Deleting old cache:', key);
-            return caches.delete(key);
-          })
+    caches.keys()
+      .then((keys) =>
+        Promise.all(
+          keys
+            .filter((key) => key !== CACHE_NAME)
+            .map((key) => {
+              console.log('[SW] Deleting old cache:', key);
+              return caches.delete(key);
+            })
+        )
       )
-    )
+      .then(() => self.clients.claim())
+      .then(() =>
+        self.clients.matchAll({ type: 'window' }).then((clients) => {
+          clients.forEach((client) =>
+            client.postMessage({ type: 'SW_UPDATED' })
+          );
+        })
+      )
   );
-  self.clients.claim();
 });
 
-// ── Fetch: network-first for API, cache-first for static ──────
+// ── Fetch ─────────────────────────────────────────────────────
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Always go network-first for API calls (sensor data, logs, etc.)
+  // Network-first for all API calls — never serve stale sensor data
   if (url.origin === 'https://cdrrmo-fews.onrender.com') {
     event.respondWith(
-      fetch(event.request)
-        .catch(() => {
-          // API offline — return a friendly JSON error
-          return new Response(
-            JSON.stringify({ error: 'offline', message: 'No network connection. Please reconnect.' }),
-            { status: 503, headers: { 'Content-Type': 'application/json' } }
-          );
-        })
+      fetch(event.request).catch(() =>
+        new Response(
+          JSON.stringify({ error: 'offline', message: 'No network connection.' }),
+          { status: 503, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
     );
     return;
   }
 
-  // Skip non-GET requests
+  // Skip non-GET (POST /logs, POST /siren, etc. must always hit network)
   if (event.request.method !== 'GET') return;
 
-  // Cache-first for everything else (JS, CSS, images, fonts)
+  // Cache-first for static assets (images, fonts, leaflet, etc.)
   event.respondWith(
     caches.match(event.request).then((cached) => {
       if (cached) return cached;
 
       return fetch(event.request)
         .then((response) => {
-          // Only cache valid same-origin or CDN responses
           if (
             !response ||
             response.status !== 200 ||
@@ -81,16 +103,14 @@ self.addEventListener('fetch', (event) => {
           ) {
             return response;
           }
-
           const toCache = response.clone();
           caches.open(CACHE_NAME).then((cache) => {
             cache.put(event.request, toCache);
           });
-
           return response;
         })
         .catch(() => {
-          // Offline and not cached — return the cached index for navigation
+          // Offline fallback for navigation requests
           if (event.request.mode === 'navigate') {
             return caches.match('/index.html');
           }
@@ -99,15 +119,15 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// ── Push Notifications (future use) ───────────────────────────
+// ── Push Notifications ────────────────────────────────────────
 self.addEventListener('push', (event) => {
   if (!event.data) return;
   const data = event.data.json();
   self.registration.showNotification(data.title || 'CDRRMO FEWS Alert', {
-    body:    data.body    || 'New alert from FEWS station.',
-    icon:    '/cdrrmo-seal.png',
-    badge:   '/cdrrmo-seal.png',
-    tag:     'fews-alert',
+    body:               data.body || 'New alert from FEWS station.',
+    icon:               '/icon-192.png',
+    badge:              '/icon-192.png',
+    tag:                'fews-alert',
     requireInteraction: true,
   });
 });
