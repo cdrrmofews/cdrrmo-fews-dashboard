@@ -2973,8 +2973,9 @@ const waterChartOptions = useMemo(() => ({
                     style={{ height:"100%", width:"100%", borderRadius:"10px" }}
                     scrollWheelZoom={false}>
                     <TileLayer
-                      attribution='&copy; <a href="https://carto.com/">CartoDB</a> &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>'
-                      url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
+                      attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>'
+                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                      className="map-tiles" />
                     <FlyToStation fews={selectedStation} />
                     <OpenPopup fews={selectedStation} markerRefs={markerRefs} />
                     {allFews.map(f => {
