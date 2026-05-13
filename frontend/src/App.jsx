@@ -3307,7 +3307,8 @@ const waterChartOptions = useMemo(() => ({
                 <div className="map-fullscreen-inner">
                   <button className="map-fs-close" onClick={() => { setFullscreenMap(false); setFsSelectedFEWS(null); }}>✕</button>
                   <MapContainer center={[13.7703472, 121.0525449]} zoom={15} style={{ height:"100%", width:"100%" }} scrollWheelZoom={true}>
-                    <TileLayer attribution='&copy; <a href="https://carto.com/">CartoDB</a> &copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>' url="https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png" />
+                    <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
+                    className="map-tiles" />
                     {allFews.map(f => {
                       const cfg = STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"];
                       const isActuallyLive = f.isLive && isHardwareOnline;
