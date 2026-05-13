@@ -796,7 +796,7 @@ body {
 }
 
 .map-tiles {
-  filter: invert(1) hue-rotate(180deg) brightness(0.45) saturate(1.8) contrast(1.2);
+  filter: invert(1) hue-rotate(200deg) brightness(0.55) saturate(0.8) contrast(0.9);
 }
 
 /* Radar pulse keyframe */
