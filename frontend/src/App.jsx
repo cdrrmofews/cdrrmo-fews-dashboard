@@ -2954,23 +2954,21 @@ const waterChartOptions = useMemo(() => ({
                   <h2>FEWS Locations</h2>
                   <span className="card-tag">Batangas City</span>
                 </div>
-                {/* Expand button */}
-                <button
-                  className="map-expand-btn"
-                  onClick={() => setFullscreenMap(true)}
-                  title="Fullscreen map"
-                  style={{ zIndex: 1000 }}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                    stroke="currentColor" strokeWidth="2.5"
-                    strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="3 8 3 3 8 3"/>
-                    <polyline points="16 3 21 3 21 8"/>
-                    <polyline points="21 16 21 21 16 21"/>
-                    <polyline points="8 21 3 21 3 16"/>
-                  </svg>
-                </button>
                 <div className="map-wrap">
+                  <button
+                    className="map-expand-btn"
+                    onClick={() => setFullscreenMap(true)}
+                    title="Fullscreen map"
+                  >
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
+                      stroke="currentColor" strokeWidth="2.5"
+                      strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="3 8 3 3 8 3"/>
+                      <polyline points="16 3 21 3 21 8"/>
+                      <polyline points="21 16 21 21 16 21"/>
+                      <polyline points="8 21 3 21 3 16"/>
+                    </svg>
+                  </button>
                   <MapContainer center={[13.7703472, 121.0525449]} zoom={15}
                     style={{ height:"100%", width:"100%", borderRadius:"10px" }}
                     scrollWheelZoom={false}>
