@@ -2580,6 +2580,7 @@ export default function App() {
     }, []);
 
     const [sirenConfirm, setSirenConfirm] = useState(null);
+    const [fullscreenMap, setFullscreenMap] = useState(false);
 
     const toggleSiren = async (id) => {
         if (!can(user.role, "sirenControl")) return;
@@ -2947,14 +2948,33 @@ const waterChartOptions = useMemo(() => ({
         {activeNav === "Dashboard" && (
           <div className="dashboard-body">
             <main className="content">
-              <div className="card card-map">
+              <div className="card card-map" style={{ position: "relative" }}>
                 <div className="card-header">
                   <h2>FEWS Locations</h2>
                   <span className="card-tag">Batangas City</span>
                 </div>
+                {/* Expand button */}
+                <button
+                  className="map-expand-btn"
+                  onClick={() => setFullscreenMap(true)}
+                  title="Fullscreen map"
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none"
+                    stroke="currentColor" strokeWidth="2"
+                    strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="15 3 21 3 21 9"/>
+                    <polyline points="9 21 3 21 3 15"/>
+                    <line x1="21" y1="3" x2="14" y2="10"/>
+                    <line x1="3" y1="21" x2="10" y2="14"/>
+                  </svg>
+                </button>
                 <div className="map-wrap">
-                  <MapContainer center={[13.7703472, 121.0525449]} zoom={15} style={{ height:"100%", width:"100%", borderRadius:"10px" }} scrollWheelZoom={false}>
-                    <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                  <MapContainer center={[13.7703472, 121.0525449]} zoom={15}
+                    style={{ height:"100%", width:"100%", borderRadius:"10px" }}
+                    scrollWheelZoom={false}>
+                    <TileLayer
+                      attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>'
+                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                     <FlyToStation fews={selectedStation} />
                     <OpenPopup fews={selectedStation} markerRefs={markerRefs} />
                     {allFews.map(f => {
@@ -2964,7 +2984,10 @@ const waterChartOptions = useMemo(() => ({
                       const markerColor    = isActuallyLive ? cfg.color : "#64748b";
                       const icon = L.divIcon({
                         className: "",
-                        html: `<div style="width:${isSel?"18px":"14px"};height:${isSel?"18px":"14px"};border-radius:50%;background:${markerColor};border:2px solid white;box-shadow:0 0 ${isSel?"12px":"8px"} ${markerColor};transition:all 0.3s;"></div>`,
+                        html: `<div style="position:relative;width:${isSel?"18px":"14px"};height:${isSel?"18px":"14px"}">
+                          <div style="position:absolute;inset:0;border-radius:50%;background:${markerColor};border:2px solid white;box-shadow:0 0 ${isSel?"12px":"8px"} ${markerColor};z-index:2"></div>
+                          ${isActuallyLive ? `<div class="radar-pulse" style="width:${isSel?"18px":"14px"};height:${isSel?"18px":"14px"};background:${markerColor};top:0;left:0;"></div>` : ""}
+                        </div>`,
                         iconSize: [isSel?18:14, isSel?18:14],
                         iconAnchor: [isSel?9:7, isSel?9:7],
                       });
@@ -2973,16 +2996,16 @@ const waterChartOptions = useMemo(() => ({
                           ref={el => { markerRefs.current[f.id] = el; }}
                           eventHandlers={{ click: () => setSelectedFEWS(selectedFEWS === f.id ? null : f.id) }}>
                           <Popup minWidth={160}>
-                          <div style={{ fontFamily:"sans-serif", padding:"2px 0" }}>
-                            <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
-                              <strong style={{ fontSize:"13px", color:"#1e293b" }}>{f.name}</strong>
-                              <span style={{ fontSize:9, color: isHardwareOnline ? "#22c55e" : "#94a3b8", fontWeight:700 }}>
-                                {isHardwareOnline ? "● LIVE" : "◌ WAITING"}
-                              </span>
-                            </div>
-                            <div style={{ fontSize:"11px", color:"#475569", lineHeight:1.6, marginBottom:4 }}>
-                              <strong style={{ color:"#1e293b" }}>{f.location}</strong> · Water: {isHardwareOnline ? `${f.waterLevel} cm` : "—"}
-                            </div>
+                            <div style={{ fontFamily:"sans-serif", padding:"2px 0" }}>
+                              <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
+                                <strong style={{ fontSize:"13px", color:"#1e293b" }}>{f.name}</strong>
+                                <span style={{ fontSize:9, color: isHardwareOnline ? "#22c55e" : "#94a3b8", fontWeight:700 }}>
+                                  {isHardwareOnline ? "● LIVE" : "◌ WAITING"}
+                                </span>
+                              </div>
+                              <div style={{ fontSize:"11px", color:"#475569", lineHeight:1.6, marginBottom:4 }}>
+                                <strong style={{ color:"#1e293b" }}>{f.location}</strong> · Water: {isHardwareOnline ? `${f.waterLevel} cm` : "—"}
+                              </div>
                               <button onClick={() => {
                                 navigator.clipboard.writeText(`${f.lat}, ${f.lng}`);
                                 setCopiedId(f.id);
@@ -3275,6 +3298,95 @@ const waterChartOptions = useMemo(() => ({
             </aside>
           </div>
         )}
+
+          {/* ── FULLSCREEN MAP MODAL ── */}
+          {fullscreenMap && (
+            <div className="map-fullscreen-overlay" onClick={() => setFullscreenMap(false)}>
+              <div className="map-fullscreen-box" onClick={e => e.stopPropagation()}>
+                <button className="map-fs-close" onClick={() => setFullscreenMap(false)}>✕</button>
+                <div className="map-fullscreen-inner">
+                  <MapContainer center={[13.7703472, 121.0525449]} zoom={15} style={{ height:"100%", width:"100%" }} scrollWheelZoom={true}>
+                    <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                    {allFews.map(f => {
+                      const cfg = STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"];
+                      const isActuallyLive = f.isLive && isHardwareOnline;
+                      const markerColor = isActuallyLive ? cfg.color : "#64748b";
+                      const icon = L.divIcon({
+                        className: "",
+                        html: `<div style="position:relative;width:18px;height:18px">
+                          <div style="position:absolute;inset:0;border-radius:50%;background:${markerColor};border:2px solid white;box-shadow:0 0 10px ${markerColor};z-index:2"></div>
+                          ${isActuallyLive ? `<div class="radar-pulse" style="width:18px;height:18px;background:${markerColor};top:0;left:0;"></div>` : ""}
+                        </div>`,
+                        iconSize: [18, 18],
+                        iconAnchor: [9, 9],
+                      });
+                      return (
+                        <Marker key={f.id} position={[f.lat, f.lng]} icon={icon}>
+                          <Popup minWidth={140}>
+                            <div style={{ fontFamily:"sans-serif" }}>
+                              <strong style={{ fontSize:13, color:"#1e293b" }}>{f.name}</strong>
+                              <div style={{ fontSize:11, color:"#475569", marginTop:4 }}>
+                                {f.location} · {isActuallyLive ? `${f.waterLevel} cm` : "—"}
+                              </div>
+                            </div>
+                          </Popup>
+                        </Marker>
+                      );
+                    })}
+                  </MapContainer>
+                </div>
+                {allFews.map(f => {
+                  const cfg = STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"];
+                  const isActuallyLive = f.isLive && isHardwareOnline;
+                  return (
+                    <div key={f.id} className="map-fs-station">
+                      <div className="map-fs-station-header">
+                        <div className="map-fs-station-name">
+                          <div style={{ width:9, height:9, borderRadius:"50%", background: isActuallyLive ? cfg.color : "#334155", flexShrink:0 }} />
+                          {f.name}
+                        </div>
+                        <span className="map-fs-live" style={{ background: isActuallyLive ? `${cfg.color}22` : "rgba(255,255,255,0.04)", color: isActuallyLive ? cfg.color : "#4a607e" }}>
+                          {isActuallyLive ? "● LIVE" : "◌ WAITING"}
+                        </span>
+                      </div>
+                      <div className="map-fs-water">
+                        <span className="map-fs-water-val" style={{ color: isActuallyLive ? cfg.color : "#4a607e" }}>
+                          {isActuallyLive ? f.waterLevel : "—"}
+                        </span>
+                        {isActuallyLive && <span className="map-fs-water-unit">cm</span>}
+                      </div>
+                      <span className="map-fs-status" style={{ background: isActuallyLive ? `${cfg.color}20` : "rgba(255,255,255,0.04)", color: isActuallyLive ? cfg.color : "#4a607e", alignSelf: "flex-start" }}>
+                        {isActuallyLive ? cfg.label : "OFFLINE"}
+                      </span>
+                      <div className="map-fs-divider" />
+                      <div className="map-fs-row">
+                        <span className="map-fs-row-label">Last sync</span>
+                        <span className="map-fs-row-val">{lastUpdatedStr ?? "—"}</span>
+                      </div>
+                      <div className="map-fs-row">
+                        <span className="map-fs-row-label">Location</span>
+                        <span className="map-fs-row-val">Bolbok, Batangas</span>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div className="map-fs-legend">
+                  <div className="map-fs-legend-title">Legend</div>
+                  {[
+                    { color: "#22c55e", label: "Safe"    },
+                    { color: "#f59e0b", label: "Warning" },
+                    { color: "#ef4444", label: "Critical"},
+                    { color: "#334155", label: "Offline" },
+                  ].map(({ color, label }) => (
+                    <div key={label} className="map-fs-legend-item">
+                      <div className="map-fs-legend-dot" style={{ background: color, boxShadow: `0 0 5px ${color}` }} />
+                      {label}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
 
         {activeNav === "UnitControl" && <UnitControlPage allFews={allFews} fews1Connected={isHardwareOnline} userRole={user.role} userName={user.name} addLog={addLog} token={token} onThresholdSaved={(t) => setThresholds(t)} />}
         {activeNav === "Logs"        && <LogsPage token={token} userRole={user.role} showToast={showToast} />}

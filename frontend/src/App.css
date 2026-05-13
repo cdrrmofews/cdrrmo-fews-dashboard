@@ -569,6 +569,269 @@ body {
 }
 
 /* ================================
+   FULLSCREEN MAP
+================================ */
+.map-fullscreen-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.map-fullscreen-box {
+  width: 80%;
+  height: 80%;
+  border-radius: 16px;
+  overflow: hidden;
+  position: relative;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.7);
+}
+
+.map-fullscreen-inner {
+  width: 100%;
+  height: 100%;
+}
+
+/* Close button */
+.map-fs-close {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 1000;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: rgba(8, 14, 26, 0.80);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #e2e8f0;
+  font-size: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+  font-weight: 700;
+  line-height: 1;
+}
+.map-fs-close:hover {
+  background: rgba(239, 68, 68, 0.25);
+  color: #ef4444;
+  border-color: rgba(239, 68, 68, 0.35);
+}
+
+/* Expand button on map card */
+.map-expand-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 400;
+  width: 28px;
+  height: 28px;
+  border-radius: 6px;
+  background: rgba(8, 14, 26, 0.70);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  color: #e2e8f0;
+  font-size: 13px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.map-expand-btn:hover {
+  background: rgba(56, 189, 248, 0.20);
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.30);
+}
+
+/* Station info panel — bottom left */
+.map-fs-station {
+  position: absolute;
+  bottom: 18px;
+  left: 18px;
+  z-index: 1000;
+  background: rgba(8, 14, 26, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  padding: 13px 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 200px;
+  max-width: 230px;
+  backdrop-filter: blur(8px);
+}
+
+.map-fs-station-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.map-fs-station-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  color: #e2e8f0;
+}
+
+.map-fs-live {
+  font-size: 9px;
+  font-weight: 700;
+  font-family: var(--mono);
+  letter-spacing: 0.07em;
+  padding: 2px 7px;
+  border-radius: 999px;
+}
+
+.map-fs-status {
+  font-size: 9px;
+  font-weight: 700;
+  font-family: var(--mono);
+  letter-spacing: 0.07em;
+  padding: 2px 8px;
+  border-radius: 999px;
+}
+
+.map-fs-water {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+}
+
+.map-fs-water-val {
+  font-size: 26px;
+  font-weight: 800;
+  font-family: var(--mono);
+  line-height: 1;
+}
+
+.map-fs-water-unit {
+  font-size: 11px;
+  color: #4a607e;
+  font-weight: 600;
+}
+
+.map-fs-divider {
+  height: 1px;
+  background: rgba(255, 255, 255, 0.07);
+}
+
+.map-fs-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  gap: 6px;
+}
+
+.map-fs-row-label {
+  color: #4a607e;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.map-fs-row-val {
+  color: #e2e8f0;
+  font-weight: 600;
+  font-family: var(--mono);
+  font-size: 10px;
+  text-align: right;
+}
+
+/* Legend panel — bottom right */
+.map-fs-legend {
+  position: absolute;
+  bottom: 18px;
+  right: 18px;
+  z-index: 1000;
+  background: rgba(8, 14, 26, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.09);
+  border-radius: 14px;
+  padding: 12px 15px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  backdrop-filter: blur(8px);
+  min-width: 130px;
+}
+
+.map-fs-legend-title {
+  font-size: 9px;
+  font-weight: 700;
+  color: #4a607e;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+
+.map-fs-legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #7e92b4;
+  font-weight: 600;
+}
+
+.map-fs-legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  border: 2px solid rgba(255,255,255,0.25);
+}
+
+/* Radar pulse keyframe */
+@keyframes radar-pulse {
+  0%   { transform: scale(1);   opacity: 0.8; }
+  100% { transform: scale(3.5); opacity: 0;   }
+}
+
+.radar-pulse {
+  position: absolute;
+  border-radius: 50%;
+  animation: radar-pulse 2s ease-out infinite;
+  pointer-events: none;
+}
+
+@media (max-width: 768px) {
+  .map-fullscreen-box {
+    width: 95%;
+    height: 80%;
+    border-radius: 12px;
+  }
+
+  .map-fs-station {
+    bottom: 12px;
+    left: 12px;
+    min-width: 160px;
+    max-width: 180px;
+    padding: 10px 12px;
+    gap: 6px;
+  }
+
+  .map-fs-legend {
+    bottom: 12px;
+    right: 12px;
+    padding: 10px 12px;
+    min-width: 110px;
+  }
+
+  .map-fs-water-val { font-size: 20px; }
+  .map-fs-station-name { font-size: 11px; }
+}
+
+/* ================================
    RIGHT SIDEBAR
 ================================ */
 .right-sidebar {
