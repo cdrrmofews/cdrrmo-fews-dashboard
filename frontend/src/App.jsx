@@ -3307,6 +3307,19 @@ const waterChartOptions = useMemo(() => ({
                         <Marker key={f.id} position={[f.lat, f.lng]} icon={icon}
                           ref={el => { fsMarkerRefs.current[f.id] = el; }}
                           eventHandlers={{ click: () => setFsSelectedFEWS(fsSelectedFEWS === f.id ? null : f.id) }}>
+                          <Popup minWidth={160}>
+                            <div style={{ fontFamily:"sans-serif", padding:"2px 0" }}>
+                              <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
+                                <strong style={{ fontSize:"13px", color:"#1e293b" }}>{f.name}</strong>
+                                <span style={{ fontSize:9, color: isHardwareOnline ? "#22c55e" : "#94a3b8", fontWeight:700 }}>
+                                  {isHardwareOnline ? "● LIVE" : "◌ WAITING"}
+                                </span>
+                              </div>
+                              <div style={{ fontSize:"11px", color:"#475569", lineHeight:1.6, marginBottom:4 }}>
+                                <strong style={{ color:"#1e293b" }}>{f.location}</strong> · Water: {isHardwareOnline ? `${f.waterLevel} cm` : "—"}
+                              </div>
+                            </div>
+                          </Popup>
                         </Marker>
                       );
                     })}
