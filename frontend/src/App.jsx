@@ -13,16 +13,16 @@ import {
   LineElement,
   Title,
   Tooltip,
-  Legend,
 } from "chart.js";
 import annotationPlugin from "chartjs-plugin-annotation";
 import Login from "./Login";
 
 ChartJS.register(
   CategoryScale, LinearScale, PointElement,
-  LineElement, Title, Tooltip, Legend,
+  LineElement, Title, Tooltip,
   annotationPlugin
 );
+ChartJS.defaults.plugins.legend.display = false;
 
 try { delete L.Icon.Default.prototype._getIconUrl; } catch (e) {}
 L.Icon.Default.mergeOptions({
