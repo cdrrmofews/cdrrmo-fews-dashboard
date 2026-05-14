@@ -22,7 +22,6 @@ ChartJS.register(
   LineElement, Title, Tooltip,
   annotationPlugin
 );
-ChartJS.defaults.plugins.legend.display = false;
 
 try { delete L.Icon.Default.prototype._getIconUrl; } catch (e) {}
 L.Icon.Default.mergeOptions({
