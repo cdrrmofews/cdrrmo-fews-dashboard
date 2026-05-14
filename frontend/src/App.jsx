@@ -2581,6 +2581,7 @@ export default function App() {
     const [sirenConfirm, setSirenConfirm] = useState(null);
     const [fullscreenMap, setFullscreenMap] = useState(false);
     const [fsSelectedFEWS, setFsSelectedFEWS] = useState(null);
+    const fsMarkerRefs = useRef({});
 
     const toggleSiren = async (id) => {
         if (!can(user.role, "sirenControl")) return;
@@ -2936,7 +2937,9 @@ const waterChartOptions = useMemo(() => ({
                 <div className="map-wrap">
                   <button
                     className="map-expand-btn"
-                    onClick={() => setFullscreenMap(true)}
+                    onClick={() => {
+                      setFullscreenMap(true);
+                    }}
                     title="Fullscreen map"
                   >
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
@@ -3285,22 +3288,24 @@ const waterChartOptions = useMemo(() => ({
                 <div className="map-fullscreen-inner">
                   <button className="map-fs-close" onClick={() => { setFullscreenMap(false); setFsSelectedFEWS(null); }}>✕</button>
                   <MapContainer center={[13.7703472, 121.0525449]} zoom={15} style={{ height:"100%", width:"100%" }} scrollWheelZoom={true}>
-                   <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                    {allFews.map(f => {
+                    <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                    <OpenPopup fews={allFews[0]} markerRefs={fsMarkerRefs} />
+                      {allFews.map(f => {
                       const cfg = STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"];
                       const isActuallyLive = f.isLive && isHardwareOnline;
                       const markerColor = isActuallyLive ? cfg.color : "#64748b";
                       const icon = L.divIcon({
                         className: "",
-                        html: `<div style="position:relative;width:18px;height:18px">
-                          <div style="position:absolute;inset:0;border-radius:50%;background:${markerColor};border:2px solid white;box-shadow:0 0 10px ${markerColor};z-index:2"></div>
-                          ${isActuallyLive ? `<div class="radar-pulse" style="width:18px;height:18px;background:${markerColor};top:0;left:0;"></div>` : ""}
+                        html: `<div style="position:relative;width:24px;height:24px">
+                          <div style="position:absolute;inset:0;border-radius:50%;background:${markerColor};border:2.5px solid white;box-shadow:0 0 12px ${markerColor};z-index:2"></div>
+                          ${isActuallyLive ? `<div class="radar-pulse" style="width:24px;height:24px;background:${markerColor};top:0;left:0;"></div>` : ""}
                         </div>`,
-                        iconSize: [18, 18],
-                        iconAnchor: [9, 9],
+                        iconSize: [24, 24],
+                        iconAnchor: [12, 12],
                       });
                       return (
                         <Marker key={f.id} position={[f.lat, f.lng]} icon={icon}
+                          ref={el => { fsMarkerRefs.current[f.id] = el; }}
                           eventHandlers={{ click: () => setFsSelectedFEWS(fsSelectedFEWS === f.id ? null : f.id) }}>
                         </Marker>
                       );
