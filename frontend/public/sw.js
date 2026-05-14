@@ -5,14 +5,12 @@
 //  - Auto-reload on new deploy (no manual re-add needed)
 // ============================================================
 
-const CACHE_NAME = 'cdrrmo-fews-v2';
+const CACHE_NAME = 'cdrrmo-fews-' + '{{BUILD_TIME}}';
 
 // Only truly stable assets that never change filename.
 // JS/CSS bundles are excluded — Vite hashes their filenames
 // so they're always fresh from the network anyway.
 const PRECACHE_ASSETS = [
-  '/',
-  '/index.html',
   '/cdrrmo-seal.png',
   '/batscity-seal.png',
   '/icon-192.png',
