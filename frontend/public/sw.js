@@ -5,7 +5,7 @@
 //  - Auto-reload on new deploy (no manual re-add needed)
 // ============================================================
 
-const CACHE_NAME = 'cdrrmo-fews-' + '{{BUILD_TIME}}';
+const CACHE_NAME = 'cdrrmo-fews-BUILD_STAMP';
 
 // Only truly stable assets that never change filename.
 // JS/CSS bundles are excluded — Vite hashes their filenames
@@ -57,13 +57,6 @@ self.addEventListener('activate', (event) => {
         )
       )
       .then(() => self.clients.claim())
-      .then(() =>
-        self.clients.matchAll({ type: 'window' }).then((clients) => {
-          clients.forEach((client) =>
-            client.postMessage({ type: 'SW_UPDATED' })
-          );
-        })
-      )
   );
 });
 
