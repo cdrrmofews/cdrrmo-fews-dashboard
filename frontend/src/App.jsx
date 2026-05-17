@@ -3335,20 +3335,20 @@ const waterChartOptions = useMemo(() => ({
                     <div className="map-fs-station">
                       <div className="map-fs-station-header">
                         <div className="map-fs-station-name">
-                          <div style={{ width:9, height:9, borderRadius:"50%", background: isActuallyLive ? cfg.color : "#334155", flexShrink:0 }} />
+                          <div style={{ width:9, height:9, borderRadius:"50%", background: isActuallyLive ? cfg.color : "#94a3b8", flexShrink:0 }} />
                           {f.name}
                         </div>
-                        <span className="map-fs-live" style={{ background: isActuallyLive ? `${cfg.color}22` : "rgba(255,255,255,0.04)", color: isActuallyLive ? cfg.color : "#4a607e" }}>
+                        <span className="map-fs-live" style={{ background: isActuallyLive ? `${cfg.color}22` : "rgba(0,0,0,0.06)", color: isActuallyLive ? cfg.color : "#94a3b8" }}>
                           {isActuallyLive ? "● LIVE" : "◌ WAITING"}
                         </span>
                       </div>
                       <div className="map-fs-water">
-                        <span className="map-fs-water-val" style={{ color: isActuallyLive ? cfg.color : "#4a607e" }}>
+                        <span className="map-fs-water-val" style={{ color: isActuallyLive ? cfg.color : "#94a3b8" }}>
                           {isActuallyLive ? f.waterLevel : "—"}
                         </span>
                         {isActuallyLive && <span className="map-fs-water-unit">cm</span>}
                       </div>
-                      <span className="map-fs-status" style={{ background: isActuallyLive ? `${cfg.color}20` : "rgba(255,255,255,0.04)", color: isActuallyLive ? cfg.color : "#4a607e", alignSelf: "flex-start" }}>
+                      <span className="map-fs-status" style={{ background: isActuallyLive ? `${cfg.color}20` : "rgba(0,0,0,0.06)", color: isActuallyLive ? cfg.color : "#94a3b8", alignSelf: "flex-start" }}>
                         {isActuallyLive ? cfg.label : "OFFLINE"}
                       </span>
                       <div className="map-fs-divider" />

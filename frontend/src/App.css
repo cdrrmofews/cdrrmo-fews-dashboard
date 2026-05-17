@@ -655,8 +655,8 @@ body {
   bottom: 18px;
   left: 18px;
   z-index: 1000;
-  background: rgba(8, 14, 26, 0.78);
-  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255, 255, 255, 0.18);
+  border: none;
   border-radius: 14px;
   padding: clamp(12px, 1.2vw, 20px) clamp(14px, 1.4vw, 24px);
   display: flex;
@@ -664,8 +664,8 @@ body {
   gap: clamp(7px, 0.7vw, 12px);
   min-width: clamp(180px, 16vw, 280px);
   max-width: clamp(220px, 20vw, 320px);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
 }
 
 .map-fs-station-name {
@@ -674,7 +674,7 @@ body {
   gap: 6px;
   font-size: clamp(13px, 1.1vw, 17px);
   font-weight: 700;
-  color: var(--text-1);
+  color: #1e293b;
 }
 
 .map-fs-live {
@@ -710,13 +710,13 @@ body {
 
 .map-fs-water-unit {
   font-size: clamp(11px, 0.9vw, 15px);
-  color: var(--text-2);
+  color: #475569;
   font-weight: 600;
 }
 
 .map-fs-divider {
   height: 1px;
-  background: rgba(255, 255, 255, 0.10);
+  background: rgba(0, 0, 0, 0.10);
 }
 
 .map-fs-row {
@@ -728,14 +728,14 @@ body {
 }
 
 .map-fs-row-label {
-  color: var(--text-2);
+  color: #64748b;
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
 .map-fs-row-val {
-  color: var(--text-1);
+  color: #1e293b;
   font-weight: 600;
   font-family: var(--mono);
   font-size: clamp(10px, 0.85vw, 13px);
@@ -748,15 +748,15 @@ body {
   left: 50%;
   transform: translateX(-50%);
   z-index: 1000;
-  background: rgba(8, 14, 26, 0.78);
-  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255, 255, 255, 0.18);
+  border: none;
   border-radius: 10px;
   padding: clamp(8px, 0.8vw, 14px) clamp(14px, 1.4vw, 24px);
   display: flex;
   flex-direction: row;
   gap: clamp(18px, 2vw, 36px);
-  backdrop-filter: blur(8px);
-  -webkit-backdrop-filter: blur(8px);
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
   min-width: 0;
 }
 
@@ -774,7 +774,7 @@ body {
   align-items: center;
   gap: clamp(6px, 0.6vw, 10px);
   font-size: clamp(11px, 0.95vw, 15px);
-  color: var(--text-1);
+  color: #1e293b;
   font-weight: 700;
   white-space: nowrap;
 }
@@ -784,7 +784,7 @@ body {
   height: clamp(10px, 0.9vw, 14px);
   border-radius: 50%;
   flex-shrink: 0;
-  border: 2px solid rgba(255,255,255,0.25);
+  border: 1.5px solid rgba(0,0,0,0.12);
   box-shadow: none;
 }
 
