@@ -634,21 +634,22 @@ body {
   z-index: 800;
   width: 28px;
   height: 28px;
-  border-radius: 6px;
-  background: transparent;
-  border: none;
-  color: #4a607e;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.88);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.10);
+  color: #475569;
   font-size: 13px;
   display: flex;
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  transition: color 0.15s;
+  transition: background 0.15s, color 0.15s;
   pointer-events: all;
 }
 .map-expand-btn:hover {
-  color: #38bdf8;
-  background: transparent;
+  background: rgba(255, 255, 255, 1);
+  color: #1e293b;
 }
 
 /* Station info panel ── bottom left */
@@ -2713,11 +2714,11 @@ select.settings-input {
 /* ── Leaflet zoom controls ── desktop styling only ── */
 .leaflet-control-zoom {
   border: none !important;
-  border-radius: 8px !important;
+  border-radius: 10px !important;
   overflow: hidden;
-  box-shadow: none !important;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.10) !important;
 }
-
+ 
 .leaflet-control-zoom-in,
 .leaflet-control-zoom-out {
   width: 28px !important;
@@ -2725,17 +2726,21 @@ select.settings-input {
   line-height: 28px !important;
   font-size: 16px !important;
   font-weight: 700 !important;
-  background: transparent !important;
-  color: #4a607e !important;
+  background: rgba(255, 255, 255, 0.88) !important;
+  color: #475569 !important;
   border: none !important;
+  border-bottom: 1px solid rgba(0, 0, 0, 0.06) !important;
+  transition: background 0.15s, color 0.15s !important;
+}
+
+.leaflet-control-zoom-out {
   border-bottom: none !important;
-  transition: color 0.15s !important;
 }
 
 .leaflet-control-zoom-in:hover,
 .leaflet-control-zoom-out:hover {
-  background: transparent !important;
-  color: var(--blue) !important;
+  background: rgba(255, 255, 255, 1) !important;
+  color: #1e293b !important;
 }
 
 /* ── Leaflet attribution ── */
