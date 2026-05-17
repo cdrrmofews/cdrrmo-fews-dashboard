@@ -3373,7 +3373,7 @@ const waterChartOptions = useMemo(() => ({
                     { color: "#334155", label: "Offline" },
                   ].map(({ color, label }) => (
                     <div key={label} className="map-fs-legend-item">
-                      <div className="map-fs-legend-dot" style={{ background: color, boxShadow: `0 0 5px ${color}` }} />
+                      <div className="map-fs-legend-dot" style={{ background: color }} />
                       {label}
                     </div>
                   ))}

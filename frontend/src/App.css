@@ -655,7 +655,7 @@ body {
   bottom: 18px;
   left: 18px;
   z-index: 1000;
-  background: rgba(255, 255, 255, 0.18);
+  background: transparent;
   border: none;
   border-radius: 14px;
   padding: clamp(12px, 1.2vw, 20px) clamp(14px, 1.4vw, 24px);
@@ -664,8 +664,6 @@ body {
   gap: clamp(7px, 0.7vw, 12px);
   min-width: clamp(180px, 16vw, 280px);
   max-width: clamp(220px, 20vw, 320px);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
 }
 
 .map-fs-station-name {
@@ -748,15 +746,13 @@ body {
   left: 50%;
   transform: translateX(-50%);
   z-index: 1000;
-  background: rgba(255, 255, 255, 0.18);
+  background: transparent;
   border: none;
   border-radius: 10px;
   padding: clamp(8px, 0.8vw, 14px) clamp(14px, 1.4vw, 24px);
   display: flex;
   flex-direction: row;
   gap: clamp(18px, 2vw, 36px);
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
   min-width: 0;
 }
 
@@ -784,7 +780,7 @@ body {
   height: clamp(10px, 0.9vw, 14px);
   border-radius: 50%;
   flex-shrink: 0;
-  border: 1.5px solid rgba(0,0,0,0.12);
+  border: 1.5px solid rgba(0,0,0,0.15);
   box-shadow: none;
 }
 
