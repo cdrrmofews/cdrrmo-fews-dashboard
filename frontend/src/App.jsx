@@ -3329,12 +3329,12 @@ const waterChartOptions = useMemo(() => ({
                       const markerColor = isActuallyLive ? cfg.color : "#64748b";
                       const icon = L.divIcon({
                         className: "",
-                        html: `<div style="position:relative;width:24px;height:24px">
-                          <div style="position:absolute;inset:0;border-radius:50%;background:${markerColor};border:2.5px solid white;box-shadow:0 0 12px ${markerColor};z-index:2"></div>
-                          ${isActuallyLive ? `<div class="radar-pulse" style="width:24px;height:24px;background:${markerColor};top:0;left:0;"></div>` : ""}
+                        html: `<div style="position:relative;width:14px;height:14px">
+                          <div style="position:absolute;inset:0;border-radius:50%;background:${markerColor};border:2px solid white;box-shadow:0 0 8px ${markerColor};z-index:2"></div>
+                          ${isActuallyLive ? `<div class="radar-pulse" style="width:14px;height:14px;background:${markerColor};top:0;left:0;"></div>` : ""}
                         </div>`,
-                        iconSize: [24, 24],
-                        iconAnchor: [12, 12],
+                        iconSize: [14, 14],
+                        iconAnchor: [7, 7],
                       });
                       return (
                         <Marker key={f.id} position={[f.lat, f.lng]} icon={icon}

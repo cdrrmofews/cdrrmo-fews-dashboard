@@ -575,8 +575,8 @@ body {
 .map-fullscreen-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.75);
-  backdrop-filter: blur(4px);
+  background: rgba(0, 0, 0, 0.30);
+  backdrop-filter: blur(2px);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -590,7 +590,7 @@ body {
   overflow: hidden;
   position: relative;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.7);
+  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.4);
 }
 
 .map-fullscreen-inner {
@@ -803,29 +803,58 @@ body {
 
 @media (max-width: 768px) {
   .map-fullscreen-box {
-    width: 97%;
-    height: 90%;
-    border-radius: 12px;
-  }
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+}
 
-  .map-fs-station {
-    bottom: 12px;
-    left: 12px;
-    min-width: 160px;
-    max-width: 180px;
-    padding: 10px 12px;
-    gap: 6px;
-  }
+.map-fullscreen-overlay {
+  padding: 0;
+}
 
-  .map-fs-legend {
-    bottom: 12px;
-    right: 12px;
-    padding: 10px 12px;
-    min-width: 110px;
-  }
+.map-fs-close {
+  top: 16px;
+  right: 16px;
+  width: 36px;
+  height: 36px;
+  font-size: 16px;
+  z-index: 99999;
+}
 
-  .map-fs-water-val { font-size: 20px; }
-  .map-fs-station-name { font-size: 11px; }
+.map-fs-station {
+  bottom: 16px;
+  left: 12px;
+  min-width: 150px;
+  max-width: 200px;
+  padding: 10px 12px;
+  gap: 5px;
+  border-radius: 12px;
+}
+
+.map-fs-legend {
+  top: 16px;
+  left: 50%;
+  transform: translateX(-50%);
+  padding: 7px 14px;
+  gap: 12px;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.map-fs-legend-item {
+  font-size: 11px;
+  gap: 5px;
+}
+
+.map-fs-legend-dot {
+  width: 8px;
+  height: 8px;
+}
+
+.map-fs-water-val { font-size: 22px; }
+.map-fs-station-name { font-size: 12px; }
+.map-fs-row { font-size: 10px; }
+.map-fs-row-val { font-size: 10px; }
 }
 
 /* ================================
