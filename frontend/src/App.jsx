@@ -2059,7 +2059,17 @@ function useToast() {
             <span className="toast-icon">{t.persistent ? "🔄" : "⚠"}</span>
             <span className="toast-msg">{t.msg}</span>
             {t.persistent
-              ? <button className="toast-close toast-refresh-btn" onClick={() => window.location.reload()}>↺</button>
+              ? <button className="toast-close toast-refresh-btn" onClick={async () => {
+                  if ('serviceWorker' in navigator) {
+                    const regs = await navigator.serviceWorker.getRegistrations();
+                    await Promise.all(regs.map(r => r.unregister()));
+                  }
+                  if ('caches' in window) {
+                    const keys = await caches.keys();
+                    await Promise.all(keys.map(k => caches.delete(k)));
+                  }
+                  window.location.reload(true);
+                }}>↺</button>
               : <button className="toast-close" onClick={() => dismiss(t.id)}>✕</button>
             }
           </div>
