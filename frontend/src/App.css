@@ -663,19 +663,19 @@ body {
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 14px;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.10);
-  padding: clamp(12px, 1.2vw, 18px) clamp(14px, 1.4vw, 22px);
+  padding: clamp(10px, 1vw, 15px) clamp(12px, 1.2vw, 18px);
   display: flex;
   flex-direction: column;
-  gap: clamp(6px, 0.6vw, 10px);
-  min-width: clamp(180px, 16vw, 260px);
-  max-width: clamp(220px, 20vw, 300px);
+  gap: clamp(5px, 0.5vw, 8px);
+  min-width: clamp(170px, 15vw, 220px);
+  max-width: clamp(200px, 18vw, 260px);
 }
 
 .map-fs-station-name {
   display: flex;
   align-items: center;
   gap: 6px;
-  font-size: clamp(13px, 1.1vw, 16px);
+  font-size: clamp(12px, 1vw, 14px);
   font-weight: 700;
   color: #1e293b;
 }
@@ -706,14 +706,14 @@ body {
 }
 
 .map-fs-water-val {
-  font-size: clamp(28px, 2.4vw, 38px);
+  font-size: clamp(24px, 2vw, 32px);
   font-weight: 800;
   font-family: var(--mono);
   line-height: 1;
 }
 
 .map-fs-water-unit {
-  font-size: clamp(12px, 0.9vw, 15px);
+  font-size: clamp(11px, 0.8vw, 13px);
   color: #64748b;
   font-weight: 600;
 }
@@ -727,7 +727,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  font-size: clamp(10px, 0.85vw, 12px);
+  font-size: clamp(10px, 0.75vw, 12px);
   gap: 6px;
 }
 
@@ -742,7 +742,7 @@ body {
   color: #1e293b;
   font-weight: 600;
   font-family: var(--mono);
-  font-size: clamp(10px, 0.85vw, 12px);
+  font-size: clamp(10px, 0.75vw, 12px);
   text-align: right;
 }
 
@@ -756,10 +756,10 @@ body {
   border: 1px solid rgba(0, 0, 0, 0.08);
   border-radius: 999px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.10);
-  padding: clamp(5px, 0.5vw, 8px) clamp(12px, 1.2vw, 20px);
+  padding: clamp(4px, 0.4vw, 7px) clamp(10px, 1vw, 16px);
   display: flex;
   flex-direction: row;
-  gap: clamp(20px, 2.2vw, 38px);
+  gap: clamp(12px, 1.4vw, 22px);
   white-space: nowrap;
 }
 
@@ -767,26 +767,17 @@ body {
   display: flex;
   align-items: center;
   gap: clamp(4px, 0.4vw, 6px);
-  font-size: clamp(10px, 0.82vw, 11.5px);
+  font-size: clamp(10px, 0.75vw, 12px);
   color: #1e293b;
   font-weight: 600;
 }
 
 .map-fs-legend-dot {
-  width: clamp(8px, 0.7vw, 10px);
-  height: clamp(8px, 0.7vw, 10px);
+  width: clamp(7px, 0.6vw, 9px);
+  height: clamp(7px, 0.6vw, 9px);
   border-radius: 50%;
   flex-shrink: 0;
   border: 1.5px solid rgba(0, 0, 0, 0.10);
-}
-
-.map-fs-legend-item {
-  display: flex;
-  align-items: center;
-  gap: clamp(5px, 0.5vw, 8px);
-  font-size: clamp(11px, 0.95vw, 13px);
-  color: #1e293b;
-  font-weight: 600;
 }
 
 /* Radar pulse keyframe */
@@ -825,8 +816,8 @@ body {
 .map-fs-station {
   bottom: 16px;
   left: 12px;
-  min-width: 150px;
-  max-width: 200px;
+  min-width: 160px;
+  max-width: 190px;
   padding: 10px 12px;
   gap: 5px;
   border-radius: 12px;
@@ -836,26 +827,30 @@ body {
   top: 16px;
   left: 50%;
   transform: translateX(-50%);
-  padding: 7px 14px;
-  gap: 12px;
+  padding: 5px 12px;
+  gap: 10px;
   border-radius: 999px;
   white-space: nowrap;
 }
 
 .map-fs-legend-item {
-  font-size: 11px;
-  gap: 5px;
+  font-size: 10px;
+  gap: 4px;
 }
 
 .map-fs-legend-dot {
-  width: 8px;
-  height: 8px;
+  width: 7px;
+  height: 7px;
 }
 
-.map-fs-water-val { font-size: 22px; }
+.map-fs-water-val { font-size: 20px; }
 .map-fs-station-name { font-size: 12px; }
 .map-fs-row { font-size: 10px; }
 .map-fs-row-val { font-size: 10px; }
+
+.map-fullscreen-inner .leaflet-popup-content-wrapper {
+  max-width: 160px !important;
+}
 }
 
 /* ================================
@@ -2734,7 +2729,7 @@ select.settings-input {
 }
 
 .map-fullscreen-inner .leaflet-popup-content-wrapper {
-  max-width: 200px !important;
+  max-width: 160px !important;
 }
 
 .leaflet-tile {
