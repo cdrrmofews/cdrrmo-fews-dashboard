@@ -3290,7 +3290,7 @@ const waterChartOptions = useMemo(() => ({
                   <MapContainer center={[13.7703472, 121.0525449]} zoom={15} style={{ height:"100%", width:"100%" }} scrollWheelZoom={true}>
                     <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                     <OpenPopup fews={allFews[0]} markerRefs={fsMarkerRefs} />
-                      {allFews.map(f => {
+                    {allFews.map(f => {
                       const cfg = STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"];
                       const isActuallyLive = f.isLive && isHardwareOnline;
                       const markerColor = isActuallyLive ? cfg.color : "#64748b";
@@ -3325,59 +3325,66 @@ const waterChartOptions = useMemo(() => ({
                     })}
                   </MapContainer>
 
-                {/* Station info — bottom left, only when a marker is selected */}
-                {fsSelectedFEWS && (() => {
-                  const f = allFews.find(x => x.id === fsSelectedFEWS);
-                  if (!f) return null;
-                  const cfg = STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"];
-                  const isActuallyLive = f.isLive && isHardwareOnline;
-                  return (
-                    <div className="map-fs-station">
-                      <div className="map-fs-station-header">
+                  {/* Station info panel — bottom left */}
+                  {fsSelectedFEWS && (() => {
+                    const f = allFews.find(x => x.id === fsSelectedFEWS);
+                    if (!f) return null;
+                    const cfg = STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"];
+                    const isActuallyLive = f.isLive && isHardwareOnline;
+                    return (
+                      <div className="map-fs-station">
                         <div className="map-fs-station-name">
                           <div style={{ width:9, height:9, borderRadius:"50%", background: isActuallyLive ? cfg.color : "#94a3b8", flexShrink:0 }} />
                           {f.name}
+                          <span className="map-fs-live" style={{ background: isActuallyLive ? `${cfg.color}22` : "rgba(0,0,0,0.06)", color: isActuallyLive ? cfg.color : "#94a3b8" }}>
+                            {isActuallyLive ? "● LIVE" : "◌ WAITING"}
+                          </span>
                         </div>
-                        <span className="map-fs-live" style={{ background: isActuallyLive ? `${cfg.color}22` : "rgba(0,0,0,0.06)", color: isActuallyLive ? cfg.color : "#94a3b8" }}>
-                          {isActuallyLive ? "● LIVE" : "◌ WAITING"}
+                        <div className="map-fs-water">
+                          <span className="map-fs-water-val" style={{ color: isActuallyLive ? cfg.color : "#94a3b8" }}>
+                            {isActuallyLive ? f.waterLevel : "—"}
+                          </span>
+                          {isActuallyLive && <span className="map-fs-water-unit">cm</span>}
+                        </div>
+                        <span className="map-fs-status" style={{ background: isActuallyLive ? `${cfg.color}18` : "rgba(0,0,0,0.06)", color: isActuallyLive ? cfg.color : "#94a3b8", border: `1px solid ${isActuallyLive ? cfg.color + "35" : "rgba(0,0,0,0.08)"}` }}>
+                          {isActuallyLive ? cfg.label : "OFFLINE"}
                         </span>
+                        <div className="map-fs-divider" />
+                        <div className="map-fs-row">
+                          <span className="map-fs-row-label">Last sync</span>
+                          <span className="map-fs-row-val">{lastUpdatedStr ?? "—"}</span>
+                        </div>
+                        <div className="map-fs-row">
+                          <span className="map-fs-row-label">Location</span>
+                          <span className="map-fs-row-val">Bolbok, Batangas</span>
+                        </div>
+                        <div className="map-fs-row">
+                          <span className="map-fs-row-label">Warning</span>
+                          <span className="map-fs-row-val" style={{ color: "#f59e0b" }}>{thresholds.warning} cm</span>
+                        </div>
+                        <div className="map-fs-row">
+                          <span className="map-fs-row-label">Danger</span>
+                          <span className="map-fs-row-val" style={{ color: "#ef4444" }}>{thresholds.danger} cm</span>
+                        </div>
                       </div>
-                      <div className="map-fs-water">
-                        <span className="map-fs-water-val" style={{ color: isActuallyLive ? cfg.color : "#94a3b8" }}>
-                          {isActuallyLive ? f.waterLevel : "—"}
-                        </span>
-                        {isActuallyLive && <span className="map-fs-water-unit">cm</span>}
-                      </div>
-                      <span className="map-fs-status" style={{ background: isActuallyLive ? `${cfg.color}20` : "rgba(0,0,0,0.06)", color: isActuallyLive ? cfg.color : "#94a3b8", alignSelf: "flex-start" }}>
-                        {isActuallyLive ? cfg.label : "OFFLINE"}
-                      </span>
-                      <div className="map-fs-divider" />
-                      <div className="map-fs-row">
-                        <span className="map-fs-row-label">Last sync</span>
-                        <span className="map-fs-row-val">{lastUpdatedStr ?? "—"}</span>
-                      </div>
-                      <div className="map-fs-row">
-                        <span className="map-fs-row-label">Location</span>
-                        <span className="map-fs-row-val">Bolbok, Batangas</span>
-                      </div>
-                    </div>
-                );
-              })()}
+                    );
+                  })()}
 
-                  {/* Legend ── center right */}
+                  {/* Legend — top center pill */}
                   <div className="map-fs-legend">
-                  {[
-                    { color: "#22c55e", label: "Safe"    },
-                    { color: "#f59e0b", label: "Warning" },
-                    { color: "#ef4444", label: "Critical"},
-                    { color: "#334155", label: "Offline" },
-                  ].map(({ color, label }) => (
-                    <div key={label} className="map-fs-legend-item">
-                      <div className="map-fs-legend-dot" style={{ background: color }} />
-                      {label}
-                    </div>
-                  ))}
-                </div>
+                    {[
+                      { color: "#22c55e", label: "Safe"    },
+                      { color: "#f59e0b", label: "Warning" },
+                      { color: "#ef4444", label: "Critical"},
+                      { color: "#64748b", label: "Offline" },
+                    ].map(({ color, label }) => (
+                      <div key={label} className="map-fs-legend-item">
+                        <div className="map-fs-legend-dot" style={{ background: color }} />
+                        {label}
+                      </div>
+                    ))}
+                  </div>
+
                 </div>
               </div>
             </div>
