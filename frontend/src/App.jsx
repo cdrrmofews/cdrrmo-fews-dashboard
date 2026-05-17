@@ -865,7 +865,13 @@ function FlyToStation({ fews }) {
 function OpenPopup({ fews, markerRefs }) {
   const fewsId = fews?.id ?? null;
   useEffect(() => {
-    if (!fewsId) return;
+    if (!fewsId) {
+      // Close all popups when deselected
+      Object.values(markerRefs.current).forEach(marker => {
+        if (marker) marker.closePopup();
+      });
+      return;
+    }
     const t = setTimeout(() => {
       const markerRef = markerRefs.current[fewsId];
       if (markerRef) markerRef.openPopup();
@@ -2133,8 +2139,25 @@ export default function App() {
         if (currentVersion === null) {
           currentVersion = data.deployed_at;
         } else if (data.deployed_at !== currentVersion) {
-          showToast("CDRRMO FEWS Dashboard has been updated. Please refresh to get the latest version.", true);
           currentVersion = data.deployed_at;
+
+          // Tell the waiting SW to take over, then reload once it does
+          if ('serviceWorker' in navigator) {
+            const reg = await navigator.serviceWorker.getRegistration();
+            if (reg?.waiting) {
+              // New SW is waiting — tell it to skip waiting
+              reg.waiting.postMessage('SKIP_WAITING');
+              // Once the new SW takes control, reload
+              navigator.serviceWorker.addEventListener('controllerchange', () => {
+                window.location.reload();
+              }, { once: true });
+              showToast("CDRRMO FEWS Dashboard has been updated. Please refresh to get the latest version.", true);
+              return;
+            }
+          }
+
+          // Fallback: no waiting SW found, just reload normally
+          showToast("CDRRMO FEWS Dashboard has been updated. Please refresh to get the latest version.", true);
         }
       } catch {
         // ignore

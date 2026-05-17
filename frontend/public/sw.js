@@ -110,7 +110,14 @@ self.addEventListener('fetch', (event) => {
   );
 });
 
-// ── Push Notifications ────────────────────────────────────────
+// ── Skip Waiting (triggered by app on new deploy detected) ──────────────────
+self.addEventListener('message', (event) => {
+  if (event.data === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
+// ── Push Notifications ──────────────────────────────────────────────────────
 self.addEventListener('push', (event) => {
   if (!event.data) return;
   const data = event.data.json();
