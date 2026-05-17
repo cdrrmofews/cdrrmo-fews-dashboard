@@ -862,22 +862,6 @@ function FlyToStation({ fews }) {
   return null;
 }
 
-function RecenterButton({ selectedFews, defaultCenter, defaultZoom }) {
-  const map = useMap();
-  const handleRecenter = () => {
-    if (selectedFews) {
-      map.setView([selectedFews.lat, selectedFews.lng], 16, { animate: true, duration: 0.6 });
-    } else {
-      map.setView(defaultCenter, defaultZoom, { animate: true, duration: 0.6 });
-    }
-  };
-  return (
-    <div className="map-fs-recenter" onClick={handleRecenter} title="Re-center map">
-      ⊕
-    </div>
-  );
-}
-
 function OpenPopup({ fews, markerRefs }) {
   const fewsId = fews?.id ?? null;
   useEffect(() => {
@@ -3339,11 +3323,6 @@ const waterChartOptions = useMemo(() => ({
                   <MapContainer center={[13.7703472, 121.0525449]} zoom={15} style={{ height:"100%", width:"100%" }} scrollWheelZoom={true}>
                     <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                     <OpenPopup fews={allFews[0]} markerRefs={fsMarkerRefs} />
-                    <RecenterButton
-                      selectedFews={fsSelectedFEWS ? allFews.find(f => f.id === fsSelectedFEWS) : null}
-                      defaultCenter={[13.7703472, 121.0525449]}
-                      defaultZoom={15}
-                    />
                     {allFews.map(f => {
                       const cfg = STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"];
                       const isActuallyLive = f.isLive && isHardwareOnline;

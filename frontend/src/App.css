@@ -653,31 +653,6 @@ body {
   color: #1e293b;
 }
 
-.map-fs-recenter {
-  position: absolute;
-  top: 80px;
-  left: 10px;
-  z-index: 1000;
-  width: 28px;
-  height: 28px;
-  border-radius: 4px;
-  background: rgba(255, 255, 255, 0.88);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.10);
-  color: #475569;
-  font-size: 14px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-}
-
-.map-fs-recenter:hover {
-  background: rgba(255, 255, 255, 1);
-  color: #1e293b;
-}
-
 /* Station info panel ── bottom left */
 .map-fs-station {
   position: absolute;
