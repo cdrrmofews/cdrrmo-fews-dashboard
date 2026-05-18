@@ -37,7 +37,6 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[
         "https://cdrrmo-fews.vercel.app",
-        "https://cdrrmo-fews.onrender.com",
     ],
     allow_credentials=True,
     allow_methods=["*"],
@@ -429,7 +428,46 @@ def cleanup_logs():
             print(f"[CLEANUP] Error: {e}")
             if conn:
                 release_db(conn)
+            time.sleep(300)  # retry in 5 minutes on failure
+            continue
         time.sleep(86400)  # 24 hours
+
+def _build_log_filters(
+    search:    str,
+    station:   str,
+    type:      str,
+    date_from: str,
+    date_to:   str,
+    user_role: str,
+):
+    filters = []
+    params  = []
+
+    if search:
+        filters.append("(message ILIKE %s OR station ILIKE %s)")
+        params.extend([f"%{search}%", f"%{search}%"])
+    if station:
+        filters.append("station = %s")
+        params.append(station)
+    allowed_log_types = LOG_TYPES_BY_ROLE.get(user_role, LOG_TYPES_BY_ROLE["Operator"])
+    if type and type in allowed_log_types:
+        filters.append("type = %s")
+        params.append(type)
+    elif type and type not in allowed_log_types:
+        filters.append("type = ANY(%s)")
+        params.append(allowed_log_types)
+    else:
+        filters.append("type = ANY(%s)")
+        params.append(allowed_log_types)
+    if date_from:
+        filters.append("(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date >= %s::date")
+        params.append(date_from)
+    if date_to:
+        filters.append("(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date <= %s::date")
+        params.append(date_to)
+
+    where = ("WHERE " + " AND ".join(filters)) if filters else ""
+    return filters, params, where
 
 @app.get("/logs")
 def get_logs(
@@ -445,33 +483,9 @@ def get_logs(
     conn = get_db()
     cur  = conn.cursor()
     try:
-        filters = []
-        params  = []
-
-        if search:
-            filters.append("(message ILIKE %s OR station ILIKE %s)")
-            params.extend([f"%{search}%", f"%{search}%"])
-        if station:
-            filters.append("station = %s")
-            params.append(station)
-        allowed_log_types = LOG_TYPES_BY_ROLE.get(user.get("role", "Operator"), LOG_TYPES_BY_ROLE["Operator"])
-        if type and type in allowed_log_types:
-            filters.append("type = %s")
-            params.append(type)
-        elif type and type not in allowed_log_types:
-            filters.append("type = ANY(%s)")
-            params.append(allowed_log_types)
-        else:
-            filters.append("type = ANY(%s)")
-            params.append(allowed_log_types)
-        if date_from:
-            filters.append("(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date >= %s::date")
-            params.append(date_from)
-        if date_to:
-            filters.append("(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date <= %s::date")
-            params.append(date_to)
-
-        where = ("WHERE " + " AND ".join(filters)) if filters else ""
+        filters, params, where = _build_log_filters(
+            search, station, type, date_from, date_to, user.get("role", "Operator")
+        )
 
         # Get counts per type + total
         cur.execute(f"""
@@ -518,33 +532,9 @@ def export_logs(
     conn = get_db()
     cur  = conn.cursor()
     try:
-        filters = []
-        params  = []
-
-        if search:
-            filters.append("(message ILIKE %s OR station ILIKE %s)")
-            params.extend([f"%{search}%", f"%{search}%"])
-        if station:
-            filters.append("station = %s")
-            params.append(station)
-        allowed_log_types = LOG_TYPES_BY_ROLE.get(user.get("role", "Operator"), LOG_TYPES_BY_ROLE["Operator"])
-        if type and type in allowed_log_types:
-            filters.append("type = %s")
-            params.append(type)
-        elif type and type not in allowed_log_types:
-            filters.append("type = ANY(%s)")
-            params.append(allowed_log_types)
-        else:
-            filters.append("type = ANY(%s)")
-            params.append(allowed_log_types)
-        if date_from:
-            filters.append("(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date >= %s::date")
-            params.append(date_from)
-        if date_to:
-            filters.append("(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date <= %s::date")
-            params.append(date_to)
-
-        where = ("WHERE " + " AND ".join(filters)) if filters else ""
+        filters, params, where = _build_log_filters(
+            search, station, type, date_from, date_to, user.get("role", "Operator")
+        )
 
         cur.execute(f"""
             SELECT id, station, type, message, user_name, timestamp
@@ -688,18 +678,17 @@ def update_unit(device_id: str, req: UpdateUnitRequest, user=Depends(get_current
             raise HTTPException(status_code=403, detail="Operators can only update alert thresholds.")
 
     # Server-side threshold validation
-    if req.threshold_warning is not None or req.threshold_danger is not None:
-        w = req.threshold_warning
-        d = req.threshold_danger
-        if w is not None:
-            if w < 100 or w % 100 != 0:
-                raise HTTPException(status_code=400, detail="Warning threshold must be a multiple of 100 and at least 100.")
-        if d is not None:
-            if d > 400 or d % 100 != 0:
-                raise HTTPException(status_code=400, detail="Danger threshold must be a multiple of 100 and at most 400.")
-        if w is not None and d is not None:
-            if d < w + 100:
-                raise HTTPException(status_code=400, detail="Danger threshold must be at least Warning + 100.")
+    w = req.threshold_warning
+    d = req.threshold_danger
+    if w is not None:
+        if w < 100 or w % 100 != 0:
+            raise HTTPException(status_code=400, detail="Warning threshold must be a multiple of 100 and at least 100.")
+    if d is not None:
+        if d > 400 or d % 100 != 0:
+            raise HTTPException(status_code=400, detail="Danger threshold must be a multiple of 100 and at most 400.")
+    if w is not None and d is not None:
+        if d < w + 100:
+            raise HTTPException(status_code=400, detail="Danger threshold must be at least Warning + 100.")
 
     conn = get_db()
     cur  = conn.cursor()
