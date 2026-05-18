@@ -59,7 +59,9 @@ class ErrorBoundary extends React.Component {
 // ─── STORAGE HELPERS ─────────────────────────────────────────────────────────
 function isTokenExpired(token) {
   try {
-    const payload = JSON.parse(atob(token.split('.')[1]));
+    const parts = token.split('.');
+    if (parts.length !== 3) return true;
+    const payload = JSON.parse(atob(parts[1]));
     return payload.exp * 1000 < Date.now();
   } catch { return true; }
 }
@@ -135,7 +137,7 @@ const FEWS1_BASE = {
   id: 1, name: "FEWS 1", location: "Bolbok",
   lat: 13.7703472, lng: 121.0525449,
   status: "safe", waterLevel: 0,
-  description: "Deployed along the upper tributary of Sta. Rita River. Monitors early upstream surge from heavy rainfall in the Mataas na Gulod watershed.",
+  description: "",
   installedDate: "—", technician: "Engr. Andrew Van Ryan",
   isLive: true,
 };
@@ -145,7 +147,6 @@ const STATUS_CONFIG = {
   warning:  { color: "#f59e0b", bg: "rgba(245,158,11,0.12)", label: "WARNING"  },
   danger:   { color: "#ef4444", bg: "rgba(239,68,68,0.12)",  label: "DANGER"   },
   NORMAL:   { color: "#22c55e", bg: "rgba(34,197,94,0.12)",  label: "NORMAL"   },
-  ADVISORY: { color: "#38bdf8", bg: "rgba(56,189,248,0.12)", label: "ADVISORY" },
   WARNING:  { color: "#f59e0b", bg: "rgba(245,158,11,0.12)", label: "WARNING"  },
   CRITICAL: { color: "#ef4444", bg: "rgba(239,68,68,0.12)",  label: "CRITICAL" },
 };
@@ -154,7 +155,6 @@ function backendStatusToKey(status) {
   if (!status) return "safe";
   switch (status.toUpperCase()) {
     case "NORMAL":   return "safe";
-    case "ADVISORY": return "safe";
     case "WARNING":  return "warning";
     case "CRITICAL": return "danger";
     default:         return "safe";
@@ -637,7 +637,6 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
       };
     };
     sealImg.onerror = () => {
-      // Continue without any seal
       doc.setFontSize(16);
       doc.setTextColor(226, 232, 240);
       doc.setFont("helvetica", "bold");
@@ -2109,10 +2108,13 @@ export default function App() {
 
   useEffect(() => {
     return () => {
-      if (copiedTimerRef.current) clearTimeout(copiedTimerRef.current);
+      if (copiedTimerRef.current) {
+        clearTimeout(copiedTimerRef.current);
+        copiedTimerRef.current = null;
+      }
     };
   }, []);
-
+  
   const [fews1Live, setFews1Live]                 = useState(null);
   const [fews1Connected, setFews1Connected]       = useState(false);
   const [fews1StatusOnline, setFews1StatusOnline] = useState(false);
@@ -2241,6 +2243,9 @@ export default function App() {
     return () => clearInterval(id);
   }, []);
 
+  const userNameRef = useRef(user.name);
+  useEffect(() => { userNameRef.current = user.name; }, [user.name]);
+
   const addLog = useCallback(async ({ station, type, message }) => {
     const tok = sessionStorage.getItem("token") || token;
     if (!tok) return;
@@ -2248,12 +2253,12 @@ export default function App() {
       await fetch(`${API_BASE}/logs`, {
         method:  "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${tok}` },
-        body: JSON.stringify({ station, type, message, user_name: user.name }),
+        body: JSON.stringify({ station, type, message, user_name: userNameRef.current }),
       });
     } catch {
       // Silently ignore
     }
-  }, [token, user.name]);
+  }, [token]);
 
   const handleLogin = (role) => {
     try {
@@ -2789,7 +2794,7 @@ const waterChartOptions = useMemo(() => ({
         },
       },
     },
-  }), [chartWinStart, chartWinEnd, historyData, thresholds]);
+  }), [chartWinStart, chartWinEnd, historyData.exactLabels, thresholds]);
 
   const alertCount = (isHardwareOnline && fews1DataRecent)
     ? allFews.filter(f => f.status === "danger").length
@@ -2928,7 +2933,7 @@ const waterChartOptions = useMemo(() => ({
               {isHardwareOnline ? "System Online" : "Waiting for Data"}
             </div>
             <div className="profile-wrap">
-              <div className="profile-avatar-btn" ref={avatarBtnRef} onClick={() => setShowProfileDropdown(v => !v)}>
+              <div className="profile-avatar-btn" ref={avatarBtnRef} onMouseDown={e => e.stopPropagation()} onClick={() => setShowProfileDropdown(v => !v)}>
                 {user.photo ? <img src={user.photo} alt="avatar" style={{ width:"100%", height:"100%", borderRadius:"50%", objectFit:"cover" }} /> : user.initials}
               </div>
               {showProfileDropdown && (() => {
