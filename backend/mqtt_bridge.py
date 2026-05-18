@@ -2,15 +2,14 @@ import json
 import uuid
 import threading
 import time
+import traceback
+import os
 import paho.mqtt.client as mqtt
 import paho.mqtt.publish as mqtt_publish
 from database import get_db, release_db
 
-def send_sms_to_all():
-    pass
-
-MQTT_BROKER             = "broker.emqx.io"
-MQTT_PORT               = 1883
+MQTT_BROKER             = os.environ.get("MQTT_BROKER", "broker.emqx.io")
+MQTT_PORT               = int(os.environ.get("MQTT_PORT", "1883"))
 MQTT_TOPIC              = "cdrrmo/fews1/data"
 MQTT_STATUS_TOPIC       = "cdrrmo/fews1/status"
 MQTT_SIREN_STATUS_TOPIC = "cdrrmo/fews1/siren_status"
@@ -20,6 +19,8 @@ OFFLINE_TIMEOUT         = 150  # 2.5 minutes in seconds
 # In-memory last online timestamp per station
 _last_online: dict = {}
 _offline_logged: dict = {}
+_threshold_cache: dict = {}
+STATION_NAMES: dict = {"fews_1": "FEWS 1"}
 
 def mark_station_online(station_id: str):
     _last_online[station_id] = time.time()
@@ -39,7 +40,7 @@ def start_offline_watcher():
                 already_logged = _offline_logged.get(station_id, False)
                 if age >= OFFLINE_TIMEOUT and not already_logged:
                     _offline_logged[station_id] = True
-                    station_name = "FEWS 1" if station_id == "fews_1" else station_id
+                    station_name = STATION_NAMES.get(station_id, station_id)
                     try:
                         conn = get_db()
                         cur  = conn.cursor()
@@ -69,6 +70,8 @@ def start_offline_watcher():
     print("[WATCHER] Offline watcher thread started (2.5 min timeout)")
 
 def get_thresholds(device_id="fews_1"):
+    if device_id in _threshold_cache:
+        return _threshold_cache[device_id]
     try:
         conn = get_db()
         cur  = conn.cursor()
@@ -79,13 +82,18 @@ def get_thresholds(device_id="fews_1"):
             )
             row = cur.fetchone()
             if row:
-                return row["threshold_warning"], row["threshold_danger"]
+                _threshold_cache[device_id] = (row["threshold_warning"], row["threshold_danger"])
+                return _threshold_cache[device_id]
         finally:
             cur.close()
             release_db(conn)
     except Exception as e:
         print(f"[THRESHOLDS] Failed to fetch: {e}")
     return 200, 300  # fallback defaults
+
+def invalidate_threshold_cache(device_id="fews_1"):
+    if device_id in _threshold_cache:
+        del _threshold_cache[device_id]
 
 def water_level_to_type(water_level_cm, threshold_warning=200, threshold_danger=300):
     if water_level_cm is None:
@@ -133,7 +141,7 @@ def on_message(client, userdata, msg):
                 was_offline = _offline_logged.get(station_id, False)
                 mark_station_online(station_id)
                 if was_offline:
-                    station_name = "FEWS 1" if station_id == "fews_1" else station_id
+                    station_name = STATION_NAMES.get(station_id, station_id)
                     try:
                         conn = get_db()
                         cur  = conn.cursor()
@@ -161,7 +169,7 @@ def on_message(client, userdata, msg):
         if msg.topic == MQTT_SIREN_STATUS_TOPIC:
                 if data.get("siren_auto_off") and data.get("station_id"):
                     sid = data.get("station_id")
-                    station_name = "FEWS 1"
+                    station_name = STATION_NAMES.get(sid, sid)
                     try:
                         conn = get_db()
                         cur  = conn.cursor()
@@ -197,7 +205,7 @@ def on_message(client, userdata, msg):
         if msg.topic == MQTT_STATUS_TOPIC:
             if data.get("online") and data.get("station_id"):
                 station_id   = data.get("station_id")
-                station_name = "FEWS 1"
+                station_name = STATION_NAMES.get(station_id, station_id)
                 was_online   = get_last_online(station_id)
                 mark_station_online(station_id)
 
@@ -251,7 +259,7 @@ def on_message(client, userdata, msg):
             threshold_warning, threshold_danger = get_thresholds(station_id)
             log_type     = water_level_to_type(water_level_cm, threshold_warning, threshold_danger)
             status_label = water_level_to_status_label(water_level_cm, threshold_warning, threshold_danger)
-            station_name = "FEWS 1"
+            station_name = STATION_NAMES.get(station_id, station_id)
             water_str    = f"{water_level_cm} cm" if water_level_cm is not None else "N/A"
 
             log_message = (
@@ -352,6 +360,7 @@ def on_message(client, userdata, msg):
 
     except Exception as e:
         print(f"[BRIDGE] Error: {e}")
+        traceback.print_exc()
 
 def on_disconnect(client, userdata, rc):
     if rc != 0:
@@ -371,6 +380,11 @@ def start_bridge():
             client.loop_forever()
         except Exception as e:
             print(f"[BRIDGE] Crashed: {e} — restarting in 5s")
+            try:
+                client.loop_stop()
+                client.disconnect()
+            except Exception:
+                pass
             time.sleep(5)
 
 def start_bridge_thread():
@@ -406,6 +420,7 @@ def publish_config(device_id: str, threshold_warning: int, threshold_danger: int
             port=MQTT_PORT,
             protocol=mqtt.MQTTv311,
         )
+        invalidate_threshold_cache(device_id)
         print(f"[CONFIG] Published thresholds warning={threshold_warning} danger={threshold_danger} to {topic}")
     except Exception as e:
         print(f"[CONFIG] Failed to publish: {e}")
