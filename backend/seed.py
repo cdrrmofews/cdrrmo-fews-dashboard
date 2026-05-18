@@ -3,8 +3,8 @@ import sys
 from database import get_db, release_db, init_db
 from auth import hash_password
 
-ADMIN_NAME       = "John Doe"
-ADMIN_EMAIL      = "johndoe@cdrrmo.gov.ph"
+ADMIN_NAME       = os.environ.get("ADMIN_NAME", "John Doe")
+ADMIN_EMAIL      = os.environ.get("ADMIN_EMAIL", "johndoe@cdrrmo.gov.ph")
 ADMIN_ROLE       = "Admin"
 ADMIN_DEPARTMENT = "Operations"
 

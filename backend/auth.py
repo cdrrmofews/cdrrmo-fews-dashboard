@@ -1,7 +1,7 @@
 import bcrypt
 import jwt
 import os
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 
 SECRET_KEY = os.environ.get("SECRET_KEY")
 if not SECRET_KEY:
@@ -19,7 +19,7 @@ def create_token(user_id: int, role: str, token_version: int = 0) -> str:
         "sub":           str(user_id),
         "role":          role,
         "token_version": token_version,
-        "exp":           datetime.utcnow() + timedelta(hours=12),
+        "exp":           datetime.now(timezone.utc) + timedelta(hours=12),
     }
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 

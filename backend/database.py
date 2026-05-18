@@ -149,6 +149,6 @@ def init_db():
         return
 
     try:
-        print("[DB] Tables initialized successfully")
+        print("[DB] Database connection verified successfully")
     finally:
         release_db(conn)

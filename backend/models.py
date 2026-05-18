@@ -1,5 +1,6 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Literal
+
 
 class LoginRequest(BaseModel):
     username: str
@@ -41,7 +42,7 @@ class CreateLogRequest(BaseModel):
     user_name: Optional[str] = None
 
 class SirenRequest(BaseModel):
-    state: str
+    state: Literal["on", "off"]
 
 class UpdateUnitRequest(BaseModel):
     installed_date:    Optional[str] = None
