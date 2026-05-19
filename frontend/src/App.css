@@ -71,11 +71,11 @@ body {
 }
 
 .critical-banner.active {
-  max-height: 38px;
+  max-height: calc(38px + env(safe-area-inset-top));
 }
 
 .critical-banner-inner {
-  height: 38px;
+  height: calc(38px + env(safe-area-inset-top));
   display: flex;
   align-items: center;
   overflow: hidden;
