@@ -1571,7 +1571,7 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, 
                     </div>
                     <div className="uc-thr-field">
                       <label className="uc-thr-field-label">🔴 Danger (cm)</label>
-                      <input className="settings-input" type="number" step="100" min="200" max="400"
+                      <input className="settings-input" type="number" step="100" min="200" max="600"
                         value={thr.danger}
                         disabled={!isActuallyLive}
                         onChange={e => setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], danger: parseInt(e.target.value) } }))} />
@@ -1582,8 +1582,8 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, 
                       if (!thr.warning || thr.warning < 100 || thr.warning % 100 !== 0) {
                         setThrError(p => ({ ...p, [f.id]: "Warning must be a multiple of 100 and at least 100cm." })); return;
                       }
-                      if (!thr.danger || thr.danger > 400 || thr.danger % 100 !== 0) {
-                        setThrError(p => ({ ...p, [f.id]: "Danger must be a multiple of 100 and at most 400cm." })); return;
+                      if (!thr.danger || thr.danger > 600 || thr.danger % 100 !== 0) {
+                        setThrError(p => ({ ...p, [id]: "Danger must be a multiple of 100 and at most 600cm." })); return;
                       }
                       if (thr.danger < thr.warning + 100) {
                         setThrError(p => ({ ...p, [f.id]: "Danger must be at least Warning + 100cm." })); return;
@@ -2744,7 +2744,7 @@ const waterChartOptions = useMemo(() => ({
         annotations: {
           zoneSafe:    { type: "box", yMin: 0,                    yMax: thresholds.warning, backgroundColor: "rgba(34,197,94,0.60)",  borderWidth: 0 },
           zoneWarning: { type: "box", yMin: thresholds.warning,   yMax: thresholds.danger,  backgroundColor: "rgba(245,158,11,0.60)", borderWidth: 0 },
-          zoneCritical:{ type: "box", yMin: thresholds.danger,    yMax: 500,                backgroundColor: "rgba(239,68,68,0.60)",  borderWidth: 0 },
+          zoneCritical:{ type: "box", yMin: thresholds.danger,    yMax: 700,                backgroundColor: "rgba(239,68,68,0.60)",  borderWidth: 0 },
           lineWarning: { type: "line", yMin: thresholds.warning, yMax: thresholds.warning, borderColor: "rgba(245,158,11,0.80)", borderWidth: 2, borderDash: [4, 4], label: { display: false } },
           lineCritical:{ type: "line", yMin: thresholds.danger,  yMax: thresholds.danger,  borderColor: "rgba(239,68,68,0.80)",  borderWidth: 2, borderDash: [4, 4], label: { display: false } },
         },
@@ -2752,7 +2752,7 @@ const waterChartOptions = useMemo(() => ({
     },
     scales: {
       y: {
-        min: 0, max: 500,
+        min: 0, max: 700,
         grid: { color: "rgba(255,255,255,0.05)" },
         ticks: {
           color: (ctx) => {

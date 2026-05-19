@@ -684,8 +684,8 @@ def update_unit(device_id: str, req: UpdateUnitRequest, user=Depends(get_current
         if w < 100 or w % 100 != 0:
             raise HTTPException(status_code=400, detail="Warning threshold must be a multiple of 100 and at least 100.")
     if d is not None:
-        if d > 400 or d % 100 != 0:
-            raise HTTPException(status_code=400, detail="Danger threshold must be a multiple of 100 and at most 400.")
+        if d > 600 or d % 100 != 0:
+            raise HTTPException(status_code=400, detail="Danger threshold must be a multiple of 100 and at most 600.")
     if w is not None and d is not None:
         if d < w + 100:
             raise HTTPException(status_code=400, detail="Danger threshold must be at least Warning + 100.")
