@@ -3039,9 +3039,13 @@ select.settings-input {
   }
 
   /* Critical banner: clear the status bar */
+  .critical-banner-inner {
+    padding-top: env(safe-area-inset-top);
+    height: calc(38px + env(safe-area-inset-top));
+  }
+
   .critical-banner.active {
-    max-height: 38px;
-    padding-top: 0;
+    max-height: calc(38px + env(safe-area-inset-top));
   }
 
   /* Toast: sits below the topbar */
