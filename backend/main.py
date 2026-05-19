@@ -77,8 +77,8 @@ def startup():
                     INSERT INTO fews_units (device_id, name, location, installed_date, technician, description, threshold_warning, threshold_danger)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
-                    "fews_1", "FEWS 1", "Calumpang Bridge", "-", "Engr. Andrew Van Ryan",
-                    "Deployed along the upper tributary of Sta. Rita River. Monitors early upstream surge from heavy rainfall in the Mataas na Gulod watershed.",
+                    "fews_1", "FEWS 1", "Pallocan Kanluran", "-", "Engr. Andrew Van Ryan",
+                    "Deployed in Pallocan Kanluran, Batangas City. Monitors water level conditions in the area.",
                     200, 300
                 ))
             conn.commit()
