@@ -1583,7 +1583,7 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, 
                         setThrError(p => ({ ...p, [f.id]: "Warning must be a multiple of 100 and at least 100cm." })); return;
                       }
                       if (!thr.danger || thr.danger > 600 || thr.danger % 100 !== 0) {
-                        setThrError(p => ({ ...p, [id]: "Danger must be a multiple of 100 and at most 600cm." })); return;
+                        setThrError(p => ({ ...p, [f.id]: "Danger must be a multiple of 100 and at most 600cm." })); return;
                       }
                       if (thr.danger < thr.warning + 100) {
                         setThrError(p => ({ ...p, [f.id]: "Danger must be at least Warning + 100cm." })); return;
