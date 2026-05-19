@@ -56,7 +56,79 @@ class ErrorBoundary extends React.Component {
   }
 }
 
-// ─── STORAGE HELPERS ─────────────────────────────────────────────────────────
+// --- PULL TO REFRESH ---
+function usePullToRefresh(onRefresh) {
+  const indicatorRef = useRef(null);
+  const startYRef    = useRef(0);
+  const pullingRef   = useRef(false);
+
+  useEffect(() => {
+    const indicator = indicatorRef.current;
+    if (!indicator) return;
+
+    const onTouchStart = (e) => {
+      if (window.scrollY === 0 || document.documentElement.scrollTop === 0) {
+        startYRef.current = e.touches[0].clientY;
+        pullingRef.current = true;
+      }
+    };
+
+    const onTouchMove = (e) => {
+      if (!pullingRef.current) return;
+      const dy = e.touches[0].clientY - startYRef.current;
+      if (dy > 10) {
+        indicator.classList.add("ptr-visible");
+        const deg = Math.min(dy * 2, 360);
+        indicator.querySelector("svg").style.transform = `rotate(${deg}deg)`;
+      } else {
+        indicator.classList.remove("ptr-visible");
+      }
+    };
+
+    const onTouchEnd = (e) => {
+      if (!pullingRef.current) return;
+      const dy = e.changedTouches[0].clientY - startYRef.current;
+      pullingRef.current = false;
+
+      if (dy > 60) {
+        indicator.classList.add("ptr-spinning");
+        setTimeout(() => {
+          indicator.classList.remove("ptr-visible");
+          indicator.classList.remove("ptr-spinning");
+          indicator.querySelector("svg").style.transform = "";
+          onRefresh();
+        }, 400);
+      } else {
+        indicator.classList.remove("ptr-visible");
+        indicator.querySelector("svg").style.transform = "";
+      }
+    };
+
+    document.addEventListener("touchstart", onTouchStart, { passive: true });
+    document.addEventListener("touchmove",  onTouchMove,  { passive: true });
+    document.addEventListener("touchend",   onTouchEnd,   { passive: true });
+
+    return () => {
+      document.removeEventListener("touchstart", onTouchStart);
+      document.removeEventListener("touchmove",  onTouchMove);
+      document.removeEventListener("touchend",   onTouchEnd);
+    };
+  }, [onRefresh]);
+
+  const PullIndicator = () => (
+    <div className="ptr-indicator" ref={indicatorRef}>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="23 4 23 10 17 10"/>
+        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+      </svg>
+    </div>
+  );
+
+  return { PullIndicator };
+}
+
+// --- STORAGE HELPERS ---
 function isTokenExpired(token) {
   try {
     const parts = token.split('.');
@@ -2140,6 +2212,38 @@ export default function App() {
   const [thresholds, setThresholds] = useState({ warning: 200, danger: 300 });
   const { showToast, ToastContainer: AppToastContainer } = useToast();
 
+  const handlePullRefresh = useCallback(() => {
+    fetch(`${API_BASE}/data/latest`)
+      .then(r => r.json())
+      .then(data => { if (data.fews_1) setFews1Live(data.fews_1); })
+      .catch(() => {});
+    fetch(`${API_BASE}/data/history`)
+      .then(r => r.json())
+      .then(rows => {
+        if (!Array.isArray(rows)) return;
+        const GAP_THRESHOLD = 45 * 60 * 1000;
+        const rawTimestamps = rows.map(r => new Date(r.timestamp.replace(" ","T").replace(/Z?$/,"Z")).getTime());
+        const rawValues     = rows.map(r => r.water_level_cm);
+        const rawLabels     = rows.map(r =>
+          new Intl.DateTimeFormat("en-PH", {
+            timeZone:"Asia/Manila", hour:"2-digit", minute:"2-digit", second:"2-digit", hour12:false,
+          }).format(new Date(r.timestamp.replace(" ","T").replace(/Z?$/,"Z")))
+        );
+        const positions = [], values = [], exactLabels = [];
+        for (let i = 0; i < rawTimestamps.length; i++) {
+          if (i > 0 && rawTimestamps[i] - rawTimestamps[i-1] > GAP_THRESHOLD) {
+            positions.push(rawTimestamps[i-1]+1000); values.push(null); exactLabels.push("");
+          }
+          positions.push(rawTimestamps[i]); values.push(rawValues[i]); exactLabels.push(rawLabels[i]);
+        }
+        setHistoryData({ positions, values, exactLabels });
+      })
+      .catch(() => {});
+    if (pollUnitsNowRef.current) pollUnitsNowRef.current();
+  }, []);
+
+  const { PullIndicator } = usePullToRefresh(handlePullRefresh);
+
   useEffect(() => {
     if (!isLoggedIn) return;
     let currentVersion = null;
@@ -2812,6 +2916,7 @@ const waterChartOptions = useMemo(() => ({
   return (
       <ErrorBoundary>
       <AppToastContainer />
+      <PullIndicator />
       <div className="app-shell" style={{ flexDirection: "column" }}>
         {sirenConfirm !== null && (() => {
         const f = allFews.find(x => x.id === sirenConfirm);

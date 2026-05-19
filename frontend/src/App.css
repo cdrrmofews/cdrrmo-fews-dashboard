@@ -2968,6 +2968,48 @@ select.settings-input {
 }
 
 /* ================================
+   PULL TO REFRESH
+================================ */
+.ptr-indicator {
+  position: fixed;
+  top: 0;
+  left: 50%;
+  transform: translateX(-50%) translateY(-60px);
+  z-index: 9998;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+  transition: transform 0.15s ease;
+  pointer-events: none;
+}
+
+.ptr-indicator.ptr-visible {
+  transform: translateX(-50%) translateY(calc(env(safe-area-inset-top) + 70px));
+}
+
+.ptr-indicator svg {
+  color: var(--blue);
+  width: 18px;
+  height: 18px;
+  transition: transform 0.1s ease;
+}
+
+.ptr-indicator.ptr-spinning svg {
+  animation: ptr-spin 0.4s linear 1;
+}
+
+@keyframes ptr-spin {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(360deg); }
+}
+
+/* ================================
    SAFE AREA INSETS (iPhone PWA fix)
    Paste at the very bottom of App.css
 ================================ */
@@ -2998,8 +3040,8 @@ select.settings-input {
 
   /* Critical banner: clear the status bar */
   .critical-banner.active {
-    max-height: calc(38px + env(safe-area-inset-top));
-    padding-top: env(safe-area-inset-top);
+    max-height: 38px;
+    padding-top: 0;
   }
 
   /* Toast: sits below the topbar */
