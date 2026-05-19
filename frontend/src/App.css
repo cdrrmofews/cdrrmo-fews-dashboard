@@ -71,11 +71,11 @@ body {
 }
 
 .critical-banner.active {
-  max-height: calc(38px + env(safe-area-inset-top));
+  max-height: 38px;
 }
 
 .critical-banner-inner {
-  height: calc(38px + env(safe-area-inset-top));
+  height: 38px;
   display: flex;
   align-items: center;
   overflow: hidden;
@@ -3039,13 +3039,9 @@ select.settings-input {
   }
 
   /* Critical banner: clear the status bar */
-  .critical-banner-inner {
-    padding-top: env(safe-area-inset-top);
-    height: calc(38px + env(safe-area-inset-top));
-  }
-
   .critical-banner.active {
-    max-height: calc(38px + env(safe-area-inset-top));
+    max-height: 38px;
+    padding-top: 0;
   }
 
   /* Toast: sits below the topbar */
