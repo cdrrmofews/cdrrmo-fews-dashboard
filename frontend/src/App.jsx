@@ -206,7 +206,7 @@ function normalizeUser(parsed) {
 
 // ─── FEWS BASE DATA ───────────────────────────────────────────────────────────
 const FEWS1_BASE = {
-  id: 1, name: "FEWS 1", location: "Pallocan Kanluran",
+  id: 1, name: "FEWS 1", location: "Pallocan",
   lat: 13.7541629, lng: 121.066474,
   status: "safe", waterLevel: 0,
   description: "",
@@ -3499,7 +3499,7 @@ const waterChartOptions = useMemo(() => ({
                         </div>
                         <div className="map-fs-row">
                           <span className="map-fs-row-label">Location</span>
-                          <span className="map-fs-row-val">Pallocan Kanluran, Batangas</span>
+                          <span className="map-fs-row-val">Pallocan, Batangas</span>
                         </div>
                         <div className="map-fs-row">
                           <span className="map-fs-row-label">Warning</span>
