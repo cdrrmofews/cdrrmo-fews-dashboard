@@ -78,7 +78,7 @@ def startup():
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
                     "fews_1", "FEWS 1", "Pallocan Kanluran", "-", "Engr. Andrew Van Ryan",
-                    "Deployed in Pallocan Kanluran, Batangas City. Monitors water level conditions in the area.",
+                    "Deployed under the Ternate Street bridge in Pallocan Kanluran, Batangas City. Monitors the water level of the creek passing beneath the bridge to provide early flood warnings for the surrounding community.",
                     200, 300
                 ))
             conn.commit()
