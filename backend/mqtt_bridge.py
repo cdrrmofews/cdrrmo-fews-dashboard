@@ -401,7 +401,7 @@ def on_message(client, userdata, msg):
                         """, (
                             station_name,
                             "warning",
-                            f"{station_name} siren has been automatically activated due to sustained CRITICAL water level",
+                            f"{station_name} siren has been automatically activated due to sustained {status.upper()} water level",
                             "System",
                         ))
                         conn.commit()
@@ -423,7 +423,7 @@ def on_message(client, userdata, msg):
                     )
                     conn.commit()
 
-                    was_siren_on = prev and prev["siren_state"]   # covers BOTH manual and auto
+                    was_siren_on = prev and prev["siren_state"]
 
                     if was_siren_on:
                         cur.execute("""
@@ -432,6 +432,16 @@ def on_message(client, userdata, msg):
                         """, (
                             station_name, "system",
                             f"{station_name} siren has been automatically silenced — water level returned to {status_label}",
+                            "System",
+                        ))
+                        conn.commit()
+                    else:
+                        cur.execute("""
+                            INSERT INTO system_logs (station, type, message, user_name)
+                            VALUES (%s, %s, %s, %s)
+                        """, (
+                            station_name, "system",
+                            f"{station_name} water level returned to {status_label} after critical event",
                             "System",
                         ))
                         conn.commit()
