@@ -369,7 +369,7 @@ def on_message(client, userdata, msg):
                 print("[SMS] CRITICAL detected — SMS handled by Arduino directly")
 
             # Auto-siren ON: after 2min CRITICAL — skip if manually silenced or already active
-            if is_immediate and status == "CRITICAL":
+            if is_immediate and status in ("CRITICAL", "WARNING"):
                 try:
                     cur.execute(
                         "SELECT siren_manual_off, siren_state, siren_auto_triggered FROM fews_units WHERE device_id = %s",
