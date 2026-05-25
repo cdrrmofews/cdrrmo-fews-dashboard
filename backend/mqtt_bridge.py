@@ -167,11 +167,9 @@ def on_message(client, userdata, msg):
 
         # ── Handle siren auto-off from Arduino ────────────────────────────────────
         if msg.topic == MQTT_SIREN_STATUS_TOPIC:
-                sid          = data.get("station_id")
-                station_name = STATION_NAMES.get(sid, sid) if sid else None
-
-                # Critical siren auto-off (existing behavior kept)
-                if data.get("siren_auto_off") and sid:
+                if data.get("siren_auto_off") and data.get("station_id"):
+                    sid = data.get("station_id")
+                    station_name = STATION_NAMES.get(sid, sid)
                     try:
                         conn = get_db()
                         cur  = conn.cursor()
@@ -201,88 +199,6 @@ def on_message(client, userdata, msg):
                             release_db(conn)
                     except Exception as e:
                         print(f"[BRIDGE] Siren auto-off DB error: {e}")
-
-                # Warning siren ON
-                elif data.get("warning_siren_on") and sid:
-                    try:
-                        conn = get_db()
-                        cur  = conn.cursor()
-                        try:
-                            cur.execute(
-                                "UPDATE fews_units SET siren_state = TRUE, siren_auto_triggered = TRUE WHERE device_id = %s",
-                                (sid,)
-                            )
-                            cur.execute("""
-                                INSERT INTO system_logs (station, type, message, user_name)
-                                VALUES (%s, %s, %s, %s)
-                            """, (
-                                station_name,
-                                "warning",
-                                f"{station_name} siren has been automatically activated due to sustained WARNING water level",
-                                "System",
-                            ))
-                            conn.commit()
-                            print(f"[BRIDGE] Warning siren ON logged for {sid}")
-                        finally:
-                            cur.close()
-                            release_db(conn)
-                    except Exception as e:
-                        print(f"[BRIDGE] Warning siren ON DB error: {e}")
-
-                # Warning siren auto-off after 5 minutes
-                elif data.get("warning_siren_off") and sid:
-                    try:
-                        conn = get_db()
-                        cur  = conn.cursor()
-                        try:
-                            cur.execute(
-                                "UPDATE fews_units SET siren_state = FALSE, siren_auto_triggered = FALSE WHERE device_id = %s",
-                                (sid,)
-                            )
-                            cur.execute("""
-                                INSERT INTO system_logs (station, type, message, user_name)
-                                VALUES (%s, %s, %s, %s)
-                            """, (
-                                station_name,
-                                "system",
-                                f"{station_name} warning siren has been automatically silenced after 5 minutes",
-                                "System",
-                            ))
-                            conn.commit()
-                            print(f"[BRIDGE] Warning siren OFF logged for {sid}")
-                        finally:
-                            cur.close()
-                            release_db(conn)
-                    except Exception as e:
-                        print(f"[BRIDGE] Warning siren OFF DB error: {e}")
-
-                # Warning siren 15-minute repeat
-                elif data.get("warning_siren_repeat") and sid:
-                    try:
-                        conn = get_db()
-                        cur  = conn.cursor()
-                        try:
-                            cur.execute(
-                                "UPDATE fews_units SET siren_state = TRUE, siren_auto_triggered = TRUE WHERE device_id = %s",
-                                (sid,)
-                            )
-                            cur.execute("""
-                                INSERT INTO system_logs (station, type, message, user_name)
-                                VALUES (%s, %s, %s, %s)
-                            """, (
-                                station_name,
-                                "warning",
-                                f"{station_name} warning siren reactivated after 15 minute interval",
-                                "System",
-                            ))
-                            conn.commit()
-                            print(f"[BRIDGE] Warning siren repeat logged for {sid}")
-                        finally:
-                            cur.close()
-                            release_db(conn)
-                    except Exception as e:
-                        print(f"[BRIDGE] Warning siren repeat DB error: {e}")
-
                 return
 
         # ── Handle startup status message ─────────────────────────────────
@@ -369,7 +285,7 @@ def on_message(client, userdata, msg):
                 print("[SMS] CRITICAL detected — SMS handled by Arduino directly")
 
             # Auto-siren ON: after 2min CRITICAL — skip if manually silenced or already active
-            if is_immediate and status in ("CRITICAL", "WARNING") and not safe_after_critical:
+            if is_immediate and status == "CRITICAL":
                 try:
                     cur.execute(
                         "SELECT siren_manual_off, siren_state, siren_auto_triggered FROM fews_units WHERE device_id = %s",
@@ -401,7 +317,7 @@ def on_message(client, userdata, msg):
                         """, (
                             station_name,
                             "warning",
-                            f"{station_name} siren has been automatically activated due to sustained {status.upper()} water level",
+                            f"{station_name} siren has been automatically activated due to sustained CRITICAL water level",
                             "System",
                         ))
                         conn.commit()
@@ -423,7 +339,7 @@ def on_message(client, userdata, msg):
                     )
                     conn.commit()
 
-                    was_siren_on = prev and prev["siren_state"]
+                    was_siren_on = prev and prev["siren_state"]   # covers BOTH manual and auto
 
                     if was_siren_on:
                         cur.execute("""
@@ -432,16 +348,6 @@ def on_message(client, userdata, msg):
                         """, (
                             station_name, "system",
                             f"{station_name} siren has been automatically silenced — water level returned to {status_label}",
-                            "System",
-                        ))
-                        conn.commit()
-                    else:
-                        cur.execute("""
-                            INSERT INTO system_logs (station, type, message, user_name)
-                            VALUES (%s, %s, %s, %s)
-                        """, (
-                            station_name, "system",
-                            f"{station_name} water level returned to {status_label} after critical event",
                             "System",
                         ))
                         conn.commit()
