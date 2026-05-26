@@ -130,6 +130,8 @@ def on_connect(client, userdata, flags, rc):
         print(f"[BRIDGE] Connection failed rc={rc}")
 
 def on_message(client, userdata, msg):
+    global _last_message_time
+    _last_message_time = time.time()
     try:
         data = json.loads(msg.payload.decode())
         print(f"[BRIDGE] Received on {msg.topic}: {data}")
@@ -366,7 +368,11 @@ def on_disconnect(client, userdata, rc):
     if rc != 0:
         print(f"[BRIDGE] Unexpected disconnect rc={rc}, will auto-reconnect")
 
+_last_message_time = time.time()
+BRIDGE_WATCHDOG_TIMEOUT = 180  # 3 minutes — if no message received, force reconnect
+
 def start_bridge():
+    global _last_message_time
     while True:
         try:
             unique_id = f"cdrrmo_bridge_{uuid.uuid4().hex[:8]}"
@@ -377,7 +383,21 @@ def start_bridge():
             client.on_disconnect = on_disconnect
             client.reconnect_delay_set(min_delay=1, max_delay=30)
             client.connect(MQTT_BROKER, MQTT_PORT, keepalive=60)
-            client.loop_forever()
+            _last_message_time = time.time()
+
+            # Use loop_start instead of loop_forever so we can run the watchdog
+            client.loop_start()
+            while True:
+                time.sleep(30)  # check every 30 seconds
+                age = time.time() - _last_message_time
+                if age > BRIDGE_WATCHDOG_TIMEOUT:
+                    print(f"[BRIDGE] Watchdog — no message for {int(age)}s, forcing reconnect")
+                    client.loop_stop()
+                    try:
+                        client.disconnect()
+                    except Exception:
+                        pass
+                    break  # exit inner loop → outer loop reconnects
         except Exception as e:
             print(f"[BRIDGE] Crashed: {e} — restarting in 5s")
             try:
