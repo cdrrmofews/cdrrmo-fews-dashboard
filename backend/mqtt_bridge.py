@@ -61,10 +61,7 @@ def start_offline_watcher():
                             release_db(conn)
                     except Exception as e:
                         print(f"[WATCHER] Error logging offline: {e}")
-                elif age < OFFLINE_TIMEOUT and already_logged:
-                    # Reset so next offline event gets logged again
-                    _offline_logged[station_id] = False
-
+                        
     t = threading.Thread(target=watch, daemon=True)
     t.start()
     print("[WATCHER] Offline watcher thread started (2.5 min timeout)")
@@ -138,8 +135,8 @@ def on_message(client, userdata, msg):
         if msg.topic == MQTT_HEARTBEAT_TOPIC:
             station_id = data.get("station_id")
             if station_id:
-                was_offline = _offline_logged.get(station_id, False)
-                mark_station_online(station_id)
+                was_offline = _offline_logged.get(station_id, False)  # ← check BEFORE mark
+                mark_station_online(station_id)                        # ← resets flag after check
                 if was_offline:
                     station_name = STATION_NAMES.get(station_id, station_id)
                     try:
@@ -206,25 +203,25 @@ def on_message(client, userdata, msg):
             if data.get("online") and data.get("station_id"):
                 station_id   = data.get("station_id")
                 station_name = STATION_NAMES.get(station_id, station_id)
+                was_offline  = _offline_logged.get(station_id, False)  # ← ADD THIS LINE
                 was_online   = get_last_online(station_id)
                 mark_station_online(station_id)
 
                 conn = get_db()
                 cur  = conn.cursor()
                 try:
-                    # If was offline before (last_seen > 10 min ago or never seen), log comeback
                     age = time.time() - was_online if was_online else None
-                    if age is None or age >= OFFLINE_TIMEOUT:
-                        if not _offline_logged.get(station_id, False):
-                            cur.execute("""
-                                INSERT INTO system_logs (station, type, message, user_name)
-                                VALUES (%s, %s, %s, %s)
-                            """, (
-                                station_name,
-                                "system",
-                                f"{station_name} is online and transmitting data",
-                                "System",
-                            ))
+                    if age is None or age >= OFFLINE_TIMEOUT or was_offline:
+                        # ← REMOVE the inner "if not _offline_logged" — it's no longer needed
+                        cur.execute("""
+                            INSERT INTO system_logs (station, type, message, user_name)
+                            VALUES (%s, %s, %s, %s)
+                        """, (
+                            station_name,
+                            "system",
+                            f"{station_name} is online and transmitting data",
+                            "System",
+                        ))
                     conn.commit()
                     print("[BRIDGE] Startup status logged")
                 finally:
