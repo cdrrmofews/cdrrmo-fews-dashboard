@@ -127,6 +127,8 @@ def on_connect(client, userdata, flags, rc):
         print(f"[BRIDGE] Connection failed rc={rc}")
 
 def on_message(client, userdata, msg):
+    global _last_message_time
+    _last_message_time = time.time()
     try:
         data = json.loads(msg.payload.decode())
         print(f"[BRIDGE] Received on {msg.topic}: {data}")
@@ -363,6 +365,9 @@ def on_disconnect(client, userdata, rc):
     if rc != 0:
         print(f"[BRIDGE] Unexpected disconnect rc={rc}, will auto-reconnect")
 
+_last_message_time = time.time()
+BRIDGE_WATCHDOG_TIMEOUT = 180
+
 def start_bridge():
     while True:
         try:
@@ -384,10 +389,24 @@ def start_bridge():
                 pass
             time.sleep(5)
 
+def _watchdog_thread():
+    while True:
+        time.sleep(30)
+        age = time.time() - _last_message_time
+        if age > BRIDGE_WATCHDOG_TIMEOUT:
+            print(f"[WATCHDOG] No message for {int(age)}s — forcing reconnect via disconnect")
+            try:
+                mqtt.Client().connect(MQTT_BROKER, MQTT_PORT, 1)
+            except Exception:
+                pass
+
 def start_bridge_thread():
     t = threading.Thread(target=start_bridge, daemon=True)
     t.start()
     print("[BRIDGE] Thread started")
+    w = threading.Thread(target=_watchdog_thread, daemon=True)
+    w.start()
+    print("[WATCHDOG] Thread started")
     start_offline_watcher()
 
 # ── NEW: Publish siren command to Arduino ─────────────────────────────────────
