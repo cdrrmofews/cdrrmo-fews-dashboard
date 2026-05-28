@@ -8,7 +8,7 @@ import paho.mqtt.client as mqtt
 import paho.mqtt.publish as mqtt_publish
 from database import get_db, release_db
 
-MQTT_BROKER             = os.environ.get("MQTT_BROKER", "broker.hivemq.com")
+MQTT_BROKER             = os.environ.get("MQTT_BROKER", "broker.emqx.io")
 MQTT_PORT               = int(os.environ.get("MQTT_PORT", "1883"))
 MQTT_TOPIC              = "cdrrmo/fews1/data"
 MQTT_STATUS_TOPIC       = "cdrrmo/fews1/status"
