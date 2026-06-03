@@ -3231,51 +3231,26 @@ const waterChartOptions = useMemo(() => ({
                   },
                 };
 
-                const anyLive = allFews.some(f => f.isLive && isHardwareOnline);
-                const worstStatus = anyLive
-                  ? allFews.reduce((worst, f) => {
-                      if (!f.isLive || !isHardwareOnline) return worst;
-                      const rank = { safe: 0, warning: 1, danger: 2 };
-                      return (rank[f.status] ?? 0) > (rank[worst] ?? 0) ? f.status : worst;
-                    }, "safe")
+                const fews1 = allFews.find(f => f.id === 1);
+                const worstStatus = fews1 && fews1.isLive && isHardwareOnline
+                  ? fews1.status
                   : "offline";
 
                 const cfg = ALARM_CFG[worstStatus];
 
                 // Build dynamic sub message based on affected stations
                 const buildSub = () => {
-                  if (worstStatus === "offline") return "No stations online.";
+                  if (worstStatus === "offline") return "FEWS 1 is offline.";
                   if (worstStatus === "safe")    return "No critical advisories at this time.";
-
-                  const affected = allFews.filter(f =>
-                    f.isLive && isHardwareOnline && f.status === worstStatus
-                  );
-                  const names = affected.map(f => f.name);
-
-                  const prefix = worstStatus === "warning"
-                    ? "Water level is rising"
-                    : "Immediate action required";
-
-                  if (names.length === 0) return `${prefix}.`;
-
-                  const allMatch = allFews
-                    .filter(f => f.isLive && isHardwareOnline)
-                    .length === names.length;
-
-                  if (allMatch) return `${prefix} for All Fews.`;
-
-                  if (names.length === 1) return `${prefix} for ${names[0]}.`;
-
-                  const last = names[names.length - 1];
-                  const rest = names.slice(0, -1).join(", ");
-                  return `${prefix} for ${rest} and ${last}.`;
+                  if (worstStatus === "warning") return "Water level is rising for FEWS 1.";
+                  return "Immediate action required for FEWS 1.";
                 };
 
                 return (
                   <div className="card card-battery">
                     <div className="card-header">
                       <h2>Alarm Status</h2>
-                      <span className="card-tag">All Fews</span>
+                      <span className="card-tag">Fews 1</span>
                     </div>
 
                     <div style={{
