@@ -210,9 +210,7 @@ def on_message(client, userdata, msg):
                 conn = get_db()
                 cur  = conn.cursor()
                 try:
-                    age = time.time() - was_online if was_online else None
-                    if age is None or age >= OFFLINE_TIMEOUT or was_offline:
-                        # ← REMOVE the inner "if not _offline_logged" — it's no longer needed
+                    if was_online == 0 or was_offline:
                         cur.execute("""
                             INSERT INTO system_logs (station, type, message, user_name)
                             VALUES (%s, %s, %s, %s)
@@ -222,8 +220,8 @@ def on_message(client, userdata, msg):
                             f"{station_name} is online and transmitting data",
                             "System",
                         ))
-                    conn.commit()
-                    print("[BRIDGE] Startup status logged")
+                        conn.commit()
+                        print("[BRIDGE] Startup status logged")
                 finally:
                     cur.close()
                     release_db(conn)
