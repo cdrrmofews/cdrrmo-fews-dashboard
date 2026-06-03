@@ -416,6 +416,8 @@ def publish_config(device_id: str, threshold_warning: int, threshold_danger: int
             hostname=MQTT_BROKER,
             port=MQTT_PORT,
             protocol=mqtt.MQTTv311,
+            retain=True,
+            qos=1,
         )
         invalidate_threshold_cache(device_id)
         print(f"[CONFIG] Published thresholds warning={threshold_warning} danger={threshold_danger} to {topic}")
