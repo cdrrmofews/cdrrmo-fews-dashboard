@@ -655,10 +655,10 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
         headStyles: { fillColor: [17, 29, 53], textColor: [226, 232, 240], fontStyle: "bold" },
         alternateRowStyles: { fillColor: [245, 248, 252] },
         columnStyles: {
-          0: { cellWidth: 70 },
-          1: { cellWidth: 55 },
-          2: { cellWidth: 45 },
-          3: { cellWidth: 45 },
+          0: { cellWidth: 58 },
+          1: { cellWidth: 48 },
+          2: { cellWidth: 40 },
+          3: { cellWidth: 52 },
           4: { cellWidth: "auto" },
         },
         theme: "grid",
@@ -681,11 +681,11 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
       const logoSize = 60;
       const headerTop = 20;
 
-      // Left logo
-      if (logo1) doc.addImage(logo1, "PNG", 30, headerTop, logoSize, logoSize);
+      // Left logo — wider to match template
+      if (logo1) doc.addImage(logo1, "PNG", 20, headerTop, 90, logoSize);
 
       // Right logo
-      if (logo2) doc.addImage(logo2, "PNG", pageW - 30 - logoSize, headerTop, logoSize, logoSize);
+      if (logo2) doc.addImage(logo2, "PNG", pageW - 20 - 65, headerTop, 65, logoSize);
 
       // Center text block
       let y = headerTop + 10;
