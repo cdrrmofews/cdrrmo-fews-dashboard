@@ -2699,12 +2699,13 @@ export default function App() {
             body: "Critical water level detected! Tap to open the dashboard.",
             icon: "/cdrrmo-seal.png",
             tag:  "fews-critical",
-            requireInteraction: true,
+            requireInteraction: false,
           });
           n.onclick = () => {
             window.open("https://cdrrmo-fews.vercel.app/", "_blank");
             n.close();
           };
+          setTimeout(() => n.close(), 10000);
           localStorage.setItem("fews_critical_notified", "true");
         }
       }

@@ -121,11 +121,23 @@ self.addEventListener('message', (event) => {
 self.addEventListener('push', (event) => {
   if (!event.data) return;
   const data = event.data.json();
-  self.registration.showNotification(data.title || 'CDRRMO FEWS Alert', {
+  const showPromise = self.registration.showNotification(data.title || 'CDRRMO FEWS Alert', {
     body:               data.body || 'New alert from FEWS station.',
     icon:               '/icon-192.png',
     badge:              '/icon-192.png',
     tag:                'fews-alert',
-    requireInteraction: true,
+    requireInteraction: false,
   });
+  event.waitUntil(
+    showPromise.then(() => {
+      return new Promise((resolve) => {
+        setTimeout(() => {
+          self.registration.getNotifications({ tag: 'fews-alert' }).then((notifs) => {
+            notifs.forEach((n) => n.close());
+            resolve();
+          });
+        }, 10000);
+      });
+    })
+  );
 });
