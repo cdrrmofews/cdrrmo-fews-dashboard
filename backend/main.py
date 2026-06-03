@@ -12,7 +12,7 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
-import os, uuid, base64, re, time, threading
+import os, uuid, base64, re, time, threading, json
 from supabase import create_client
 
 from datetime import datetime
@@ -21,7 +21,7 @@ from models import (
     LoginRequest, CreateUserRequest, UpdateUserRequest,
     UpdateProfileRequest, ChangeEmailRequest, ChangePasswordRequest,
     ChangePhoneRequest, SmsEnabledRequest, CreateLogRequest,
-    SirenRequest, UpdateUnitRequest,
+    SirenRequest, UpdateUnitRequest, PushSubscribeRequest,
 )
 
 DEPLOY_TIME          = datetime.utcnow().isoformat()
@@ -81,6 +81,14 @@ def startup():
                     "Deployed under the Ternate Street bridge in Pallocan Kanluran, Batangas City. Monitors the water level of the creek passing beneath the bridge to provide early flood warnings for the surrounding community.",
                     200, 300
                 ))
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS push_subscriptions (
+                    id         SERIAL PRIMARY KEY,
+                    endpoint   TEXT UNIQUE NOT NULL,
+                    sub_json   TEXT NOT NULL,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
             conn.commit()
         except Exception as e:
             print(f"[STARTUP] Migration error: {e}")
@@ -653,6 +661,49 @@ def get_version():
 @app.get("/")
 def root():
     return {"ok": True}
+
+# --- PUSH NOTIFICATIONS ---
+
+VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY", "")
+VAPID_PUBLIC_KEY  = os.environ.get("VAPID_PUBLIC_KEY", "")
+VAPID_CLAIMS      = {"sub": "mailto:cdrrmo@batangas.gov.ph"}
+
+@app.get("/push/vapid-public-key")
+def get_vapid_public_key():
+    return {"publicKey": VAPID_PUBLIC_KEY}
+
+@app.post("/push/subscribe")
+def push_subscribe(req: PushSubscribeRequest, user=Depends(get_current_user)):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        endpoint = req.subscription.get("endpoint", "")
+        if not endpoint:
+            raise HTTPException(status_code=400, detail="Invalid subscription")
+        cur.execute("""
+            INSERT INTO push_subscriptions (endpoint, sub_json)
+            VALUES (%s, %s)
+            ON CONFLICT (endpoint) DO UPDATE SET sub_json = EXCLUDED.sub_json
+        """, (endpoint, json.dumps(req.subscription)))
+        conn.commit()
+        print(f"[PUSH] Subscription saved for user {user.get('sub')}")
+        return {"ok": True}
+    finally:
+        cur.close()
+        release_db(conn)
+
+@app.delete("/push/unsubscribe")
+def push_unsubscribe(req: PushSubscribeRequest, user=Depends(get_current_user)):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        endpoint = req.subscription.get("endpoint", "")
+        cur.execute("DELETE FROM push_subscriptions WHERE endpoint = %s", (endpoint,))
+        conn.commit()
+        return {"ok": True}
+    finally:
+        cur.close()
+        release_db(conn)
 
 # --- FEWS UNITS ---
 

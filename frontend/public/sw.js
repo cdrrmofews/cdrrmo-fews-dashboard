@@ -121,23 +121,26 @@ self.addEventListener('message', (event) => {
 self.addEventListener('push', (event) => {
   if (!event.data) return;
   const data = event.data.json();
-  const showPromise = self.registration.showNotification(data.title || 'CDRRMO FEWS Alert', {
-    body:               data.body || 'New alert from FEWS station.',
-    icon:               '/icon-192.png',
-    badge:              '/icon-192.png',
-    tag:                'fews-alert',
-    requireInteraction: false,
-  });
   event.waitUntil(
-    showPromise.then(() => {
-      return new Promise((resolve) => {
-        setTimeout(() => {
-          self.registration.getNotifications({ tag: 'fews-alert' }).then((notifs) => {
-            notifs.forEach((n) => n.close());
-            resolve();
-          });
-        }, 10000);
-      });
-    })
+    self.registration.showNotification(data.title || 'CDRRMO FEWS Alert', {
+      body:               data.body || 'New alert from FEWS station.',
+      icon:               '/icon-192.png',
+      badge:              '/icon-192.png',
+      tag:                'fews-alert',
+      requireInteraction: false,
+      vibrate:            [200, 100, 200],
+    }).then(() => new Promise((resolve) => {
+      setTimeout(() => {
+        self.registration.getNotifications({ tag: 'fews-alert' })
+          .then((notifs) => { notifs.forEach((n) => n.close()); resolve(); });
+      }, 10000);
+    }))
+  );
+});
+
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+  event.waitUntil(
+    clients.openWindow('https://cdrrmo-fews.vercel.app/')
   );
 });

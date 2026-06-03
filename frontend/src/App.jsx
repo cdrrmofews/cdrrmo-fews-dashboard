@@ -2691,35 +2691,43 @@ export default function App() {
     );
 
     const prevCriticalRef = useRef(false);
-    useEffect(() => {
-      if (isCritical && !prevCriticalRef.current) {
-        const alreadyNotified = localStorage.getItem("fews_critical_notified") === "true";
-        if (!alreadyNotified && typeof Notification !== "undefined" && Notification.permission === "granted") {
-          const n = new Notification("⚠ CDRRMO FEWS ALERT", {
-            body: "Critical water level detected! Tap to open the dashboard.",
-            icon: "/cdrrmo-seal.png",
-            tag:  "fews-critical",
-            requireInteraction: false,
-          });
-          n.onclick = () => {
-            window.open("https://cdrrmo-fews.vercel.app/", "_blank");
-            n.close();
-          };
-          setTimeout(() => n.close(), 10000);
-          localStorage.setItem("fews_critical_notified", "true");
-        }
-      }
-      if (!isCritical && prevCriticalRef.current) {
-        localStorage.removeItem("fews_critical_notified");
-      }
-      prevCriticalRef.current = isCritical;
-    }, [isCritical]);
+    useEffect(() => { prevCriticalRef.current = isCritical; }, [isCritical]);
 
     useEffect(() => {
-      if (typeof Notification !== "undefined" && Notification.permission === "default") {
-        Notification.requestPermission();
-      }
-    }, []);
+      if (!isLoggedIn) return;
+      const setupPush = async () => {
+        try {
+          if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
+          const reg = await navigator.serviceWorker.ready;
+          const permission = await Notification.requestPermission();
+          if (permission !== 'granted') return;
+          const res  = await fetch(`${API_BASE}/push/vapid-public-key`);
+          const { publicKey } = await res.json();
+          if (!publicKey) return;
+          const urlBase64ToUint8 = (base64String) => {
+            const padding = '='.repeat((4 - base64String.length % 4) % 4);
+            const base64  = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+            const raw     = window.atob(base64);
+            return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+          };
+          const existing = await reg.pushManager.getSubscription();
+          const sub = existing || await reg.pushManager.subscribe({
+            userVisibleOnly:      true,
+            applicationServerKey: urlBase64ToUint8(publicKey),
+          });
+          const tok = getStoredToken();
+          await fetch(`${API_BASE}/push/subscribe`, {
+            method:  'POST',
+            headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${tok}` },
+            body:    JSON.stringify({ subscription: sub.toJSON() }),
+          });
+          console.log('[PUSH] Subscribed successfully');
+        } catch (e) {
+          console.warn('[PUSH] Setup failed:', e);
+        }
+      };
+      setupPush();
+    }, [isLoggedIn]);
 
     const [sirenConfirm, setSirenConfirm] = useState(null);
     const [fullscreenMap, setFullscreenMap] = useState(false);

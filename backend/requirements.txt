@@ -27,6 +27,7 @@ mmh3==5.2.1
 multidict==6.7.1
 packaging==26.0
 paho-mqtt==2.1.0
+pywebpush==2.0.0
 postgrest==2.28.3
 propcache==0.4.1
 psycopg2-binary==2.9.11

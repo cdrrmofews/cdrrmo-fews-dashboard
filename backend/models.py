@@ -50,3 +50,6 @@ class UpdateUnitRequest(BaseModel):
     description:       Optional[str] = None
     threshold_warning: Optional[int] = None
     threshold_danger:  Optional[int] = None
+
+class PushSubscribeRequest(BaseModel):
+    subscription: dict

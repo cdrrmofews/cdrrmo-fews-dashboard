@@ -278,6 +278,14 @@ def on_message(client, userdata, msg):
 
             if log_type == "danger":
                 print("[SMS] CRITICAL detected — SMS handled by Arduino directly")
+                threading.Thread(
+                    target=send_push_notifications,
+                    args=(
+                        "⚠ CDRRMO FEWS ALERT",
+                        f"{station_name} — Critical water level detected! Immediate action required.",
+                    ),
+                    daemon=True,
+                ).start()
 
             # Auto-siren ON: after 2min CRITICAL — skip if manually silenced or already active
             if is_immediate and status == "CRITICAL":
@@ -403,6 +411,43 @@ def publish_siren(device_id: str, state: str):
         print(f"[SIREN] Published '{state}' to {topic}")
     except Exception as e:
         print(f"[SIREN] Failed to publish: {e}")
+
+def send_push_notifications(title: str, body: str):
+    """Send Web Push to all subscribed browsers/PWAs."""
+    vapid_private = os.environ.get("VAPID_PRIVATE_KEY", "")
+    vapid_claims  = {"sub": "mailto:cdrrmo@batangas.gov.ph"}
+    if not vapid_private:
+        print("[PUSH] VAPID_PRIVATE_KEY not set — skipping push")
+        return
+    try:
+        from pywebpush import webpush, WebPushException
+        conn = get_db()
+        cur  = conn.cursor()
+        try:
+            cur.execute("SELECT sub_json FROM push_subscriptions")
+            rows = cur.fetchall()
+        finally:
+            cur.close()
+            release_db(conn)
+        payload = json.dumps({"title": title, "body": body})
+        sent = 0
+        failed = 0
+        for row in rows:
+            try:
+                sub = json.loads(row["sub_json"])
+                webpush(
+                    subscription_info=sub,
+                    data=payload,
+                    vapid_private_key=vapid_private,
+                    vapid_claims=vapid_claims,
+                )
+                sent += 1
+            except Exception as e:
+                failed += 1
+                print(f"[PUSH] Failed to send to one subscription: {e}")
+        print(f"[PUSH] Sent {sent} notifications, {failed} failed")
+    except Exception as e:
+        print(f"[PUSH] Error: {e}")
 
 def publish_config(device_id: str, threshold_warning: int, threshold_danger: int):
     topic = "cdrrmo/fews1/config"
