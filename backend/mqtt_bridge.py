@@ -7,6 +7,7 @@ import os
 import paho.mqtt.client as mqtt
 import paho.mqtt.publish as mqtt_publish
 from database import get_db, release_db
+from urllib.parse import urlparse
 
 MQTT_BROKER             = os.environ.get("MQTT_BROKER", "broker.emqx.io")
 MQTT_PORT               = int(os.environ.get("MQTT_PORT", "1883"))
@@ -435,11 +436,14 @@ def send_push_notifications(title: str, body: str):
         for row in rows:
             try:
                 sub = json.loads(row["sub_json"])
+                endpoint = sub.get("endpoint", "")
+                parsed = urlparse(endpoint)
+                aud = f"{parsed.scheme}://{parsed.netloc}"
                 webpush(
                     subscription_info=sub,
                     data=payload,
                     vapid_private_key=vapid_private,
-                    vapid_claims=vapid_claims,
+                    vapid_claims={"sub": "mailto:cdrrmo@batangas.gov.ph", "aud": aud},
                 )
                 sent += 1
             except Exception as e:
