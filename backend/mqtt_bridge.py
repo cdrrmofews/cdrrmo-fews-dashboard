@@ -22,6 +22,10 @@ _last_online: dict = {}
 _offline_logged: dict = {}
 _threshold_cache: dict = {}
 STATION_NAMES: dict = {"fews_1": "FEWS 1"}
+STATION_LOCATIONS: dict = {"fews_1": "Pallocan"}
+_critical_notified: dict = {}
+_warning_notified: dict = {}
+_prev_status: dict = {}
 
 def mark_station_online(station_id: str):
     _last_online[station_id] = time.time()
@@ -277,17 +281,67 @@ def on_message(client, userdata, msg):
             mark_station_online(station_id)
             print(f"[BRIDGE] Saved → {station_id} {water_level_cm}cm {status} is_immediate={is_immediate} | Logged as [{log_type.upper()}]")
 
+            station_location = STATION_LOCATIONS.get(station_id, "")
+            prev_status = _prev_status.get(station_id, "")
+
             if log_type == "danger":
                 print("[SMS] CRITICAL detected — SMS handled by Arduino directly")
-                threading.Thread(
-                    target=send_push_notifications,
-                    args=(
-                        "⚠ CDRRMO FEWS ALERT",
-                        f"{station_name} — Critical water level detected! Immediate action required.",
-                    ),
-                    daemon=True,
-                ).start()
+                if is_immediate and not _critical_notified.get(station_id, False):
+                    _critical_notified[station_id] = True
+                    _warning_notified[station_id] = False
+                    _prev_status[station_id + "_safe_notified"] = False
+                    threading.Thread(
+                        target=send_push_notifications,
+                        args=(
+                            "⚠ CDRRMO FEWS ALERT",
+                            f"{station_name} ({station_location}) — CRITICAL water level detected! Water is at {water_level_cm} cm. Immediate action required.",
+                        ),
+                        daemon=True,
+                    ).start()
 
+            elif log_type == "warning":
+                if is_immediate and not _warning_notified.get(station_id, False):
+                    _warning_notified[station_id] = True
+                    _prev_status[station_id + "_safe_notified"] = False
+                    if prev_status == "danger":
+                        threading.Thread(
+                            target=send_push_notifications,
+                            args=(
+                                "⚠ CDRRMO FEWS UPDATE",
+                                f"{station_name} ({station_location}) — Water level has dropped from CRITICAL to WARNING at {water_level_cm} cm. Continue monitoring.",
+                            ),
+                            daemon=True,
+                        ).start()
+                        _critical_notified[station_id] = False
+                    else:
+                        threading.Thread(
+                            target=send_push_notifications,
+                            args=(
+                                "⚠ CDRRMO FEWS ALERT",
+                                f"{station_name} ({station_location}) — Water level has reached WARNING. Water is at {water_level_cm} cm. Please monitor closely.",
+                            ),
+                            daemon=True,
+                        ).start()
+
+            elif log_type == "info":
+                if prev_status in ("danger", "warning") and not _prev_status.get(station_id + "_safe_notified", False):
+                    _prev_status[station_id + "_safe_notified"] = True
+                    safe_msg = (
+                        "Situation is under control." if prev_status == "danger"
+                        else "Situation is normal."
+                    )
+                    threading.Thread(
+                        target=send_push_notifications,
+                        args=(
+                            "✅ CDRRMO FEWS UPDATE",
+                            f"{station_name} ({station_location}) — Water level has returned to SAFE at {water_level_cm} cm. {safe_msg}",
+                        ),
+                        daemon=True,
+                    ).start()
+                _critical_notified[station_id] = False
+                _warning_notified[station_id] = False
+
+            _prev_status[station_id] = log_type
             # Auto-siren ON: after 2min CRITICAL — skip if manually silenced or already active
             if is_immediate and status == "CRITICAL":
                 try:
@@ -331,6 +385,8 @@ def on_message(client, userdata, msg):
 
             # Auto-siren OFF: only clear on the confirmed safe-after-critical publish
             if status != "CRITICAL" and safe_after_critical:
+                _critical_notified[station_id] = False
+                _warning_notified[station_id] = False
                 try:
                     cur.execute(
                         "SELECT siren_auto_triggered, siren_state FROM fews_units WHERE device_id = %s",
