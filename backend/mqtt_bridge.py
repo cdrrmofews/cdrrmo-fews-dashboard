@@ -300,7 +300,7 @@ def on_message(client, userdata, msg):
                     ).start()
 
             elif log_type == "warning":
-                if is_immediate and not _warning_notified.get(station_id, False):
+                if (is_immediate or safe_after_critical) and not _warning_notified.get(station_id, False):
                     _warning_notified[station_id] = True
                     _prev_status[station_id + "_safe_notified"] = False
                     if prev_status == "danger":
@@ -386,7 +386,6 @@ def on_message(client, userdata, msg):
             # Auto-siren OFF: only clear on the confirmed safe-after-critical publish
             if status != "CRITICAL" and safe_after_critical:
                 _critical_notified[station_id] = False
-                _warning_notified[station_id] = False
                 try:
                     cur.execute(
                         "SELECT siren_auto_triggered, siren_state FROM fews_units WHERE device_id = %s",
