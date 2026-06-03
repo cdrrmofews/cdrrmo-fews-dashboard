@@ -638,116 +638,128 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
     s.src = src; s.onload = res; s.onerror = rej;
     document.head.appendChild(s);
   });
+
   const doIt = () => {
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+    const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
     const pageW = doc.internal.pageSize.getWidth();
+    const pageH = doc.internal.pageSize.getHeight();
+    const centerX = pageW / 2;
 
-    // --- Header background ---
-    doc.setFillColor(8, 14, 26);
-    doc.rect(0, 0, pageW, 80, "F");
-
-    // --- Load and draw CDRRMO seal ---
-    const sealImg = new Image();
-    sealImg.src = "/cdrrmo-seal.png";
-    sealImg.onload = () => {
-      doc.addImage(sealImg, "PNG", 20, 8, 56, 56);
-
-      const batImg = new Image();
-      batImg.src = "/batscity-seal.png";
-      batImg.onload = () => {
-        doc.addImage(batImg, "PNG", 84, 10, 52, 52);
-
-        // --- Title block ---
-        doc.setFontSize(16);
-        doc.setTextColor(226, 232, 240);
-        doc.setFont("helvetica", "bold");
-        doc.text("CDRRMO – FEWS Incident Log Report", 150, 32);
-
-        doc.setFontSize(9);
-        doc.setFont("helvetica", "normal");
-        doc.setTextColor(126, 146, 180);
-        doc.text("City Disaster Risk Reduction and Management Office · Batangas City", 150, 46);
-
-        doc.setFontSize(8);
-        doc.setTextColor(100, 116, 139);
-        doc.text(`Filters: ${filterSummary || "None"}`, 150, 59);
-        doc.text(`Generated: ${new Date().toLocaleString("en-PH", { timeZone: "Asia/Manila" })}  ·  ${rows.length} records`, 150, 70);
-
-        // --- Table ---
-        doc.autoTable({
-          startY: 92,
-          head: [["Date", "Time", "Station", "Type", "Message"]],
-          body: rows.map(r => [r.date, r.time, r.station, r.type.toUpperCase(), r.msg]),
-          styles: { fontSize: 8, cellPadding: 5 },
-          headStyles: { fillColor: [17, 29, 53], textColor: [226, 232, 240], fontStyle: "bold" },
-          alternateRowStyles: { fillColor: [245, 248, 252] },
-          columnStyles: {
-            0: { cellWidth: 80 }, 1: { cellWidth: 65 },
-            2: { cellWidth: 55 }, 3: { cellWidth: 55 }, 4: { cellWidth: "auto" },
-          },
-          theme: "grid",
-          didDrawPage: (hookData) => {
-            // Footer on every page
-            const pg    = hookData.pageNumber;
-            const total = doc.internal.getNumberOfPages();
-            doc.setFontSize(7);
-            doc.setTextColor(148, 163, 184);
-            doc.text(
-              `CDRRMO FEWS · Batangas City · Page ${pg} of ${total}`,
-              pageW / 2, doc.internal.pageSize.getHeight() - 10,
-              { align: "center" }
-            );
-          },
-        });
-
-        doc.save(`FEWS_Logs_${Date.now()}.pdf`);
-      };
-      batImg.onerror = () => {
-        // Continue without batscity seal
-        finalizePDF(doc, rows, filterSummary, pageW, 150);
-      };
-    };
-    sealImg.onerror = () => {
-      doc.setFontSize(16);
-      doc.setTextColor(226, 232, 240);
-      doc.setFont("helvetica", "bold");
-      doc.text("CDRRMO – FEWS Incident Log Report", 40, 32);
-      doc.setFontSize(9);
-      doc.setFont("helvetica", "normal");
-      doc.setTextColor(126, 146, 180);
-      doc.text("City Disaster Risk Reduction and Management Office · Batangas City", 40, 46);
-      doc.setFontSize(8);
-      doc.setTextColor(100, 116, 139);
-      doc.text(`Filters: ${filterSummary || "None"}`, 40, 59);
-      doc.text(`Generated: ${new Date().toLocaleString("en-PH", { timeZone: "Asia/Manila" })}  ·  ${rows.length} records`, 40, 70);
+    const drawTable = (startY) => {
       doc.autoTable({
-        startY: 92,
+        startY,
         head: [["Date", "Time", "Station", "Type", "Message"]],
         body: rows.map(r => [r.date, r.time, r.station, r.type.toUpperCase(), r.msg]),
         styles: { fontSize: 8, cellPadding: 5 },
         headStyles: { fillColor: [17, 29, 53], textColor: [226, 232, 240], fontStyle: "bold" },
         alternateRowStyles: { fillColor: [245, 248, 252] },
         columnStyles: {
-          0: { cellWidth: 80 }, 1: { cellWidth: 65 },
-          2: { cellWidth: 55 }, 3: { cellWidth: 55 }, 4: { cellWidth: "auto" },
+          0: { cellWidth: 70 },
+          1: { cellWidth: 55 },
+          2: { cellWidth: 45 },
+          3: { cellWidth: 45 },
+          4: { cellWidth: "auto" },
         },
         theme: "grid",
-        didDrawPage: (hookData) => {
-          const pg    = hookData.pageNumber;
+        didDrawPage: () => {
+          const pg    = doc.internal.getCurrentPageInfo().pageNumber;
           const total = doc.internal.getNumberOfPages();
           doc.setFontSize(7);
-          doc.setTextColor(148, 163, 184);
+          doc.setTextColor(100, 116, 139);
           doc.text(
             `CDRRMO FEWS · Batangas City · Page ${pg} of ${total}`,
-            pageW / 2, doc.internal.pageSize.getHeight() - 10,
+            centerX, pageH - 12,
             { align: "center" }
           );
         },
       });
       doc.save(`FEWS_Logs_${Date.now()}.pdf`);
     };
+
+    const drawHeader = (logo1, logo2) => {
+      const logoSize = 60;
+      const headerTop = 20;
+
+      // Left logo
+      if (logo1) doc.addImage(logo1, "PNG", 30, headerTop, logoSize, logoSize);
+
+      // Right logo
+      if (logo2) doc.addImage(logo2, "PNG", pageW - 30 - logoSize, headerTop, logoSize, logoSize);
+
+      // Center text block
+      let y = headerTop + 10;
+      doc.setTextColor(0, 0, 0);
+
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7);
+      doc.text("REPUBLIC OF THE PHILIPPINES", centerX, y, { align: "center" });
+
+      y += 11;
+      doc.setFontSize(8);
+      doc.text("City Government of Batangas", centerX, y, { align: "center" });
+
+      y += 13;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.text("CITY DISASTER RISK REDUCTION AND MANAGEMENT OFFICE", centerX, y, { align: "center" });
+
+      y += 12;
+      doc.setFont("helvetica", "italic");
+      doc.setFontSize(7.5);
+      doc.text("Brgy. Bolbok, Batangas City, Batangas 4200", centerX, y, { align: "center" });
+
+      y += 10;
+      doc.text("(043) 702-3902/984-4300/727-2768/cdrrmobatangas@yahoo.com.ph", centerX, y, { align: "center" });
+
+      // Divider line
+      y += 10;
+      doc.setDrawColor(0, 0, 0);
+      doc.setLineWidth(0.5);
+      doc.line(30, y, pageW - 30, y);
+
+      // Report title
+      y += 14;
+      doc.setFont("helvetica", "bold");
+      doc.setFontSize(10);
+      doc.setTextColor(0, 0, 0);
+      doc.text("FEWS INCIDENT LOG REPORT", centerX, y, { align: "center" });
+
+      // Filters & generated
+      y += 12;
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(7.5);
+      doc.setTextColor(80, 80, 80);
+      doc.text(`Filters: ${filterSummary || "None"}`, centerX, y, { align: "center" });
+
+      y += 10;
+      doc.text(`Generated: ${new Date().toLocaleString("en-PH", { timeZone: "Asia/Manila" })}  ·  ${rows.length} records`, centerX, y, { align: "center" });
+
+      y += 14;
+      return y;
+    };
+
+    // Load both logos
+    const logo1Img = new Image();
+    logo1Img.src = "/logo1.png";
+    logo1Img.onload = () => {
+      const logo2Img = new Image();
+      logo2Img.src = "/logo2.png";
+      logo2Img.onload = () => {
+        const startY = drawHeader(logo1Img, logo2Img);
+        drawTable(startY);
+      };
+      logo2Img.onerror = () => {
+        const startY = drawHeader(logo1Img, null);
+        drawTable(startY);
+      };
+    };
+    logo1Img.onerror = () => {
+      const startY = drawHeader(null, null);
+      drawTable(startY);
+    };
   };
+
   if (window.jspdf?.jsPDF) { doIt(); return; }
   load("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js")
     .then(() => load("https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"))
