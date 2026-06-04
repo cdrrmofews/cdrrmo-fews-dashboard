@@ -3115,7 +3115,7 @@ const waterChartOptions = useMemo(() => ({
                       <polyline points="8 21 3 21 3 16"/>
                     </svg>
                   </button>
-                  <MapContainer center={[13.762280, 121.068580]} zoom={15}
+                  <MapContainer center={[13.762350, 121.068350]} zoom={15}
                     style={{ height:"100%", width:"100%", borderRadius:"10px" }}
                     scrollWheelZoom={false}>
                     <TileLayer
@@ -3426,7 +3426,7 @@ const waterChartOptions = useMemo(() => ({
               <div className="map-fullscreen-box" onClick={e => e.stopPropagation()}>
                 <div className="map-fullscreen-inner">
                   <button className="map-fs-close" onClick={() => { setFullscreenMap(false); setFsSelectedFEWS(null); }}>✕</button>
-                  <MapContainer center={[13.762280, 121.068580]} zoom={15} style={{ height:"100%", width:"100%" }} scrollWheelZoom={true}>
+                  <MapContainer center={[13.762350, 121.068350]} zoom={15} style={{ height:"100%", width:"100%" }} scrollWheelZoom={true}>
                     <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                     <OpenPopup fews={allFews[0]} markerRefs={fsMarkerRefs} />
                     {allFews.map(f => {
