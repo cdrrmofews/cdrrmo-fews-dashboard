@@ -206,8 +206,8 @@ function normalizeUser(parsed) {
 
 // ─── FEWS BASE DATA ───────────────────────────────────────────────────────────
 const FEWS1_BASE = {
-  id: 1, name: "FEWS 1", location: "Calumpang",
-  lat: 13.7622326, lng: 121.0687432,
+  id: 1, name: "FEWS 1", location: "Bridge of Progress",
+  lat: 13.762237, lng: 121.068655,
   status: "safe", waterLevel: 0,
   description: "",
   installedDate: "—", technician: "Engr. Andrew Van Ryan",
@@ -3115,7 +3115,7 @@ const waterChartOptions = useMemo(() => ({
                       <polyline points="8 21 3 21 3 16"/>
                     </svg>
                   </button>
-                  <MapContainer center={[13.7622326, 121.0687432]} zoom={15}
+                  <MapContainer center={[13.762237, 121.068655]} zoom={15}
                     style={{ height:"100%", width:"100%", borderRadius:"10px" }}
                     scrollWheelZoom={false}>
                     <TileLayer
@@ -3374,7 +3374,7 @@ const waterChartOptions = useMemo(() => ({
                 return (
                   <div className="rsb-detail" style={{ "--status-color": isActuallyLive ? cfg.color : "var(--text-3)" }}>
                     <div className="rsb-detail-title" style={{ display:"flex", alignItems:"center", gap:6 }}>
-                      {f.name}
+                      {f.name} · {f.location}
                       {f.isLive && (
                         <span style={{ marginLeft:0, fontSize:9, fontWeight:700, fontFamily:"var(--mono)",
                           color: isActuallyLive ? "var(--green)" : "var(--text-3)" }}>
@@ -3426,7 +3426,7 @@ const waterChartOptions = useMemo(() => ({
               <div className="map-fullscreen-box" onClick={e => e.stopPropagation()}>
                 <div className="map-fullscreen-inner">
                   <button className="map-fs-close" onClick={() => { setFullscreenMap(false); setFsSelectedFEWS(null); }}>✕</button>
-                  <MapContainer center={[13.7622326, 121.0687432]} zoom={15} style={{ height:"100%", width:"100%" }} scrollWheelZoom={true}>
+                  <MapContainer center={[13.762237, 121.068655]} zoom={15} style={{ height:"100%", width:"100%" }} scrollWheelZoom={true}>
                     <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                     <OpenPopup fews={allFews[0]} markerRefs={fsMarkerRefs} />
                     {allFews.map(f => {
@@ -3495,7 +3495,7 @@ const waterChartOptions = useMemo(() => ({
                         </div>
                         <div className="map-fs-row">
                           <span className="map-fs-row-label">Location</span>
-                          <span className="map-fs-row-val">Calumpang River</span>
+                          <span className="map-fs-row-val">Bridge of Progress</span>
                         </div>
                         <div className="map-fs-row">
                           <span className="map-fs-row-label">Warning</span>

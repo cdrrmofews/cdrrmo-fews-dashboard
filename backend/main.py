@@ -77,7 +77,7 @@ def startup():
                     INSERT INTO fews_units (device_id, name, location, installed_date, technician, description, threshold_warning, threshold_danger)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
-                    "fews_1", "FEWS 1", "Calumpang River", "-", "Engr. Andrew Van Ryan",
+                    "fews_1", "FEWS 1", "Bridge of Progress", "-", "Engr. Andrew Van Ryan",
                     "Deployed at the Bridge of Progress along Calumpang River, Batangas City. Monitors the water level of the river passing beneath the bridge to provide early flood warnings for the surrounding community.",
                     200, 300
                 ))
