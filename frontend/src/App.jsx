@@ -3373,7 +3373,7 @@ const waterChartOptions = useMemo(() => ({
                 const canSiren = can(user.role, "sirenControl");
                 return (
                   <div className="rsb-detail" style={{ "--status-color": isActuallyLive ? cfg.color : "var(--text-3)" }}>
-                    <div className="rsb-detail-title" style={{ display:"flex", alignItems:"center", gap:50 }}>
+                    <div className="rsb-detail-title" style={{ display:"flex", alignItems:"center", gap:6 }}>
                       {f.name}
                       {f.isLive && (
                         <span style={{ marginLeft:0, fontSize:9, fontWeight:700, fontFamily:"var(--mono)",
