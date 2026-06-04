@@ -77,8 +77,8 @@ def startup():
                     INSERT INTO fews_units (device_id, name, location, installed_date, technician, description, threshold_warning, threshold_danger)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
-                    "fews_1", "FEWS 1", "Pallocan Kanluran", "-", "Engr. Andrew Van Ryan",
-                    "Deployed under the Ternate Street bridge in Pallocan Kanluran, Batangas City. Monitors the water level of the creek passing beneath the bridge to provide early flood warnings for the surrounding community.",
+                    "fews_1", "FEWS 1", "Calumpang River", "-", "Engr. Andrew Van Ryan",
+                    "Deployed at the Bridge of Progress along Calumpang River, Batangas City. Monitors the water level of the river passing beneath the bridge to provide early flood warnings for the surrounding community.",
                     200, 300
                 ))
             cur.execute("""

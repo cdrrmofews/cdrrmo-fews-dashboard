@@ -206,8 +206,8 @@ function normalizeUser(parsed) {
 
 // ─── FEWS BASE DATA ───────────────────────────────────────────────────────────
 const FEWS1_BASE = {
-  id: 1, name: "FEWS 1", location: "Pallocan",
-  lat: 13.7485216, lng: 121.0651069,
+  id: 1, name: "FEWS 1", location: "Calumpang",
+  lat: 13.7622326, lng: 121.0687432,
   status: "safe", waterLevel: 0,
   description: "",
   installedDate: "—", technician: "Engr. Andrew Van Ryan",
@@ -3115,7 +3115,7 @@ const waterChartOptions = useMemo(() => ({
                       <polyline points="8 21 3 21 3 16"/>
                     </svg>
                   </button>
-                  <MapContainer center={[13.7485216, 121.0651069]} zoom={15}
+                  <MapContainer center={[13.7622326, 121.0687432]} zoom={15}
                     style={{ height:"100%", width:"100%", borderRadius:"10px" }}
                     scrollWheelZoom={false}>
                     <TileLayer
@@ -3426,7 +3426,7 @@ const waterChartOptions = useMemo(() => ({
               <div className="map-fullscreen-box" onClick={e => e.stopPropagation()}>
                 <div className="map-fullscreen-inner">
                   <button className="map-fs-close" onClick={() => { setFullscreenMap(false); setFsSelectedFEWS(null); }}>✕</button>
-                  <MapContainer center={[13.7485216, 121.0651069]} zoom={15} style={{ height:"100%", width:"100%" }} scrollWheelZoom={true}>
+                  <MapContainer center={[13.7622326, 121.0687432]} zoom={15} style={{ height:"100%", width:"100%" }} scrollWheelZoom={true}>
                     <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                     <OpenPopup fews={allFews[0]} markerRefs={fsMarkerRefs} />
                     {allFews.map(f => {
@@ -3495,7 +3495,7 @@ const waterChartOptions = useMemo(() => ({
                         </div>
                         <div className="map-fs-row">
                           <span className="map-fs-row-label">Location</span>
-                          <span className="map-fs-row-val">Pallocan, Batangas</span>
+                          <span className="map-fs-row-val">Calumpang River</span>
                         </div>
                         <div className="map-fs-row">
                           <span className="map-fs-row-label">Warning</span>
