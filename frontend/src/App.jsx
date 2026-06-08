@@ -621,7 +621,15 @@ function exportToXLSX(rows, filterSummary = "", showToast = () => {}) {
     const ws = window.XLSX.utils.aoa_to_sheet(data);
     ws["!cols"] = [{ wch: 18 }, { wch: 14 }, { wch: 10 }, { wch: 9 }, { wch: 80 }];
     window.XLSX.utils.book_append_sheet(wb, ws, "FEWS Logs");
-    window.XLSX.writeFile(wb, `FEWS_Logs_${Date.now()}.xlsx`);
+    const now = new Date();
+    const todayStr = now.toLocaleDateString("en-CA");
+    const fromStr = filterSummary.includes("From:") ? filterSummary.match(/From: (\S+)/)?.[1] || "" : "";
+    const toStr   = filterSummary.includes("To:")   ? filterSummary.match(/To: (\S+)/)?.[1]   || "" : "";
+    let datePart;
+    if (fromStr && toStr && fromStr === toStr) datePart = fromStr;
+    else if (fromStr && toStr)                 datePart = `${fromStr}_to_${toStr}`;
+    else                                       datePart = `All_${todayStr}`;
+    window.XLSX.writeFile(wb, `FEWS_Incident-Log_${datePart}.xlsx`);
   };
   if (window.XLSX) { doIt(); return; }
   const s = document.createElement("script");
@@ -684,7 +692,15 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
           );
         },
       });
-      doc.save(`FEWS_Logs_${Date.now()}.pdf`);
+      const now = new Date();
+      const todayStr = now.toLocaleDateString("en-CA");
+      const fromStr = filterSummary.includes("From:") ? filterSummary.match(/From: (\S+)/)?.[1] || "" : "";
+      const toStr   = filterSummary.includes("To:")   ? filterSummary.match(/To: (\S+)/)?.[1]   || "" : "";
+      let datePart;
+      if (fromStr && toStr && fromStr === toStr) datePart = fromStr;
+      else if (fromStr && toStr)                 datePart = `${fromStr}_to_${toStr}`;
+      else                                       datePart = `All_${todayStr}`;
+      doc.save(`FEWS_Incident-Log_${datePart}.pdf`);
     };
 
     const drawHeader = (logo3) => {
@@ -698,11 +714,10 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
         y += imgH - 10;
       }
 
-      // Divider line — sits right at bottom of header image
-      const lineY = margin + imgH;
+      // Divider line
       doc.setDrawColor(0, 0, 0);
       doc.setLineWidth(0.5);
-      doc.line(30, lineY, pageW - 30, lineY);
+      doc.line(30, y, pageW - 30, y);
 
       // Report title
       y += 12;
@@ -3389,7 +3404,7 @@ const waterChartOptions = useMemo(() => ({
                           </button>
                         </div>
                         <div className="rsb-siren-note">
-                          {!isActuallyLive ? "Available once station is live" : sirenOn ? "Tap to silence" : "Tap to manually activate"}
+                          {!isActuallyLive ? "Available once FEWS is live" : sirenOn ? "Tap to silence" : "Tap to manually activate"}
                         </div>
                       </div>
                     )}
