@@ -3404,7 +3404,7 @@ const waterChartOptions = useMemo(() => ({
                           </button>
                         </div>
                         <div className="rsb-siren-note">
-                          {!isActuallyLive ? "Available once FEWS is live" : sirenOn ? "Tap to silence" : "Tap to manually activate"}
+                          {!isActuallyLive ? "Available if fews is live" : sirenOn ? "Tap to silence" : "Tap to manually activate"}
                         </div>
                       </div>
                     )}
