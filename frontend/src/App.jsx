@@ -670,7 +670,7 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
 
           // Header on every page after page 1
           if (pg > 1 && logo3) {
-            const margin = 20;
+            const margin = 30;
             const imgW2 = pageW - margin * 2;
             doc.addImage(logo3, "PNG", margin, 20, imgW2, 110);
           }
@@ -678,7 +678,7 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
           doc.setFontSize(7);
           doc.setTextColor(100, 116, 139);
           doc.text(
-            `CDRRMO FEWS · Batangas City · Page ${pg}`,
+            `CDRRMO FEWS · Batangas City · Page ${pg}`, 
             centerX, pageH - 12,
             { align: "center" }
           );
@@ -688,7 +688,7 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
     };
 
     const drawHeader = (logo3) => {
-      const margin = 20;
+      const margin = 30;
       const imgW = pageW - margin * 2;
       const imgH = 110;
       let y = margin;
