@@ -649,7 +649,9 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
     const drawTable = (startY, logo3 = null) => {
       doc.autoTable({
         startY,
-        margin: { top: 120 },
+        margin: { top: 120, left: 30, right: 30 },
+        tableLineColor: [255, 255, 255],
+        tableLineWidth: 0,
         head: [["Date", "Time", "Station", "Type", "Message"]],
         body: rows.map(r => [r.date, r.time, r.station, r.type.toUpperCase(), r.msg]),
         styles: { fontSize: 8, cellPadding: 5 },
@@ -698,7 +700,7 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
 
       if (logo3) {
         doc.addImage(logo3, "PNG", margin, y, imgW, imgH);
-        y += imgH + 2;
+        y += imgH - 10;
       }
 
       // Divider line
