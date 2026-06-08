@@ -649,6 +649,7 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
     const drawTable = (startY, logo3 = null) => {
       doc.autoTable({
         startY,
+        margin: { top: 120 },
         head: [["Date", "Time", "Station", "Type", "Message"]],
         body: rows.map(r => [r.date, r.time, r.station, r.type.toUpperCase(), r.msg]),
         styles: { fontSize: 8, cellPadding: 5 },
@@ -669,10 +670,10 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
           if (pg > 1 && logo3) {
             const margin = 20;
             const imgW = pageW - margin * 2;
-            doc.addImage(logo3, "PNG", margin, margin, imgW, 70);
+            doc.addImage(logo3, "PNG", margin, margin, imgW, 90);
             doc.setDrawColor(0, 0, 0);
             doc.setLineWidth(0.5);
-            doc.line(30, 94, pageW - 30, 94);
+            doc.line(30, 114, pageW - 30, 114);
           }
 
           // Footer — just page number
@@ -691,7 +692,7 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
     const drawHeader = (logo3) => {
       const margin = 20;
       const imgW = pageW - margin * 2;
-      const imgH = 70;
+      const imgH = 90;
       let y = margin;
 
       if (logo3) {
