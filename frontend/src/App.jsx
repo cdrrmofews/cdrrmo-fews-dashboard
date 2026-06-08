@@ -698,10 +698,11 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
         y += imgH - 10;
       }
 
-      // Divider line
+      // Divider line — sits right at bottom of header image
+      const lineY = margin + imgH;
       doc.setDrawColor(0, 0, 0);
       doc.setLineWidth(0.5);
-      doc.line(30, y, pageW - 30, y);
+      doc.line(30, lineY, pageW - 30, lineY);
 
       // Report title
       y += 12;
