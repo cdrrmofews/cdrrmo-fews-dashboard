@@ -649,7 +649,7 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
     const drawTable = (startY, logo3 = null) => {
       doc.autoTable({
         startY,
-        margin: { top: 150, left: 30, right: 30 },
+        margin: { top: 120, left: 30, right: 30 },
         tableLineColor: [255, 255, 255],
         tableLineWidth: 0,
         head: [["Date", "Time", "Station", "Type", "Message"]],
@@ -671,14 +671,9 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
           // Header on every page after page 1
           if (pg > 1 && logo3) {
             const margin = 20;
-            const imgW = pageW - margin * 2;
             const imgW2 = pageW - margin * 2 - 20;
-            doc.addImage(logo3, "PNG", margin, 30, imgW2, 110);
-            doc.setDrawColor(0, 0, 0);
-            doc.setLineWidth(0.5);
-            doc.line(30, 134, pageW - 30, 134);
+            doc.addImage(logo3, "PNG", margin + 10, 20, imgW2, 110);
           }
-
           // Footer — just page number
           doc.setFontSize(7);
           doc.setTextColor(100, 116, 139);
