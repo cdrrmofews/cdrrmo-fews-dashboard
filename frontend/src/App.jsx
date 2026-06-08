@@ -694,9 +694,10 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
       let y = margin;
 
       if (logo3) {
-        doc.addImage(logo3, "PNG", margin + 10, y, imgW, imgH);
-        y += imgH + 2;
+        doc.addImage(logo3, "PNG", margin, y, imgW, imgH);
+        y += imgH - 10;
       }
+
       // Divider line
       doc.setDrawColor(0, 0, 0);
       doc.setLineWidth(0.5);
