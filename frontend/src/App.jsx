@@ -646,7 +646,7 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
     const pageH = doc.internal.pageSize.getHeight();
     const centerX = pageW / 2;
 
-    const drawTable = (startY) => {
+    const drawTable = (startY, logo3 = null) => {
       doc.autoTable({
         startY,
         head: [["Date", "Time", "Station", "Type", "Message"]],
@@ -662,13 +662,24 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
           4: { cellWidth: "auto" },
         },
         theme: "grid",
-        didDrawPage: () => {
-          const pg    = doc.internal.getCurrentPageInfo().pageNumber;
-          const total = doc.internal.getNumberOfPages();
+        didDrawPage: (data) => {
+          const pg = doc.internal.getCurrentPageInfo().pageNumber;
+
+          // Header on every page after page 1
+          if (pg > 1 && logo3) {
+            const margin = 20;
+            const imgW = pageW - margin * 2;
+            doc.addImage(logo3, "PNG", margin, margin, imgW, 70);
+            doc.setDrawColor(0, 0, 0);
+            doc.setLineWidth(0.5);
+            doc.line(30, 94, pageW - 30, 94);
+          }
+
+          // Footer — just page number
           doc.setFontSize(7);
           doc.setTextColor(100, 116, 139);
           doc.text(
-            `CDRRMO FEWS · Batangas City · Page ${pg} of ${total}`,
+            `CDRRMO FEWS · Batangas City · Page ${pg}`,
             centerX, pageH - 12,
             { align: "center" }
           );
@@ -677,58 +688,33 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
       doc.save(`FEWS_Logs_${Date.now()}.pdf`);
     };
 
-    const drawHeader = (logo1, logo2) => {
-      const logoSize = 60;
-      const headerTop = 20;
+    const drawHeader = (logo3) => {
+      const margin = 20;
+      const imgW = pageW - margin * 2;
+      const imgH = 70;
+      let y = margin;
 
-      // Left logo — wider to match template
-      if (logo1) doc.addImage(logo1, "PNG", 20, headerTop, 90, logoSize);
-
-      // Right logo
-      if (logo2) doc.addImage(logo2, "PNG", pageW - 20 - 65, headerTop, 65, logoSize);
-
-      // Center text block
-      let y = headerTop + 10;
-      doc.setTextColor(0, 0, 0);
-
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(7);
-      doc.text("REPUBLIC OF THE PHILIPPINES", centerX, y, { align: "center" });
-
-      y += 11;
-      doc.setFontSize(8);
-      doc.text("City Government of Batangas", centerX, y, { align: "center" });
-
-      y += 13;
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
-      doc.text("CITY DISASTER RISK REDUCTION AND MANAGEMENT OFFICE", centerX, y, { align: "center" });
-
-      y += 12;
-      doc.setFont("helvetica", "italic");
-      doc.setFontSize(7.5);
-      doc.text("Brgy. Bolbok, Batangas City, Batangas 4200", centerX, y, { align: "center" });
-
-      y += 10;
-      doc.text("(043) 702-3902/984-4300/727-2768/cdrrmobatangas@yahoo.com.ph", centerX, y, { align: "center" });
+      if (logo3) {
+        doc.addImage(logo3, "PNG", margin, y, imgW, imgH);
+        y += imgH + 6;
+      }
 
       // Divider line
-      y += 10;
       doc.setDrawColor(0, 0, 0);
       doc.setLineWidth(0.5);
       doc.line(30, y, pageW - 30, y);
 
       // Report title
-      y += 14;
-      doc.setFont("helvetica", "bold");
-      doc.setFontSize(10);
+      y += 12;
+      doc.setFont("times", "bold");
+      doc.setFontSize(11);
       doc.setTextColor(0, 0, 0);
       doc.text("FEWS INCIDENT LOG REPORT", centerX, y, { align: "center" });
 
       // Filters & generated
-      y += 12;
-      doc.setFont("helvetica", "normal");
-      doc.setFontSize(7.5);
+      y += 11;
+      doc.setFont("times", "normal");
+      doc.setFontSize(8);
       doc.setTextColor(80, 80, 80);
       doc.text(`Filters: ${filterSummary || "None"}`, centerX, y, { align: "center" });
 
@@ -740,23 +726,15 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
     };
 
     // Load both logos
-    const logo1Img = new Image();
-    logo1Img.src = "/logo1.png";
-    logo1Img.onload = () => {
-      const logo2Img = new Image();
-      logo2Img.src = "/logo2.png";
-      logo2Img.onload = () => {
-        const startY = drawHeader(logo1Img, logo2Img);
-        drawTable(startY);
-      };
-      logo2Img.onerror = () => {
-        const startY = drawHeader(logo1Img, null);
-        drawTable(startY);
-      };
+    const logo3Img = new Image();
+    logo3Img.src = "/logo3.png";
+    logo3Img.onload = () => {
+      const startY = drawHeader(logo3Img);
+      drawTable(startY, logo3Img);
     };
-    logo1Img.onerror = () => {
-      const startY = drawHeader(null, null);
-      drawTable(startY);
+    logo3Img.onerror = () => {
+      const startY = drawHeader(null);
+      drawTable(startY, null);
     };
   };
 
@@ -3150,7 +3128,9 @@ const waterChartOptions = useMemo(() => ({
                                 </span>
                               </div>
                               <div style={{ fontSize:"11px", color:"#475569", lineHeight:1.6, marginBottom:4 }}>
-                                <strong style={{ color:"#1e293b" }}>{f.location}</strong> · Water: {isHardwareOnline ? `${f.waterLevel} cm` : "—"}
+                                <strong style={{ color:"#1e293b" }}>{f.location}</strong>
+                                <br />
+                                Water: {isHardwareOnline ? `${f.waterLevel} cm` : "—"}
                               </div>
                               <button onClick={() => {
                                 navigator.clipboard.writeText(`${f.lat}, ${f.lng}`);
@@ -3374,7 +3354,7 @@ const waterChartOptions = useMemo(() => ({
                 return (
                   <div className="rsb-detail" style={{ "--status-color": isActuallyLive ? cfg.color : "var(--text-3)" }}>
                     <div className="rsb-detail-title" style={{ display:"flex", alignItems:"center", gap:6 }}>
-                      {f.name} · {f.location}
+                      {f.name}
                       {f.isLive && (
                         <span style={{ marginLeft:0, fontSize:9, fontWeight:700, fontFamily:"var(--mono)",
                           color: isActuallyLive ? "var(--green)" : "var(--text-3)" }}>
@@ -3455,8 +3435,10 @@ const waterChartOptions = useMemo(() => ({
                                 </span>
                               </div>
                               <div style={{ fontSize:"11px", color:"#475569", lineHeight:1.6, marginBottom:4 }}>
-                                <strong style={{ color:"#1e293b" }}>{f.location}</strong> · Water: {isHardwareOnline ? `${f.waterLevel} cm` : "—"}
-                              </div>
+                              <strong style={{ color:"#1e293b" }}>{f.location}</strong>
+                              <br />
+                              Water: {isHardwareOnline ? `${f.waterLevel} cm` : "—"}
+                            </div>
                             </div>
                           </Popup>
                         </Marker>
