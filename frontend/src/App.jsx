@@ -671,8 +671,8 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
           // Header on every page after page 1
           if (pg > 1 && logo3) {
             const margin = 20;
-            const imgW2 = pageW - margin * 2 - 20;
-            doc.addImage(logo3, "PNG", margin + 10, 20, imgW2, 110);
+            const imgW2 = pageW - margin * 2;
+            doc.addImage(logo3, "PNG", margin, 20, imgW2, 110);
           }
           // Footer — just page number
           doc.setFontSize(7);
@@ -689,7 +689,7 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
 
     const drawHeader = (logo3) => {
       const margin = 20;
-      const imgW = pageW - margin * 2 - 20;
+      const imgW = pageW - margin * 2;
       const imgH = 110;
       let y = margin;
 
