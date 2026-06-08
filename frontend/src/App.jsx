@@ -670,10 +670,11 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
           if (pg > 1 && logo3) {
             const margin = 20;
             const imgW = pageW - margin * 2;
-            doc.addImage(logo3, "PNG", margin, margin, imgW, 90);
+            const imgW2 = pageW - margin * 2 - 20;
+            doc.addImage(logo3, "PNG", margin, margin, imgW2, 110);
             doc.setDrawColor(0, 0, 0);
             doc.setLineWidth(0.5);
-            doc.line(30, 114, pageW - 30, 114);
+            doc.line(30, 134, pageW - 30, 134);
           }
 
           // Footer — just page number
@@ -691,13 +692,13 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
 
     const drawHeader = (logo3) => {
       const margin = 20;
-      const imgW = pageW - margin * 2;
-      const imgH = 90;
+      const imgW = pageW - margin * 2 - 20;
+      const imgH = 110;
       let y = margin;
 
       if (logo3) {
         doc.addImage(logo3, "PNG", margin, y, imgW, imgH);
-        y += imgH + 6;
+        y += imgH + 2;
       }
 
       // Divider line
