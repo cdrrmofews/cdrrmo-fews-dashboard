@@ -253,15 +253,16 @@ body {
 
 .topbar-seal-img {
   height: 46px;
-  width: 46px;
+  width: auto;
+  max-width: 160px;
   object-fit: contain;
   filter: drop-shadow(0 1px 3px rgba(0,0,0,0.4));
   opacity: 0.92;
 }
 
 .topbar-seal-img:last-child {
-  height: 50px;
-  width: 50px;
+  height: 46px;
+  width: auto;
 }
 .top-left { display: flex; align-items: center; gap: 16px; }
 
@@ -1041,6 +1042,15 @@ body {
 .login-btn:hover    { opacity: 0.88; }
 .login-btn-loading  { opacity: 0.6; cursor: not-allowed; }
 .login-footer       { text-align: center; font-size: 11px; color: var(--text-3); font-family: var(--mono); }
+
+.login-brand-logo {
+  height: 80px;
+  width: auto;
+  max-width: 220px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.4));
+  margin-bottom: 4px;
+}
 
 /* ================================
    LOGIN — PASSWORD REVEAL
