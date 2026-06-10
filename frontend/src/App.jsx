@@ -3133,7 +3133,7 @@ const waterChartOptions = useMemo(() => ({
                         <Marker key={f.id} position={[f.lat, f.lng]} icon={icon}
                           ref={el => { markerRefs.current[f.id] = el; }}
                           eventHandlers={{ click: () => setSelectedFEWS(selectedFEWS === f.id ? null : f.id) }}>
-                          <Popup minWidth={200} maxWidth={280}>
+                          <Popup minWidth={160}>
                             <div style={{ fontFamily:"sans-serif", padding:"2px 0" }}>
                               <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
                                 <strong style={{ fontSize:"13px", color:"#1e293b" }}>{f.name}</strong>
@@ -3141,9 +3141,9 @@ const waterChartOptions = useMemo(() => ({
                                   {isHardwareOnline ? "● LIVE" : "◌ WAITING"}
                                 </span>
                               </div>
-                              <div style={{ fontSize:"11px", color:"#475569", lineHeight:1.6, marginBottom:4 }}>
+                              <div style={{ fontSize:"11px", color:"#475569", lineHeight:1.6, marginBottom:4, display:"flex", flexWrap:"wrap", gap:"4px", alignItems:"center" }}>
                                 <strong style={{ color:"#1e293b" }}>{f.location}</strong>
-                                {" · "}
+                                <span>·</span>
                                 <span>Water: {isHardwareOnline ? `${f.waterLevel} cm` : "—"}</span>
                               </div>
                               <button onClick={() => {
@@ -3440,7 +3440,7 @@ const waterChartOptions = useMemo(() => ({
                         <Marker key={f.id} position={[f.lat, f.lng]} icon={icon}
                           ref={el => { fsMarkerRefs.current[f.id] = el; }}
                           eventHandlers={{ click: () => setFsSelectedFEWS(fsSelectedFEWS === f.id ? null : f.id) }}>
-                          <Popup minWidth={200} maxWidth={280}>
+                          <Popup minWidth={160}>
                             <div style={{ fontFamily:"sans-serif", padding:"2px 0" }}>
                               <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
                                 <strong style={{ fontSize:"13px", color:"#1e293b" }}>{f.name}</strong>
@@ -3448,9 +3448,9 @@ const waterChartOptions = useMemo(() => ({
                                   {isHardwareOnline ? "● LIVE" : "◌ WAITING"}
                                 </span>
                               </div>
-                              <div style={{ fontSize:"11px", color:"#475569", lineHeight:1.6, marginBottom:4 }}>
+                              <div style={{ fontSize:"11px", color:"#475569", lineHeight:1.6, marginBottom:4, display:"flex", flexWrap:"wrap", gap:"4px", alignItems:"center" }}>
                               <strong style={{ color:"#1e293b" }}>{f.location}</strong>
-                              {" · "}
+                              <span>·</span>
                               <span>Water: {isHardwareOnline ? `${f.waterLevel} cm` : "—"}</span>
                             </div>
                             </div>
