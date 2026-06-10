@@ -3141,10 +3141,10 @@ const waterChartOptions = useMemo(() => ({
                                   {isHardwareOnline ? "● LIVE" : "◌ WAITING"}
                                 </span>
                               </div>
-                              <div style={{ fontSize:"11px", color:"#475569", lineHeight:1.6, marginBottom:4 }}>
+                              <div style={{ fontSize:"11px", color:"#475569", lineHeight:1.6, marginBottom:4, display:"flex", flexWrap:"wrap", gap:"4px", alignItems:"center" }}>
                                 <strong style={{ color:"#1e293b" }}>{f.location}</strong>
-                                <br />
-                                Water: {isHardwareOnline ? `${f.waterLevel} cm` : "—"}
+                                <span>·</span>
+                                <span>Water: {isHardwareOnline ? `${f.waterLevel} cm` : "—"}</span>
                               </div>
                               <button onClick={() => {
                                 navigator.clipboard.writeText(`${f.lat}, ${f.lng}`);
@@ -3448,10 +3448,10 @@ const waterChartOptions = useMemo(() => ({
                                   {isHardwareOnline ? "● LIVE" : "◌ WAITING"}
                                 </span>
                               </div>
-                              <div style={{ fontSize:"11px", color:"#475569", lineHeight:1.6, marginBottom:4 }}>
+                              <div style={{ fontSize:"11px", color:"#475569", lineHeight:1.6, marginBottom:4, display:"flex", flexWrap:"wrap", gap:"4px", alignItems:"center" }}>
                               <strong style={{ color:"#1e293b" }}>{f.location}</strong>
-                              <br />
-                              Water: {isHardwareOnline ? `${f.waterLevel} cm` : "—"}
+                              <span>·</span>
+                              <span>Water: {isHardwareOnline ? `${f.waterLevel} cm` : "—"}</span>
                             </div>
                             </div>
                           </Popup>
