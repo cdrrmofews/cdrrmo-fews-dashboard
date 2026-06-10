@@ -3037,7 +3037,7 @@ const waterChartOptions = useMemo(() => ({
             </div>
           </div>
           <div className="topbar-seals">
-            <img src="/logo3.png" alt="CDRRMO FEWS" className="topbar-seal-img" />
+            <img src="/logo1.png" alt="CDRRMO FEWS" className="topbar-seal-img" />
           </div>
           <div className="top-right">
             {alertCount > 0 && (
