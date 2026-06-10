@@ -67,7 +67,7 @@ export default function Login({ onLogin }) {
       <div className="login-bg" />
       <div className="login-box">
         <div className="login-brand">
-          <img src="/logo1.png" alt="CDRRMO FEWS" className="login-brand-logo" />
+          <img src="/logo1.jpg" alt="CDRRMO FEWS" className="login-brand-logo" />
           <div className="login-brand-tag">Flood Early Warning System</div>
         </div>
         <div className="login-form">
