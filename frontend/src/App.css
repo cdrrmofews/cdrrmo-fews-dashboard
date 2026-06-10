@@ -2361,8 +2361,8 @@ select.settings-input {
     gap: 6px;
   }
 
-  .topbar-seal-img            { height: 32px; width: 32px; }
-  .topbar-seal-img:last-child { height: 34px; width: 34px; }
+  .topbar-seal-img            { height: 44px; width: auto; max-width: 130px; border-radius: 10px; }
+  .topbar-seal-img:last-child { height: 44px; width: auto; max-width: 130px; }
 
   .top-left { display: none; }
 
@@ -2837,8 +2837,8 @@ select.settings-input {
    SMALL MOBILE  (max-width: 400px)
 ================================ */
 @media (max-width: 400px) {
-  .topbar-seal-img            { height: 26px; width: 26px; }
-  .topbar-seal-img:last-child { height: 28px; width: 28px; }
+  .topbar-seal-img            { height: 38px; width: auto; max-width: 110px; border-radius: 8px; }
+  .topbar-seal-img:last-child { height: 38px; width: auto; max-width: 110px; }
 
   .nav-btn,
   .sidebar.collapsed .nav-btn { padding: 3px 5px; font-size: 8px; height: 44px; }
