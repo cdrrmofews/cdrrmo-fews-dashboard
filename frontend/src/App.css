@@ -2361,8 +2361,8 @@ select.settings-input {
     gap: 6px;
   }
 
-  .topbar-seal-img            { height: 32px; width: 32px; }
-  .topbar-seal-img:last-child { height: 34px; width: 34px; }
+  .topbar-seal-img            { height: 44px; width: auto; max-width: 120px; }
+  .topbar-seal-img:last-child { height: 44px; width: auto; }
 
   .top-left { display: none; }
 
