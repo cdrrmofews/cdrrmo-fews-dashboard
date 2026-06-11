@@ -983,11 +983,7 @@ function ChangeEmailModal({ onClose, token, user, onEmailChanged, addLog }) {
   const [email, setEmail]     = useState("");
   const [confirm, setConfirm] = useState("");
   const [error, setError]     = useState("");
-  const [saving, setSaving]   = useState(false);
-  const [saved, setSaved]     = useState(false);
-  const closeTimerRef         = useRef(null);
-
-  useEffect(() => () => { if (closeTimerRef.current) clearTimeout(closeTimerRef.current); }, []);
+  const [saving, setSaving] = useState(false);
 
   const handle = async () => {
     if (!email.trim())        { setError("New email is required."); return; }
@@ -1005,8 +1001,7 @@ function ChangeEmailModal({ onClose, token, user, onEmailChanged, addLog }) {
       addLog({ station: "System", type: "system",
         message: `${user.name} changed their email address` });
       onEmailChanged(email);
-      setSaved(true);
-      closeTimerRef.current = setTimeout(() => onClose(), 1200);
+      onClose();
     } catch (err) {
       if (err?.message === "Unauthorized") return;
       setError("Network error. Try again.");
@@ -1034,8 +1029,8 @@ function ChangeEmailModal({ onClose, token, user, onEmailChanged, addLog }) {
         {error && <div className="settings-error">{error}</div>}
         <div className="modal-actions" style={{ marginTop: 4 }}>
           <button className="modal-btn modal-cancel" onClick={onClose} disabled={saving}>Cancel</button>
-          <button className="modal-btn modal-confirm" onClick={handle} disabled={saving || saved}>
-            {saved ? "Saved" : saving ? <span className="btn-spinner" /> : "Save"}
+          <button className="modal-btn modal-confirm" onClick={handle} disabled={saving}>
+            {saving ? <span className="btn-spinner" /> : "Save"}
           </button>
         </div>
       </div>
@@ -1047,10 +1042,6 @@ function ChangePasswordModal({ onClose, token, user, addLog }) {
   const [pw, setPw]         = useState({ current: "", next: "", confirm: "" });
   const [error, setError]   = useState("");
   const [saving, setSaving] = useState(false);
-  const [saved, setSaved]   = useState(false);
-  const closeTimerRef       = useRef(null);
-
-  useEffect(() => () => { if (closeTimerRef.current) clearTimeout(closeTimerRef.current); }, []);
 
   const handle = async () => {
     if (!pw.current)             { setError("Current password is required."); return; }
@@ -1069,8 +1060,7 @@ function ChangePasswordModal({ onClose, token, user, addLog }) {
       if (!res.ok) { setError(data.detail || "Failed to update password."); setSaving(false); return; }
       addLog({ station: "System", type: "system",
         message: `${user.name} changed their password` });
-      setSaved(true);
-      closeTimerRef.current = setTimeout(() => onClose(), 1200);
+      onClose();
     } catch (err) {
       if (err?.message === "Unauthorized") return;
       setError("Network error. Try again.");
@@ -1101,8 +1091,8 @@ function ChangePasswordModal({ onClose, token, user, addLog }) {
         {error && <div className="settings-error">{error}</div>}
         <div className="modal-actions" style={{ marginTop: 4 }}>
           <button className="modal-btn modal-cancel" onClick={onClose} disabled={saving}>Cancel</button>
-          <button className="modal-btn modal-confirm" onClick={handle} disabled={saving || saved}>
-            {saved ? "Updated" : saving ? <span className="btn-spinner" /> : "Update"}
+          <button className="modal-btn modal-confirm" onClick={handle} disabled={saving}>
+            {saving ? <span className="btn-spinner" /> : "Update"}
           </button>
         </div>
       </div>
@@ -1114,11 +1104,7 @@ function ChangePhoneModal({ onClose, token, user, onPhoneChanged, addLog }) {
   const [phone, setPhone]           = useState("");
   const [phoneConfirm, setConfirm]  = useState("");
   const [error, setError]           = useState("");
-  const [saving, setSaving]         = useState(false);
-  const [saved, setSaved]           = useState(false);
-  const closeTimerRef               = useRef(null);
-
-  useEffect(() => () => { if (closeTimerRef.current) clearTimeout(closeTimerRef.current); }, []);
+  const [saving, setSaving] = useState(false);
 
   const handle = async () => {
     const cleaned = phone.trim().replace(/\s+/g, "");
@@ -1138,8 +1124,7 @@ function ChangePhoneModal({ onClose, token, user, onPhoneChanged, addLog }) {
       if (!res.ok) { setError(data.detail || "Failed to update phone number."); setSaving(false); return; }
       addLog({ station: "System", type: "system", message: `${user.name} updated their phone number` });
       onPhoneChanged(cleaned);
-      setSaved(true);
-      closeTimerRef.current = setTimeout(() => onClose(), 1200);
+      onClose();
     } catch (err) {
       if (err?.message === "Unauthorized") return;
       setError("Network error. Try again.");
@@ -1169,8 +1154,8 @@ function ChangePhoneModal({ onClose, token, user, onPhoneChanged, addLog }) {
         {error && <div className="settings-error">{error}</div>}
         <div className="modal-actions" style={{ marginTop: 4 }}>
           <button className="modal-btn modal-cancel" onClick={onClose} disabled={saving}>Cancel</button>
-          <button className="modal-btn modal-confirm" onClick={handle} disabled={saving || saved}>
-            {saved ? "Saved" : saving ? <span className="btn-spinner" /> : "Save"}
+          <button className="modal-btn modal-confirm" onClick={handle} disabled={saving}>
+            {saving ? <span className="btn-spinner" /> : "Save"}
           </button>
         </div>
       </div>
