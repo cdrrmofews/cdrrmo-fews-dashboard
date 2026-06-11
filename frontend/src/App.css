@@ -586,8 +586,8 @@ body {
 }
 
 .map-fullscreen-box {
-  width: 90%;
-  height: 90%;
+  width: calc(100% - 32px);
+  height: calc(100% - 32px);
   border-radius: 16px;
   overflow: hidden;
   position: relative;
@@ -2742,11 +2742,6 @@ select.settings-input {
   background: #aad3df;
 }
 
-.map-fullscreen-inner .leaflet-popup-content-wrapper {
-  max-width: 260px !important;
-  width: 260px !important;
-  min-width: 0 !important;
-}
 .leaflet-tile {
   image-rendering: -webkit-optimize-contrast;
   image-rendering: crisp-edges;
