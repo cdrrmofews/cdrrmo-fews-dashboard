@@ -1889,7 +1889,11 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
         if (d.department !== u.department) addLog({ station: "System", type: "system", message: `${u.name}'s department has been changed from ${u.department} to ${d.department} by ${userName}` });
         setUsers(prev => prev.map(x => x.id === u.id ? { ...x, ...d } : x));
         setDrafts(prev => { const n={...prev}; delete n[u.id]; return n; });
-        if (u.id === user.id) onUserUpdate(normalizeUser({ ...user, ...d }));
+        if (u.id === user.id) {
+        const updated = normalizeUser({ ...user, ...d });
+        onUserUpdate(updated);
+        getStorage().setItem("user", JSON.stringify(updated));
+      }
         setConfirmSaveLoading(false);
         setConfirmSave(null);
       } else {
@@ -1990,13 +1994,13 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
           <div className="page-card-sub">Manage your login credentials.</div>
           <div className="settings-action-row">
             <button className="settings-action-btn" onClick={() => setShowEmail(true)}>
-              <span className="sa-icon">✉</span><div className="sa-text"><div className="sa-label">Change Email</div><div className="sa-sub">Update your account email address</div></div><span className="sa-arrow">›</span>
+              <span className="sa-icon">✉</span><div className="sa-text"><div className="sa-label">Change Email</div><div className="sa-sub">{user.email || "No email set"}</div></div><span className="sa-arrow">›</span>
             </button>
             <button className="settings-action-btn" onClick={() => setShowPassword(true)}>
-              <span className="sa-icon">🔒</span><div className="sa-text"><div className="sa-label">Change Password</div><div className="sa-sub">Update your login password</div></div><span className="sa-arrow">›</span>
+              <span className="sa-icon">🔒</span><div className="sa-text"><div className="sa-label">Change Password</div><div className="sa-sub">••••••••</div></div><span className="sa-arrow">›</span>
             </button>
             <button className="settings-action-btn" onClick={() => setShowPhone(true)}>
-              <span className="sa-icon">📱</span><div className="sa-text"><div className="sa-label">Change Phone Number</div><div className="sa-sub">Update your SMS notification number</div></div><span className="sa-arrow">›</span>
+              <span className="sa-icon">📱</span><div className="sa-text"><div className="sa-label">Change Phone Number</div><div className="sa-sub">{user.phone || "No phone number set"}</div></div><span className="sa-arrow">›</span>
             </button>
           </div>
         </div>
