@@ -852,6 +852,8 @@ body {
 
 .map-fullscreen-inner .leaflet-popup-content-wrapper {
   max-width: 260px !important;
+  width: 260px !important;
+  min-width: 0 !important;
 }
 }
 
@@ -2742,8 +2744,9 @@ select.settings-input {
 
 .map-fullscreen-inner .leaflet-popup-content-wrapper {
   max-width: 260px !important;
+  width: 260px !important;
+  min-width: 0 !important;
 }
-
 .leaflet-tile {
   image-rendering: -webkit-optimize-contrast;
   image-rendering: crisp-edges;
