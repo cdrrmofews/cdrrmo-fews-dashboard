@@ -797,15 +797,13 @@ body {
 
 @media (max-width: 768px) {
   .map-fullscreen-box {
-  width: calc(100% - 24px);
-  height: 60vh;
+  width: 90%;
+  height: 88%;
   border-radius: 16px;
 }
 
 .map-fullscreen-overlay {
   padding: 0;
-  align-items: flex-start;
-  padding-top: calc(env(safe-area-inset-top) + 60px);
 }
 
 .map-fs-close {
@@ -852,10 +850,17 @@ body {
 .map-fs-row { font-size: 10px; }
 .map-fs-row-val { font-size: 10px; }
 
-.map-fullscreen-inner .leaflet-popup-content-wrapper {
+.leaflet-popup-content-wrapper {
   max-width: 260px !important;
-  width: 260px !important;
   min-width: 0 !important;
+}
+
+@media (max-width: 768px) {
+  .map-fullscreen-inner .leaflet-popup-content-wrapper {
+    max-width: calc(100vw - 80px) !important;
+    width: calc(100vw - 80px) !important;
+    min-width: 0 !important;
+  }
 }
 }
 
