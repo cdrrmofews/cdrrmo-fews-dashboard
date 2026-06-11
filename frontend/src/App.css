@@ -851,7 +851,7 @@ body {
 .map-fs-row-val { font-size: 10px; }
 
 .map-fullscreen-inner .leaflet-popup-content-wrapper {
-  max-width: 280px !important;
+  max-width: 260px !important;
 }
 }
 
@@ -2741,7 +2741,7 @@ select.settings-input {
 }
 
 .map-fullscreen-inner .leaflet-popup-content-wrapper {
-  max-width: 280px !important;
+  max-width: 260px !important;
 }
 
 .leaflet-tile {

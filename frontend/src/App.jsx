@@ -3133,7 +3133,7 @@ const waterChartOptions = useMemo(() => ({
                         <Marker key={f.id} position={[f.lat, f.lng]} icon={icon}
                           ref={el => { markerRefs.current[f.id] = el; }}
                           eventHandlers={{ click: () => setSelectedFEWS(selectedFEWS === f.id ? null : f.id) }}>
-                          <Popup minWidth={200} maxWidth={280}>
+                          <Popup minWidth={180} maxWidth={260}>
                             <div style={{ fontFamily:"sans-serif", padding:"2px 0" }}>
                               <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
                                 <strong style={{ fontSize:"13px", color:"#1e293b" }}>{f.name}</strong>
