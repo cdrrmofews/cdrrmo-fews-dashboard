@@ -797,13 +797,15 @@ body {
 
 @media (max-width: 768px) {
   .map-fullscreen-box {
-  width: 90%;
-  height: 88%;
+  width: calc(100% - 24px);
+  height: 60vh;
   border-radius: 16px;
 }
 
 .map-fullscreen-overlay {
   padding: 0;
+  align-items: flex-start;
+  padding-top: calc(env(safe-area-inset-top) + 60px);
 }
 
 .map-fs-close {
