@@ -850,17 +850,10 @@ body {
 .map-fs-row { font-size: 10px; }
 .map-fs-row-val { font-size: 10px; }
 
-.leaflet-popup-content-wrapper {
-  max-width: 260px !important;
+.map-fullscreen-inner .leaflet-popup-content-wrapper {
+  max-width: 220px !important;
+  width: auto !important;
   min-width: 0 !important;
-}
-
-@media (max-width: 768px) {
-  .map-fullscreen-inner .leaflet-popup-content-wrapper {
-    max-width: calc(100vw - 80px) !important;
-    width: calc(100vw - 80px) !important;
-    min-width: 0 !important;
-  }
 }
 }
 
