@@ -958,7 +958,7 @@ function OpenPopup({ fews, markerRefs }) {
 }
 
 // ─── MODALS ───────────────────────────────────────────────────────────────────
-function ConfirmModal({ icon, iconColor, title, message, confirmLabel, confirmColor, onConfirm, onCancel }) {
+function ConfirmModal({ icon, iconColor, title, message, confirmLabel, confirmColor, onConfirm, onCancel, confirmLoading }) {
   return (
     <div className="modal-overlay">
       <div className="modal-box">
@@ -968,10 +968,10 @@ function ConfirmModal({ icon, iconColor, title, message, confirmLabel, confirmCo
         </div>
         <div className="modal-msg">{message}</div>
         <div className="modal-actions">
-          <button className="modal-btn modal-cancel" onClick={onCancel}>Cancel</button>
+          <button className="modal-btn modal-cancel" onClick={onCancel} disabled={confirmLoading}>Cancel</button>
           <button className="modal-btn" style={{ background: confirmColor || "var(--blue)", color: "#fff", minWidth: 90 }}
-            onClick={onConfirm}>
-            {confirmLabel}
+            onClick={onConfirm} disabled={confirmLoading}>
+            {confirmLoading ? <span className="btn-spinner" style={{ borderTopColor: "#fff", borderColor: "rgba(255,255,255,0.25)" }} /> : confirmLabel}
           </button>
         </div>
       </div>
@@ -1866,7 +1866,8 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
   const [loadUsersError, setLoadUsersError] = useState(false);
   const [actionError, setActionError]       = useState("");
   const [drafts, setDrafts]                 = useState({});
-  const [confirmSave, setConfirmSave]       = useState(null);
+  const [confirmSave, setConfirmSave]         = useState(null);
+  const [confirmSaveLoading, setConfirmSaveLoading] = useState(false);
   const [confirmRemove, setConfirmRemove]   = useState(null);
 
   const isAdmin = userRole === "Admin";
@@ -1891,6 +1892,7 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
   const doSave = async () => {
     const u = confirmSave;
     const d = getDraft(u);
+    setConfirmSaveLoading(true);
     try {
       const res = await authFetch(`${API_BASE}/users/${u.id}`, {
         method:  "PUT",
@@ -1903,11 +1905,17 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
         setUsers(prev => prev.map(x => x.id === u.id ? { ...x, ...d } : x));
         setDrafts(prev => { const n={...prev}; delete n[u.id]; return n; });
         if (u.id === user.id) onUserUpdate(normalizeUser({ ...user, ...d }));
+        setConfirmSaveLoading(false);
+        setConfirmSave(null);
       } else {
         setActionError("Failed to save changes. Try again.");
+        setConfirmSaveLoading(false);
+        setConfirmSave(null);
       }
     } catch (err) {
       if (err?.message !== "Unauthorized") setActionError("Failed to save changes. Try again.");
+      setConfirmSaveLoading(false);
+      setConfirmSave(null);
     }
   };
 
@@ -1988,7 +1996,7 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
         confirmColor={confirmSms.newVal ? "var(--green)" : "var(--red)"}
         onConfirm={() => { handleSmsToggle(confirmSms.userId, confirmSms.newVal); setConfirmSms(null); }}
         onCancel={() => setConfirmSms(null)} />}
-      {confirmSave   && <ConfirmModal icon="👤" iconColor="var(--blue)" title={`Save Changes for ${confirmSave.name}?`} message={`Role → ${getDraft(confirmSave).role} · Department → ${getDraft(confirmSave).department}`} confirmLabel="Yes, Save" onConfirm={doSave} onCancel={() => setConfirmSave(null)} />}
+      {confirmSave   && <ConfirmModal icon="👤" iconColor="var(--blue)" title={`Save Changes for ${confirmSave.name}?`} message={`Role → ${getDraft(confirmSave).role} · Department → ${getDraft(confirmSave).department}`} confirmLabel="Yes, Save" confirmLoading={confirmSaveLoading} onConfirm={doSave} onCancel={() => { if (!confirmSaveLoading) setConfirmSave(null); }} />}
       {confirmRemove && <ConfirmModal icon="🗑" iconColor="var(--red)" title={`Remove ${confirmRemove.name}?`} message={`This will permanently remove ${confirmRemove.name} from the system.`} confirmLabel="Yes, Remove" confirmColor="var(--red)" onConfirm={doRemove} onCancel={() => setConfirmRemove(null)} />}
       <div className="page-body">
 
