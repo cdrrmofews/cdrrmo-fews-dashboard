@@ -649,7 +649,7 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
 
   const doIt = () => {
     const { jsPDF } = window.jspdf;
-    const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4", compress: true });
+    const doc = new jsPDF({ orientation: "portrait", unit: "pt", format: "a4" });
     const pageW = doc.internal.pageSize.getWidth();
     const pageH = doc.internal.pageSize.getHeight();
     const centerX = pageW / 2;
@@ -680,7 +680,7 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
           if (pg > 1 && logo3) {
             const margin = 30;
             const imgW2 = pageW - margin * 2;
-            doc.addImage("HEADER_LOGO", margin, 20, imgW2, 110);
+            doc.addImage(logo3, "PNG", margin, 20, imgW2, 110);
           }
           // Footer — just page number
           doc.setFontSize(7);
@@ -710,7 +710,7 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
       let y = margin;
 
       if (logo3) {
-        doc.addImage(logo3, "JPEG", margin, y, imgW, imgH, "HEADER_LOGO", "FAST");
+        doc.addImage(logo3, "PNG", margin, y, imgW, imgH);
         y += imgH - 10;
       }
 
@@ -744,16 +744,8 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
     const logo3Img = new Image();
     logo3Img.src = "/logo3.png";
     logo3Img.onload = () => {
-      const canvas = document.createElement("canvas");
-      canvas.width = logo3Img.naturalWidth;
-      canvas.height = logo3Img.naturalHeight;
-      const ctx = canvas.getContext("2d");
-      ctx.fillStyle = "#ffffff";
-      ctx.fillRect(0, 0, canvas.width, canvas.height);
-      ctx.drawImage(logo3Img, 0, 0);
-      const compressed = canvas.toDataURL("image/jpeg", 0.5);
-      const startY = drawHeader(compressed);
-      drawTable(startY, compressed);
+      const startY = drawHeader(logo3Img);
+      drawTable(startY, logo3Img);
     };
     logo3Img.onerror = () => {
       const startY = drawHeader(null);
