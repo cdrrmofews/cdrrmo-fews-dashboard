@@ -2741,7 +2741,7 @@ select.settings-input {
 }
 
 .map-fullscreen-inner .leaflet-popup-content-wrapper {
-  max-width: 160px !important;
+  max-width: 280px !important;
 }
 
 .leaflet-tile {
