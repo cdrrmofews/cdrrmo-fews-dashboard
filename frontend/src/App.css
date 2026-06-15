@@ -1361,6 +1361,7 @@ select.settings-input {
 .uc-badge {
   font-size: 10px; font-weight: 700; letter-spacing: 0.07em;
   padding: 3px 10px; border-radius: 999px;
+  margin-top: 4px;
 }
 
 .uc-power-btn {
