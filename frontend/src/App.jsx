@@ -1534,7 +1534,8 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, 
             ⚠️ Failed to load unit data — showing defaults. Check your connection and refresh.
           </div>
         )}
-        {fewsData.map(f => {
+        {allFews.map(f => {
+          const localData = fewsData.find(x => x.id === f.id) || f;
           const cfg = STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"];
           const thr = thresholds[f.id];
           const ed  = editing[f.id];
@@ -1593,21 +1594,21 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, 
                   {ed ? (
                     <input className="uc-inline-input" value={ed.installedDate}
                       onChange={e => setEditing(prev => ({ ...prev, [f.id]: { ...prev[f.id], installedDate: e.target.value } }))} />
-                  ) : <span className="uc-stat-val">{f.installedDate}</span>}
+                  ) : <span className="uc-stat-val">{localData.installedDate}</span>}
                 </div>
                 <div className="uc-stat" style={{ flex: 1 }}>
                   <span className="uc-stat-label">Hardware Technician</span>
                   {ed ? (
                     <input className="uc-inline-input" value={ed.hw_technician}
                       onChange={e => setEditing(prev => ({ ...prev, [f.id]: { ...prev[f.id], hw_technician: e.target.value } }))} />
-                  ) : <span className="uc-stat-val">{f.hw_technician}</span>}
+                  ) : <span className="uc-stat-val">{localData.hw_technician}</span>}
                 </div>
                 <div className="uc-stat" style={{ flex: 1 }}>
                   <span className="uc-stat-label">Software Technician</span>
                   {ed ? (
                     <input className="uc-inline-input" value={ed.sw_technician}
                       onChange={e => setEditing(prev => ({ ...prev, [f.id]: { ...prev[f.id], sw_technician: e.target.value } }))} />
-                  ) : <span className="uc-stat-val">{f.sw_technician}</span>}
+                  ) : <span className="uc-stat-val">{localData.sw_technician}</span>}
                 </div>
               </div>
 
