@@ -854,7 +854,7 @@ body {
 .map-fs-row-val { font-size: 10px; }
 
 .map-fullscreen-inner .leaflet-popup-content-wrapper {
-  max-width: 220px !important;
+  max-width: 280px !important;
   width: auto !important;
   min-width: 0 !important;
 }
