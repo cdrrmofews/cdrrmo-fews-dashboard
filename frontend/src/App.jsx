@@ -2676,23 +2676,16 @@ export default function App() {
           lat: fews1Live.latitude,
           lng: fews1Live.longitude,
         };
-        if (fews1DataRecent && isHardwareOnline) {
+        if (isHardwareOnline) {
           fews1 = {
             ...fews1,
             waterLevel: fews1Live.water_level_cm,
             status:     backendStatusToKey(fews1Live.status),
           };
-        } else if (!fews1DataRecent && isHardwareOnline) {
-          // Online but data not confirmed fresh yet — show neutral
-          fews1 = {
-            ...fews1,
-            waterLevel: 0,
-            status:     "safe",
-          };
         }
       }
       return [fews1];
-    }, [fews1Live, fews1DataRecent, isHardwareOnline]);
+    }, [fews1Live, isHardwareOnline]);
 
     const isCritical = useMemo(() => 
       isHardwareOnline && fews1DataRecent && allFews.some(f => f.status === "danger"),
