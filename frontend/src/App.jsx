@@ -1166,7 +1166,7 @@ function ChangePhoneModal({ onClose, token, user, onPhoneChanged, addLog }) {
 }
 
 // ─── ADD USER MODAL ───────────────────────────────────────────────────────────
-const EMPTY_ADD_FORM = { name: "", email: "", password: "", role: "Operator", department: "C3", phone: "" };
+const EMPTY_ADD_FORM = { name: "", email: "", password: "", role: "Operator", department: "MIAD", phone: "" };
 
 function AddUserModal({ onAdd, onClose, token, addLog }) {
   const [form, setForm]     = useState(EMPTY_ADD_FORM);
