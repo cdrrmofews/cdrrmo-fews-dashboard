@@ -1254,7 +1254,7 @@ function AddUserModal({ onAdd, onClose, token, addLog }) {
               <label className="settings-label">Department</label>
               <MuDropdown
                 value={form.department}
-                options={["C3", "MIAD", "OPS", "ITSD"]}
+                options={["MIAD", "OPS", "ITSD"]}
                 onChange={val => set("department", val)}
               />
             </div>
@@ -2055,7 +2055,7 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
                         />
                         <MuDropdown
                           value={d.department}
-                          options={["C3", "MIAD", "OPS", "ITSD"]}
+                          options={["MIAD", "OPS", "ITSD"]}
                           onChange={val => handleDraft(u.id, "department", val)}
                         />
                         <button className="mu-save-btn" disabled={!changed} onClick={() => setConfirmSave(u)}>Save</button>
