@@ -2959,8 +2959,8 @@ const waterChartOptions = useMemo(() => ({
           noSaved />
       )}
 
-      {/* ─── CRITICAL BANNER ─── */}
-      <div className={`critical-banner ${isCritical ? "active" : ""}`}>
+      {/* ─── CRITICAL BANNER (desktop only) ─── */}
+      <div className={`critical-banner critical-banner-desktop ${isCritical ? "active" : ""}`}>
         <div className="critical-banner-inner">
           <div className="marquee-track">
             <div className="marquee-content">
@@ -3084,6 +3084,20 @@ const waterChartOptions = useMemo(() => ({
             </div>
           </div>
         </header>
+
+        {/* ─── CRITICAL BANNER (mobile only) ─── */}
+        <div className={`critical-banner critical-banner-mobile ${isCritical ? "active" : ""}`}>
+          <div className="critical-banner-inner">
+            <div className="marquee-track">
+              <div className="marquee-content">
+                CRITICAL WATER LEVEL DETECTED — IMMEDIATE ACTION REQUIRED &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; CRITICAL WATER LEVEL DETECTED — IMMEDIATE ACTION REQUIRED &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; CRITICAL WATER LEVEL DETECTED — IMMEDIATE ACTION REQUIRED &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+              </div>
+              <div className="marquee-content" aria-hidden="true">
+                CRITICAL WATER LEVEL DETECTED — IMMEDIATE ACTION REQUIRED &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; CRITICAL WATER LEVEL DETECTED — IMMEDIATE ACTION REQUIRED &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; CRITICAL WATER LEVEL DETECTED — IMMEDIATE ACTION REQUIRED &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* ─── DASHBOARD ─── */}
         {activeNav === "Dashboard" && (

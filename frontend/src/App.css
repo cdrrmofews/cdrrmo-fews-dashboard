@@ -90,6 +90,9 @@ body {
   animation: banner-pulse 1s ease-in-out infinite;
 }
 
+/* Desktop: hide mobile banner, show desktop banner */
+.critical-banner-mobile { display: none; }
+
 .marquee-track {
   display: flex;
   width: 100%;
@@ -3050,14 +3053,20 @@ select.settings-input {
     padding-bottom: calc(52px + env(safe-area-inset-bottom));
   }
 
-  /* Critical banner: clear the status bar */
-  .critical-banner-inner {
-    padding-top: env(safe-area-inset-top);
-    height: calc(38px + env(safe-area-inset-top));
+  /* Desktop banner: hide on mobile */
+  .critical-banner-desktop { display: none !important; }
+
+  /* Mobile banner: show below topbar */
+  .critical-banner-mobile {
+    display: block;
   }
 
-  .critical-banner.active {
-    max-height: calc(38px + env(safe-area-inset-top));
+  .critical-banner-mobile .critical-banner-inner {
+    height: 38px;
+  }
+
+  .critical-banner-mobile.active {
+    max-height: 38px;
   }
 
   /* Toast: sits below the topbar */
