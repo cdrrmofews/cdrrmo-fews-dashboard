@@ -1578,17 +1578,17 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, 
               </div>
 
               <div className="uc-stats-row">
-                <div className="uc-stat" style={{ flex: "0 0 160px" }}>
+                <div className="uc-stat" style={{ flex: "0 0 200px" }}>
                   <span className="uc-stat-label">Water Level</span>
                   <span className="uc-stat-val" style={{ color: isActuallyLive ? cfg.color : "var(--text-3)" }}>
                     {isActuallyLive ? `${f.waterLevel} cm` : "—"}
                   </span>
                 </div>
-                <div className="uc-stat" style={{ flex: "0 0 160px" }}>
+                <div className="uc-stat" style={{ flex: "0 0 200px" }}>
                   <span className="uc-stat-label">Coordinates</span>
                   <span className="uc-stat-val" style={{ fontFamily:"var(--mono)", fontSize:10 }}>{f.lat}, {f.lng}</span>
                 </div>
-                <div className="uc-stat" style={{ flex: "0 0 160px" }}>
+                <div className="uc-stat" style={{ flex: "0 0 200px" }}>
                   <span className="uc-stat-label">Installed</span>
                   {ed ? (
                     <input className="uc-inline-input" value={ed.installedDate}
