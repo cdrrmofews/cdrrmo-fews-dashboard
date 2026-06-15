@@ -133,7 +133,7 @@ self.addEventListener('push', (event) => {
       setTimeout(() => {
         self.registration.getNotifications({ tag: 'fews-alert' })
           .then((notifs) => { notifs.forEach((n) => n.close()); resolve(); });
-      }, 10000);
+      }, 30000);
     }))
   );
 });
