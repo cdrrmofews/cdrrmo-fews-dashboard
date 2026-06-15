@@ -45,11 +45,12 @@ class SirenRequest(BaseModel):
     state: Literal["on", "off"]
 
 class UpdateUnitRequest(BaseModel):
-    installed_date:    Optional[str] = None
-    technician:        Optional[str] = None
-    description:       Optional[str] = None
-    threshold_warning: Optional[int] = None
-    threshold_danger:  Optional[int] = None
-
+    installed_date:    Optional[str]   = None
+    hw_technician:     Optional[str]   = None
+    sw_technician:     Optional[str]   = None
+    description:       Optional[str]   = None
+    threshold_warning: Optional[int]   = None
+    threshold_danger:  Optional[int]   = None
+    
 class PushSubscribeRequest(BaseModel):
     subscription: dict

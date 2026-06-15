@@ -210,7 +210,9 @@ const FEWS1_BASE = {
   lat: 13.762466, lng: 121.068331,
   status: "safe", waterLevel: 0,
   description: "",
-  installedDate: "—", technician: "Engr. Andrew Van Ryan",
+  installedDate: "—",
+  hw_technician: "Engr. Andrew Van Ryan / Engr. Katrina Rivera",
+  sw_technician: "Zhenrel Ocampo",
   isLive: true,
 };
 
@@ -1400,9 +1402,10 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, 
           if (!row) return f;
           return {
             ...f,
-            installedDate: row.installed_date || f.installedDate,
-            technician:    row.technician     || f.technician,
-            description:   row.description    || f.description,
+            installedDate:  row.installed_date  || f.installedDate,
+            hw_technician:  row.hw_technician   || f.hw_technician,
+            sw_technician:  row.sw_technician   || f.sw_technician,
+            description:    row.description     || f.description,
           };
         }));
         setThr(prev => {
@@ -1459,7 +1462,7 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, 
   const startEdit = (id) => {
     if (!canControl) return;
     const f = fewsData.find(x => x.id === id);
-    setEditing(prev => ({ ...prev, [id]: { installedDate: f.installedDate, technician: f.technician, description: f.description } }));
+    setEditing(prev => ({ ...prev, [id]: { installedDate: f.installedDate, hw_technician: f.hw_technician, sw_technician: f.sw_technician, description: f.description } }));
   };
 
   const saveInfo = async (id) => {
@@ -1473,7 +1476,8 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, 
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body:    JSON.stringify({
           installed_date: snapshot.installedDate,
-          technician:     snapshot.technician,
+          hw_technician:  snapshot.hw_technician,
+          sw_technician:  snapshot.sw_technician,
           description:    snapshot.description,
         }),
       });
@@ -1574,29 +1578,36 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, 
               </div>
 
               <div className="uc-stats-row">
-                <div className="uc-stat">
+                <div className="uc-stat" style={{ flex: "0 0 110px" }}>
                   <span className="uc-stat-label">Water Level</span>
                   <span className="uc-stat-val" style={{ color: isActuallyLive ? cfg.color : "var(--text-3)" }}>
                     {isActuallyLive ? `${f.waterLevel} cm` : "—"}
                   </span>
                 </div>
-                <div className="uc-stat">
+                <div className="uc-stat" style={{ flex: "0 0 110px" }}>
                   <span className="uc-stat-label">Coordinates</span>
                   <span className="uc-stat-val" style={{ fontFamily:"var(--mono)", fontSize:10 }}>{f.lat}, {f.lng}</span>
                 </div>
-                <div className="uc-stat">
+                <div className="uc-stat" style={{ flex: "0 0 110px" }}>
                   <span className="uc-stat-label">Installed</span>
                   {ed ? (
                     <input className="uc-inline-input" value={ed.installedDate}
                       onChange={e => setEditing(prev => ({ ...prev, [f.id]: { ...prev[f.id], installedDate: e.target.value } }))} />
                   ) : <span className="uc-stat-val">{f.installedDate}</span>}
                 </div>
-                <div className="uc-stat">
-                  <span className="uc-stat-label">Technician</span>
+                <div className="uc-stat" style={{ flex: 1 }}>
+                  <span className="uc-stat-label">Hardware Technician</span>
                   {ed ? (
-                    <input className="uc-inline-input" value={ed.technician}
-                      onChange={e => setEditing(prev => ({ ...prev, [f.id]: { ...prev[f.id], technician: e.target.value } }))} />
-                  ) : <span className="uc-stat-val">{f.technician}</span>}
+                    <input className="uc-inline-input" value={ed.hw_technician}
+                      onChange={e => setEditing(prev => ({ ...prev, [f.id]: { ...prev[f.id], hw_technician: e.target.value } }))} />
+                  ) : <span className="uc-stat-val">{f.hw_technician}</span>}
+                </div>
+                <div className="uc-stat" style={{ flex: 1 }}>
+                  <span className="uc-stat-label">Software Technician</span>
+                  {ed ? (
+                    <input className="uc-inline-input" value={ed.sw_technician}
+                      onChange={e => setEditing(prev => ({ ...prev, [f.id]: { ...prev[f.id], sw_technician: e.target.value } }))} />
+                  ) : <span className="uc-stat-val">{f.sw_technician}</span>}
                 </div>
               </div>
 

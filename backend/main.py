@@ -74,10 +74,12 @@ def startup():
             cur.execute("SELECT id FROM fews_units WHERE device_id = 'fews_1'")
             if not cur.fetchone():
                 cur.execute("""
-                    INSERT INTO fews_units (device_id, name, location, installed_date, technician, description, threshold_warning, threshold_danger)
-                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    INSERT INTO fews_units (device_id, name, location, installed_date, hw_technician, sw_technician, description, threshold_warning, threshold_danger)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
                 """, (
-                    "fews_1", "FEWS 1", "Bridge of Progress", "-", "Engr. Andrew Van Ryan",
+                    "fews_1", "FEWS 1", "Bridge of Progress", "-",
+                    "Engr. Andrew Van Ryan / Engr. Katrina Rivera",
+                    "Zhenrel Ocampo",
                     "Deployed at the Bridge of Progress along Calumpang River, Batangas City. Monitors the water level of the river passing beneath the bridge to provide early flood warnings for the surrounding community.",
                     200, 300
                 ))
@@ -725,7 +727,7 @@ def update_unit(device_id: str, req: UpdateUnitRequest, user=Depends(get_current
 
     # Operators cannot edit informational fields
     if user["role"] == "Operator":
-        if any(v is not None for v in [req.installed_date, req.technician, req.description]):
+        if any(v is not None for v in [req.installed_date, req.hw_technician, req.sw_technician, req.description]):
             raise HTTPException(status_code=403, detail="Operators can only update alert thresholds.")
 
     # Server-side threshold validation
@@ -746,7 +748,8 @@ def update_unit(device_id: str, req: UpdateUnitRequest, user=Depends(get_current
     try:
         fields, values = [], []
         if req.installed_date    is not None: fields.append("installed_date = %s");    values.append(req.installed_date)
-        if req.technician        is not None: fields.append("technician = %s");        values.append(req.technician)
+        if req.hw_technician     is not None: fields.append("hw_technician = %s");     values.append(req.hw_technician)
+        if req.sw_technician     is not None: fields.append("sw_technician = %s");     values.append(req.sw_technician)
         if req.description       is not None: fields.append("description = %s");       values.append(req.description)
         if req.threshold_warning is not None: fields.append("threshold_warning = %s"); values.append(req.threshold_warning)
         if req.threshold_danger  is not None: fields.append("threshold_danger = %s");  values.append(req.threshold_danger)
