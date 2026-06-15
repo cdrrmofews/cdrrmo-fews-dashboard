@@ -1385,12 +1385,6 @@ select.settings-input {
   border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
 }
 
-.uc-stats-row-2 {
-  border-top: none;
-  border-radius: 0 0 10px 10px;
-  margin-top: -1px;
-}
-
 .uc-stat {
   flex: 1; display: flex; flex-direction: column; gap: 4px;
   padding: 10px 14px; border-right: 1px solid var(--border);
@@ -2506,7 +2500,7 @@ select.settings-input {
   .uc-card-loc      { font-size: 10px; }
   .uc-badge         { font-size: 9px; padding: 2px 8px; }
   .uc-stats-row          { display: grid; grid-template-columns: 1fr 1fr 1fr; flex-wrap: unset; overflow: visible; }
-  .uc-stats-row-2        { display: grid; grid-template-columns: 1fr 1fr; overflow: visible; }
+  .uc-stats-row-2        { display: grid; grid-template-columns: 1fr 1fr; overflow: visible; border-top: none; border-radius: 0 0 10px 10px; margin-top: -1px; }
   .uc-stat               { flex: unset; border-right: 1px solid var(--border); border-bottom: 1px solid var(--border); }
   .uc-stats-row .uc-stat:nth-child(3)   { border-right: none; }
   .uc-stats-row-2 .uc-stat:nth-child(1) { border-right: 1px solid var(--border); border-bottom: none; }
