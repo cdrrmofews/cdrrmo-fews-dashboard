@@ -1628,7 +1628,7 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, 
                 {ed ? (
                   <textarea className="uc-desc-textarea" rows={3} value={ed.description}
                     onChange={e => setEditing(prev => ({ ...prev, [f.id]: { ...prev[f.id], description: e.target.value } }))} />
-                ) : <div className="uc-description">{f.description}</div>}
+                ) : <div className="uc-description">{localData.description}</div>}
                 {infoError[f.id] && <div className="settings-error" style={{ fontSize: 11, marginTop: 4 }}>{infoError[f.id]}</div>}
               </div>
 
