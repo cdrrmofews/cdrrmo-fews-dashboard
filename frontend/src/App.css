@@ -2499,11 +2499,11 @@ select.settings-input {
   .uc-card-name     { font-size: 13px; }
   .uc-card-loc      { font-size: 10px; }
   .uc-badge         { font-size: 9px; padding: 2px 8px; }
-  .uc-stats-row     { flex-wrap: wrap; }
-  .uc-stat          { flex: 1 1 45%; border-right: none; border-bottom: 1px solid var(--border); }
-  .uc-stat:nth-child(odd)                          { border-right: 1px solid var(--border); }
-  .uc-stat:last-child,
-  .uc-stat:nth-last-child(2):nth-child(odd)        { border-bottom: none; }
+  .uc-stats-row     { display: grid; grid-template-columns: 1fr 1fr; flex-wrap: unset; }
+  .uc-stat          { flex: unset; border-right: none; border-bottom: 1px solid var(--border); border-right: none !important; }
+  .uc-stat:nth-child(odd)  { border-right: 1px solid var(--border) !important; }
+  .uc-stat:last-child      { border-bottom: none; }
+  .uc-stat:nth-last-child(2):nth-child(odd) { border-bottom: none; }
   .uc-stat-label    { font-size: 8px; }
   .uc-stat-val      { font-size: 11px; }
   .uc-desc-section  { gap: 6px; }
