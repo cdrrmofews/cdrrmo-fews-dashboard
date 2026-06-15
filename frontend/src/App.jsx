@@ -1595,8 +1595,6 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, 
                       onChange={e => setEditing(prev => ({ ...prev, [f.id]: { ...prev[f.id], installedDate: e.target.value } }))} />
                   ) : <span className="uc-stat-val">{f.installedDate}</span>}
                 </div>
-              </div>
-              <div className="uc-stats-row uc-stats-row-2">
                 <div className="uc-stat" style={{ flex: 1 }}>
                   <span className="uc-stat-label">Hardware Technician</span>
                   {ed ? (
