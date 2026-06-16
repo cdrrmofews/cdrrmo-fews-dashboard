@@ -61,6 +61,14 @@ def start_offline_watcher():
                             ))
                             conn.commit()
                             print(f"[WATCHER] Offline logged for {station_id}")
+                            threading.Thread(
+                                target=send_push_notifications,
+                                args=(
+                                    "📡 CDRRMO FEWS OFFLINE",
+                                    f"{station_name} ({STATION_LOCATIONS.get(station_id, '')}) has gone offline. Please check the device.",
+                                ),
+                                daemon=True,
+                            ).start()
                         finally:
                             cur.close()
                             release_db(conn)
@@ -159,12 +167,19 @@ def on_message(client, userdata, msg):
                             ))
                             conn.commit()
                             print(f"[HB] Comeback logged for {station_id}")
+                            threading.Thread(
+                                target=send_push_notifications,
+                                args=(
+                                    "✅ CDRRMO FEWS BACK ONLINE",
+                                    f"{station_name} ({STATION_LOCATIONS.get(station_id, '')}) is back online and transmitting data.",
+                                ),
+                                daemon=True,
+                            ).start()
                         finally:
                             cur.close()
                             release_db(conn)
                     except Exception as e:
                         print(f"[HB] Error logging comeback: {e}")
-                print(f"[HB] Heartbeat received from {station_id}")
             return
 
         # ── Handle siren auto-off from Arduino ────────────────────────────────────
