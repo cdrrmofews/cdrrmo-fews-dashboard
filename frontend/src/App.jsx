@@ -2261,19 +2261,18 @@ export default function App() {
     const checkVersion = async () => {
       try {
         const res = await fetch(`${API_BASE}/version`);
+        if (!res.ok) return;
         const data = await res.json();
+        if (!data.deployed_at) return;
         if (currentVersion === null) {
           currentVersion = data.deployed_at;
         } else if (data.deployed_at !== currentVersion) {
           currentVersion = data.deployed_at;
 
-          // Tell the waiting SW to take over, then reload once it does
           if ('serviceWorker' in navigator) {
             const reg = await navigator.serviceWorker.getRegistration();
             if (reg?.waiting) {
-              // New SW is waiting — tell it to skip waiting
               reg.waiting.postMessage('SKIP_WAITING');
-              // Once the new SW takes control, reload
               navigator.serviceWorker.addEventListener('controllerchange', () => {
                 window.location.reload();
               }, { once: true });
@@ -2282,7 +2281,6 @@ export default function App() {
             }
           }
 
-          // Fallback: no waiting SW found, just reload normally
           showToast("CDRRMO FEWS Dashboard has been updated. Please refresh to get the latest version.", true);
         }
       } catch {
