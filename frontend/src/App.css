@@ -3091,6 +3091,7 @@ select.settings-input {
 
   /* ── Topbar ── */
   .topbar           { height: 72px; padding: 0 36px; }
+  .brand            { height: 72px; }
   .title-block h1   { font-size: 17px; }
   .subtitle         { font-size: 12px; }
   .connection       { font-size: 12px; padding: 7px 18px; }
