@@ -112,8 +112,8 @@ body {
    SIDEBAR
 ================================ */
 .sidebar {
-  width: clamp(200px, 16vw, 300px);
-  min-width: clamp(200px, 16vw, 300px);
+  width: clamp(200px, 14vw, 280px);
+  min-width: clamp(200px, 14vw, 280px);
   background: var(--bg-panel);
   border-right: 1px solid var(--border);
   display: flex;
@@ -3099,13 +3099,13 @@ select.settings-input {
 
   /* ── Sidebar ── */
   .sidebar {
-    width: clamp(220px, 17vw, 320px);
-    min-width: clamp(220px, 17vw, 320px);
+    width: 260px;
+    min-width: 260px;
     padding: 0 20px 28px;
   }
   .sidebar.collapsed {
-    width: clamp(60px, 5vw, 80px);
-    min-width: clamp(60px, 5vw, 80px);
+    width: 72px;
+    min-width: 72px;
   }
   .brand-name       { font-size: 18px; }
   .nav-btn          { font-size: 14px; padding: 12px 14px; }
