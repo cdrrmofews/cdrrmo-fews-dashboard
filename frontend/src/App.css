@@ -3089,28 +3089,75 @@ select.settings-input {
 ================================ */
 @media (min-width: 1440px) {
 
-  .title-block h1   { font-size: clamp(14px, 1.1vw, 18px); }
-  .subtitle         { font-size: clamp(10px, 0.7vw, 13px); }
-  .connection       { font-size: clamp(10px, 0.7vw, 13px); padding: clamp(5px, 0.4vh, 8px) clamp(12px, 1vw, 18px); }
-  .alert-badge      { font-size: clamp(10px, 0.7vw, 13px); }
+  /* ── Topbar ── */
+  .topbar           { height: 72px; padding: 0 36px; }
+  .title-block h1   { font-size: 17px; }
+  .subtitle         { font-size: 12px; }
+  .connection       { font-size: 12px; padding: 7px 18px; }
+  .alert-badge      { font-size: 12px; padding: 6px 16px; }
+  .topbar-seal-img  { height: 54px; }
 
-  .brand-name       { font-size: clamp(14px, 1.1vw, 20px); }
+  /* ── Sidebar ── */
+  .sidebar {
+    width: clamp(220px, 17vw, 320px);
+    min-width: clamp(220px, 17vw, 320px);
+    padding: 0 20px 28px;
+  }
+  .sidebar.collapsed {
+    width: clamp(60px, 5vw, 80px);
+    min-width: clamp(60px, 5vw, 80px);
+  }
+  .brand-name       { font-size: 18px; }
+  .nav-btn          { font-size: 14px; padding: 12px 14px; }
+  .nav-icon svg     { width: 18px; height: 18px; }
 
-  .nav-btn          { font-size: clamp(12px, 0.85vw, 15px); padding: clamp(8px, 0.6vh, 14px) clamp(10px, 0.8vw, 16px); }
-  .nav-icon svg     { width: clamp(16px, 1.2vw, 20px); height: clamp(16px, 1.2vw, 20px); }
+  /* ── Dashboard cards ── */
+  .dashboard-body   { padding: 20px; gap: 16px; }
+  .card             { padding: 14px 20px; border-radius: 16px; }
+  .card-header h2   { font-size: 13px; }
+  .card-tag         { font-size: 11px; }
 
-  .card             { padding: clamp(10px, 0.8vw, 18px) clamp(14px, 1.1vw, 22px); }
-  .card-header h2   { font-size: clamp(11px, 0.8vw, 15px); }
-  .card-tag         { font-size: clamp(9px, 0.6vw, 12px); }
+  /* ── Right sidebar ── */
+  .right-sidebar {
+    width: clamp(220px, 16vw, 300px);
+    min-width: clamp(220px, 16vw, 300px);
+    padding: 20px 16px;
+  }
+  .rsb-header h3    { font-size: 13px; }
+  .rsb-name         { font-size: 13px; }
+  .rsb-loc          { font-size: 11px; }
+  .rsb-badge        { font-size: 10px; padding: 3px 8px; }
+  .rsb-stat         { font-size: 12px; }
+  .rsb-detail-title { font-size: 12px; }
+  .rsb-siren-note   { font-size: 10px; }
 
-  .rsb-header h3    { font-size: clamp(11px, 0.8vw, 15px); }
-  .rsb-name         { font-size: clamp(12px, 0.85vw, 15px); }
-  .rsb-loc          { font-size: clamp(10px, 0.65vw, 12px); }
-  .rsb-badge        { font-size: clamp(9px, 0.6vw, 11px); }
-  .rsb-stat         { font-size: clamp(11px, 0.8vw, 14px); }
-  .rsb-detail-title { font-size: clamp(11px, 0.8vw, 14px); }
-  .rsb-siren-note   { font-size: clamp(9px, 0.6vw, 11px); }
+  /* ── Pages ── */
+  .page-body        { padding: 20px; gap: 16px; }
+  .page-card        { padding: 20px; border-radius: 16px; }
+  .page-card-title  { font-size: 16px; }
+  .page-card-sub    { font-size: 13px; }
 
-  .dashboard-body   { padding: clamp(12px, 1.2vw, 24px); gap: clamp(12px, 1.2vw, 24px); }
-  .page-body        { padding: clamp(12px, 1.2vw, 24px); gap: clamp(12px, 1.2vw, 24px); }
+  /* ── Logs table ── */
+  .logs-table-head  { padding: 11px 22px; font-size: 11px; }
+  .logs-row         { padding: 12px 22px; }
+  .logs-date-day    { font-size: 12px; }
+  .logs-date-time   { font-size: 11px; }
+  .logs-col-msg     { font-size: 12px; }
+  .logs-type-badge  { font-size: 10px; padding: 4px 10px; }
+  .logs-stat-count  { font-size: 22px; }
+  .logs-stat-label  { font-size: 10px; }
+
+  /* ── Unit Control ── */
+  .uc-card          { padding: 24px 28px; }
+  .uc-card-name     { font-size: 16px; }
+  .uc-stat-label    { font-size: 10px; }
+  .uc-stat-val      { font-size: 13px; }
+  .uc-description   { font-size: 13px; }
+
+  /* ── Settings ── */
+  .sa-label         { font-size: 14px; }
+  .sa-sub           { font-size: 12px; }
+  .mu-name          { font-size: 14px; }
+  .mu-email         { font-size: 11px; }
+  .settings-input   { font-size: 14px; height: 42px; }
 }
