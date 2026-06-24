@@ -2954,6 +2954,12 @@ select.settings-input {
   animation: toast-out 0.2s ease forwards;
 }
 
+.topbar-seal-mobile { display: none; }
+
+@media (max-width: 768px) {
+  .topbar-seal-mobile { display: block; order: -1; }
+}
+
 @keyframes toast-in {
   from { opacity: 0; transform: translateY(-10px) scale(0.96); }
   to   { opacity: 1; transform: translateY(0) scale(1); }
@@ -3146,6 +3152,9 @@ select.settings-input {
   .uc-stat-label    { font-size: 10px; }
   .uc-stat-val      { font-size: 13px; }
   .uc-description   { font-size: 13px; }
+  .uc-stats-row .uc-stat:nth-child(1),
+  .uc-stats-row .uc-stat:nth-child(2),
+  .uc-stats-row .uc-stat:nth-child(3) { flex: 1 1 200px; }
 
   /* ── Settings ── */
   .sa-label         { font-size: 14px; }

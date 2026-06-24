@@ -3033,6 +3033,7 @@ const waterChartOptions = useMemo(() => ({
               <div className="subtitle">{pageInfo.sub}</div>
             </div>
           </div>
+          <img src="/logo1.jpg" alt="CDRRMO FEWS" className="topbar-seal-img topbar-seal-mobile" />
           <div className="topbar-seals" />
           <div className="top-right">
             {alertCount > 0 && (
