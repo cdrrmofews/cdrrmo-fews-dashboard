@@ -2971,8 +2971,9 @@ const waterChartOptions = useMemo(() => ({
       {/* ─── SIDEBAR ─── */}
       <aside className={`sidebar ${sidebarOpen ? "" : "collapsed"}`}>
         <div className="brand">
+          {sidebarOpen && <div className="brand-icon">🌊</div>}
           <div className={`brand-text ${sidebarOpen ? "" : "hidden"}`}>
-            <div className="brand-name">CDRRMO Fews</div>
+            <div className="brand-name">CDRRMO</div>
           </div>
           <button
             className="nav-btn"
