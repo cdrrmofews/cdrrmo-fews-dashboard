@@ -443,9 +443,9 @@ def on_disconnect(client, userdata, rc):
 def start_bridge():
     while True:
         try:
-            unique_id = f"cdrrmo_bridge_{uuid.uuid4().hex[:8]}"
+            unique_id = "cdrrmo_bridge_server_01"
             print(f"[BRIDGE] Client ID: {unique_id}")
-            client = mqtt.Client(client_id=unique_id, protocol=mqtt.MQTTv311, clean_session=True)
+            client = mqtt.Client(client_id=unique_id, protocol=mqtt.MQTTv311, clean_session=False)
             client.on_connect    = on_connect
             client.on_message    = on_message
             client.on_disconnect = on_disconnect
