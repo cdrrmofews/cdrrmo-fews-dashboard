@@ -1579,31 +1579,31 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, 
               </div>
 
               <div className="uc-stats-row">
-                <div className="uc-stat" style={{ flex: "1 1 200px" }}>
+                <div className="uc-stat" style={{ flex: "0 0 200px" }}>
                   <span className="uc-stat-label">Water Level</span>
                   <span className="uc-stat-val" style={{ color: isActuallyLive ? cfg.color : "var(--text-3)" }}>
                     {isActuallyLive ? `${f.waterLevel} cm` : "—"}
                   </span>
                 </div>
-                <div className="uc-stat" style={{ flex: "1 1 200px" }}>
+                <div className="uc-stat" style={{ flex: "0 0 200px" }}>
                   <span className="uc-stat-label">Coordinates</span>
                   <span className="uc-stat-val" style={{ fontFamily:"var(--mono)", fontSize:10 }}>{f.lat}, {f.lng}</span>
                 </div>
-                <div className="uc-stat" style={{ flex: "1 1 200px" }}>
+                <div className="uc-stat" style={{ flex: "0 0 200px" }}>
                   <span className="uc-stat-label">Installed</span>
                   {ed ? (
                     <input className="uc-inline-input" value={ed.installedDate}
                       onChange={e => setEditing(prev => ({ ...prev, [f.id]: { ...prev[f.id], installedDate: e.target.value } }))} />
                   ) : <span className="uc-stat-val">{localData.installedDate}</span>}
                 </div>
-                <div className="uc-stat" style={{ flex: "2 1 200px" }}>
+                <div className="uc-stat" style={{ flex: 1 }}>
                   <span className="uc-stat-label">Hardware Technician</span>
                   {ed ? (
                     <input className="uc-inline-input" value={ed.hw_technician}
                       onChange={e => setEditing(prev => ({ ...prev, [f.id]: { ...prev[f.id], hw_technician: e.target.value } }))} />
                   ) : <span className="uc-stat-val">{localData.hw_technician}</span>}
                 </div>
-                <div className="uc-stat" style={{ flex: "2 1 200px" }}>
+                <div className="uc-stat" style={{ flex: 1 }}>
                   <span className="uc-stat-label">Software Technician</span>
                   {ed ? (
                     <input className="uc-inline-input" value={ed.sw_technician}
@@ -3027,14 +3027,13 @@ const waterChartOptions = useMemo(() => ({
       <div className="main">
         <header className="topbar">
           <div className="top-left">
+            <img src="/logo1.jpg" alt="CDRRMO FEWS" className="topbar-seal-img" />
             <div className="title-block">
               <h1>{pageInfo.title}</h1>
               <div className="subtitle">{pageInfo.sub}</div>
             </div>
           </div>
-          <div className="topbar-seals">
-            <img src="/logo1.jpg" alt="CDRRMO FEWS" className="topbar-seal-img" />
-          </div>
+          <div className="topbar-seals" />
           <div className="top-right">
             {alertCount > 0 && (
               <div className="alert-badge">
