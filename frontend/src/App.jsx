@@ -2804,7 +2804,6 @@ export default function App() {
       pointRadius: 3,
       pointHoverRadius: 6,
       borderWidth: 3,
-      clip: false,
       pointBackgroundColor: (ctx) => {
         const v = ctx.parsed?.y;
         if (v == null) return "transparent";
@@ -2825,6 +2824,7 @@ export default function App() {
 const waterChartOptions = useMemo(() => ({
     responsive: true,
     maintainAspectRatio: false,
+    clip: false,
     plugins: {
       legend: {
         display: false,
