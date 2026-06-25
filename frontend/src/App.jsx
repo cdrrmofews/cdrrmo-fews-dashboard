@@ -2797,7 +2797,7 @@ export default function App() {
     datasets: [{
       label: "FEWS 1",
       data: chartPoints,
-      spanGaps: true,
+      spanGaps: false,
       borderColor: "#ffffff",
       backgroundColor: "rgba(255,255,255,0.05)",
       tension: 0,
@@ -2824,7 +2824,6 @@ export default function App() {
 const waterChartOptions = useMemo(() => ({
     responsive: true,
     maintainAspectRatio: false,
-    clip: false,
     plugins: {
       legend: {
         display: false,
