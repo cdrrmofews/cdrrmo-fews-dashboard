@@ -3143,7 +3143,7 @@ const waterChartOptions = useMemo(() => ({
                         <Marker key={f.id} position={[f.lat, f.lng]} icon={icon}
                           ref={el => { markerRefs.current[f.id] = el; }}
                           eventHandlers={{ click: () => setSelectedFEWS(selectedFEWS === f.id ? null : f.id) }}>
-                          <Popup minWidth={180} maxWidth={260}>
+                          <Popup minWidth={200} maxWidth={280}>
                             <div style={{ fontFamily:"sans-serif", padding:"2px 0" }}>
                               <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
                                 <strong style={{ fontSize:"13px", color:"#1e293b" }}>{f.name}</strong>
@@ -3156,6 +3156,22 @@ const waterChartOptions = useMemo(() => ({
                                 {" · "}
                                 <span>Water: {isHardwareOnline ? `${f.waterLevel} cm` : "—"}</span>
                               </div>
+                              <div style={{ display:"flex", flexDirection:"column", gap:3, marginBottom:6, padding:"6px 0", borderTop:"1px solid #e2e8f0", borderBottom:"1px solid #e2e8f0" }}>
+                                <div style={{ display:"flex", justifyContent:"space-between", fontSize:"10px" }}>
+                                  <span style={{ color:"#64748b" }}>⚠ Warning</span>
+                                  <span style={{ color:"#f59e0b", fontWeight:700 }}>{thresholds.warning} cm</span>
+                                </div>
+                                <div style={{ display:"flex", justifyContent:"space-between", fontSize:"10px" }}>
+                                  <span style={{ color:"#64748b" }}>🔴 Danger</span>
+                                  <span style={{ color:"#ef4444", fontWeight:700 }}>{thresholds.danger} cm</span>
+                                </div>
+                                <div style={{ display:"flex", justifyContent:"space-between", fontSize:"10px" }}>
+                                  <span style={{ color:"#64748b" }}>Status</span>
+                                  <span style={{ color: isHardwareOnline ? cfg.color : "#94a3b8", fontWeight:700 }}>
+                                    {isHardwareOnline ? cfg.label : "—"}
+                                  </span>
+                                </div>
+                              </div>
                               <button onClick={() => {
                                 navigator.clipboard.writeText(`${f.lat}, ${f.lng}`);
                                 setCopiedId(f.id);
@@ -3164,7 +3180,7 @@ const waterChartOptions = useMemo(() => ({
                                   setCopiedId(null);
                                   copiedTimerRef.current = null;
                                 }, 1500);
-                              }} style={{ marginTop:"7px", padding:"3px 8px", background: copiedId===f.id?"#38bdf8":markerColor, color:"#ffffff", border:"none", outline:"none", boxShadow:"none", borderRadius:"4px", cursor:"pointer", fontWeight:"700", fontSize:"10px", width:"100%", transition:"background 0.2s" }}>
+                              }} style={{ marginTop:"4px", padding:"3px 8px", background: copiedId===f.id?"#38bdf8":markerColor, color:"#ffffff", border:"none", outline:"none", boxShadow:"none", borderRadius:"4px", cursor:"pointer", fontWeight:"700", fontSize:"10px", width:"100%", transition:"background 0.2s" }}>
                                 {copiedId===f.id ? "Copied!" : "📋 Copy Coordinates"}
                               </button>
                             </div>
@@ -3386,6 +3402,8 @@ const waterChartOptions = useMemo(() => ({
                         </span>
                       )}
                     </div>
+
+                    {/* Real-time */}
                     <div className="rsb-stat"><span>Water Level</span><strong style={{ color: isActuallyLive ? cfg.color : "var(--text-3)" }}>{isActuallyLive ? `${f.waterLevel} cm` : "—"}</strong></div>
                     <div className="rsb-stat"><span>Status</span><strong style={{ color: isActuallyLive ? cfg.color : "var(--text-3)" }}>{isActuallyLive ? cfg.label : "WAITING"}</strong></div>
                     <div className="rsb-stat">
@@ -3394,6 +3412,27 @@ const waterChartOptions = useMemo(() => ({
                         {lastUpdatedStr ? lastUpdatedStr : "—"}
                       </strong>
                     </div>
+
+                    <div style={{ height:1, background:"var(--border)", margin:"2px 0" }} />
+
+                    {/* Static info */}
+                    <div className="rsb-stat"><span>Location</span><strong style={{ color:"var(--text-1)", fontSize:10 }}>{f.location}</strong></div>
+                    <div className="rsb-stat"><span>Coordinates</span><strong style={{ color:"var(--text-1)", fontFamily:"var(--mono)", fontSize:9 }}>{f.lat}, {f.lng}</strong></div>
+
+                    <div style={{ height:1, background:"var(--border)", margin:"2px 0" }} />
+
+                    {/* Thresholds */}
+                    <div className="rsb-stat"><span>⚠ Warning</span><strong style={{ color:"var(--amber)" }}>{thresholds.warning} cm</strong></div>
+                    <div className="rsb-stat"><span>🔴 Danger</span><strong style={{ color:"var(--red)" }}>{thresholds.danger} cm</strong></div>
+
+                    <div style={{ height:1, background:"var(--border)", margin:"2px 0" }} />
+
+                    {/* Installed */}
+                    <div className="rsb-stat"><span>Installed</span><strong style={{ color:"var(--text-1)", fontSize:10 }}>{f.installedDate || "—"}</strong></div>
+
+                    <div style={{ height:1, background:"var(--border)", margin:"2px 0" }} />
+
+                    {/* Siren */}
                     {canSiren && (
                       <div className="rsb-siren">
                         <div className="rsb-siren-label">Siren Control</div>
@@ -3408,7 +3447,7 @@ const waterChartOptions = useMemo(() => ({
                             disabled={!isActuallyLive || sirenLoading[f.id]}
                           >
                             {sirenLoading[f.id]
-                              ? <span className="btn-spinner" style={{ width: 10, height: 10, borderWidth: 1.5, borderTopColor: sirenOn && isActuallyLive ? "#fff" : "var(--text-2)", borderColor: sirenOn && isActuallyLive ? "rgba(255,255,255,0.25)" : "rgba(126,146,180,0.25)" }} />
+                              ? <span className="btn-spinner" style={{ width:10, height:10, borderWidth:1.5, borderTopColor: sirenOn && isActuallyLive ? "#fff" : "var(--text-2)", borderColor: sirenOn && isActuallyLive ? "rgba(255,255,255,0.25)" : "rgba(126,146,180,0.25)" }} />
                               : sirenOn && isActuallyLive ? "SILENCE" : "MANUAL ON"}
                           </button>
                         </div>
