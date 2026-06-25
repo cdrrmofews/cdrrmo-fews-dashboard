@@ -1390,9 +1390,10 @@ select.settings-input {
 }
 
 .uc-stat {
-  flex: 1; display: flex; flex-direction: column; gap: 4px;
+  flex: 0 0 200px; display: flex; flex-direction: column; gap: 4px;
   padding: 10px 14px; border-right: 1px solid var(--border);
 }
+
 .uc-stat:last-child { border-right: none; }
 
 .uc-stat-label { font-size: 9px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; }
@@ -3152,6 +3153,7 @@ select.settings-input {
   .uc-stat-label    { font-size: 10px; }
   .uc-stat-val      { font-size: 13px; }
   .uc-description   { font-size: 13px; }
+  .uc-stat { flex: 1; }
 
 /* ── Alarm Status ── */
   .alarm-icon-wrap  { width: 56px !important; height: 56px !important; }
