@@ -2804,9 +2804,7 @@ export default function App() {
       pointRadius: 3,
       pointHoverRadius: 6,
       borderWidth: 3,
-      segment: {
-        borderColor: () => "#38bdf8",
-      },
+      clip: false,
       pointBackgroundColor: (ctx) => {
         const v = ctx.parsed?.y;
         if (v == null) return "transparent";
