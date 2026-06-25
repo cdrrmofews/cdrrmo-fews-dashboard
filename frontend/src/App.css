@@ -3152,9 +3152,6 @@ select.settings-input {
   .uc-stat-label    { font-size: 10px; }
   .uc-stat-val      { font-size: 13px; }
   .uc-description   { font-size: 13px; }
-  .uc-stats-row .uc-stat:nth-child(1),
-  .uc-stats-row .uc-stat:nth-child(2),
-  .uc-stats-row .uc-stat:nth-child(3) { flex: 1 1 200px; }
 
   /* ── Settings ── */
   .sa-label         { font-size: 14px; }
