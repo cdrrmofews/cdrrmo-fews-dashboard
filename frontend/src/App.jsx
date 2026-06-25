@@ -169,7 +169,7 @@ async function authFetch(url, options = {}) {
 // ─── RBAC HELPERS ────────────────────────────────────────────────────────────
 const ROLE_ACCESS = {
   Admin:    ["Dashboard", "UnitControl", "Logs", "Settings"],
-  Operator: ["Dashboard", "Logs", "Settings"],
+  Operator: ["Dashboard", "UnitControl", "Logs", "Settings"],
 };
 
 function can(role, feature) {
