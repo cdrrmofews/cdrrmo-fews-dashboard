@@ -3153,6 +3153,12 @@ select.settings-input {
   .uc-stat-val      { font-size: 13px; }
   .uc-description   { font-size: 13px; }
 
+/* ── Alarm Status ── */
+  .alarm-icon-wrap  { width: 56px !important; height: 56px !important; }
+  .alarm-icon       { width: 56px !important; height: 56px !important; font-size: 28px !important; border-radius: 12px !important; }
+  .alarm-label      { font-size: 22px !important; }
+  .alarm-sub        { font-size: 13px !important; max-width: 240px !important; }
+
   /* ── Settings ── */
   .sa-label         { font-size: 14px; }
   .sa-sub           { font-size: 12px; }

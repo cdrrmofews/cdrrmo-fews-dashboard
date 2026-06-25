@@ -2797,13 +2797,13 @@ export default function App() {
     datasets: [{
       label: "FEWS 1",
       data: chartPoints,
-      spanGaps: false,
-      borderColor: "#38bdf8",
-      backgroundColor: "rgba(56,189,248,0.08)",
+      spanGaps: true,
+      borderColor: "#ffffff",
+      backgroundColor: "rgba(255,255,255,0.05)",
       tension: 0,
       pointRadius: 3,
       pointHoverRadius: 6,
-      borderWidth: 2,
+      borderWidth: 3,
       segment: {
         borderColor: () => "#38bdf8",
       },
@@ -3283,8 +3283,8 @@ const waterChartOptions = useMemo(() => ({
                       minHeight: 0,
                     }}>
                       {/* Square icon — fixed wrapper prevents pulse from shifting layout */}
-                      <div style={{ width: 38, height: 38, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <div style={{
+                      <div className="alarm-icon-wrap" style={{ width: 38, height: 38, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <div className="alarm-icon" style={{
                           width: 38, height: 38,
                           borderRadius: 8,
                           border: `2px solid ${cfg.sqBor}`,
@@ -3305,7 +3305,7 @@ const waterChartOptions = useMemo(() => ({
                       </div>
 
                       {/* Label */}
-                      <div style={{
+                      <div className="alarm-label" style={{
                         fontSize: 14,
                         fontWeight: 800,
                         color: cfg.color,
@@ -3317,7 +3317,7 @@ const waterChartOptions = useMemo(() => ({
                       </div>
 
                       {/* Dynamic sub message */}
-                      <div style={{
+                      <div className="alarm-sub" style={{
                         fontSize: 10,
                         color: cfg.color,
                         textAlign: "center",
