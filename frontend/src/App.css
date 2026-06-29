@@ -2800,25 +2800,40 @@ select.settings-input {
 }
 
 /* AFTER */
-.ticker-card { min-width: 320px !important; padding: 20px 28px !important; }
-.ticker-card-name { font-size: 16px !important; }
-.ticker-card-level { font-size: 42px !important; }
-.ticker-card-meta { font-size: 13px !important; color: #4a607e !important; }
-.ticker-badge { font-size: 12px !important; }
 
+/* Mobile */
 @media (max-width: 768px) {
   .ticker-card { min-width: 160px !important; padding: 10px 14px !important; }
   .ticker-card-name { font-size: 12px !important; }
   .ticker-card-level { font-size: 22px !important; }
-  .ticker-card-meta { font-size: 10px !important; color: #4a607e !important; }
+  .ticker-card-meta { font-size: 10px !important; color: #e2e8f0 !important; }
   .ticker-badge { font-size: 9px !important; }
 }
 
+/* Laptop (769px–1439px) — your 1366x768 falls here */
+@media (min-width: 769px) and (max-width: 1439px) {
+  .ticker-card { min-width: 220px !important; padding: 14px 20px !important; }
+  .ticker-card-name { font-size: 13px !important; }
+  .ticker-card-level { font-size: 30px !important; }
+  .ticker-card-meta { font-size: 11px !important; color: #e2e8f0 !important; }
+  .ticker-badge { font-size: 10px !important; }
+}
+
+/* Large PC monitor (1440px+) */
 @media (min-width: 1440px) {
-  .ticker-card { min-width: 360px !important; padding: 22px 32px !important; }
+  .ticker-card { min-width: 320px !important; padding: 20px 28px !important; }
+  .ticker-card-name { font-size: 16px !important; }
+  .ticker-card-level { font-size: 42px !important; }
+  .ticker-card-meta { font-size: 13px !important; color: #e2e8f0 !important; }
+  .ticker-badge { font-size: 12px !important; }
+}
+
+/* Extra large (1920px+) */
+@media (min-width: 1920px) {
+  .ticker-card { min-width: 380px !important; padding: 24px 34px !important; }
   .ticker-card-level { font-size: 52px !important; }
   .ticker-card-name { font-size: 18px !important; }
-  .ticker-card-meta { font-size: 14px !important; }
+  .ticker-card-meta { font-size: 14px !important; color: #e2e8f0 !important; }
   .ticker-badge { font-size: 13px !important; }
 }
 

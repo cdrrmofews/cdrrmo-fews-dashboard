@@ -3153,6 +3153,7 @@ const waterChartOptions = useMemo(() => ({
             });
           };
 
+          /* AFTER — close button sits above the scrolling row, not overlapping it */
           return (
             <div className="ticker-overlay" style={{
               position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9000,
@@ -3161,26 +3162,36 @@ const waterChartOptions = useMemo(() => ({
               overflow: "hidden",
               transition: "opacity 1.5s ease",
               opacity: tickerLeaving ? 0 : 1,
+              display: "flex",
+              flexDirection: "column",
             }}>
-              <button
-                onClick={() => setShowTicker(false)}
-                style={{
-                  position: "absolute", top: 10, right: 14,
-                  background: "transparent", border: "none",
-                  color: "rgba(148,163,184,0.6)", fontSize: 18,
-                  cursor: "pointer", lineHeight: 1, padding: "3px 8px",
-                  borderRadius: 4, zIndex: 10,
-                  transition: "color 0.15s",
-                }}
-                onMouseEnter={e => e.currentTarget.style.color = "#e2e8f0"}
-                onMouseLeave={e => e.currentTarget.style.color = "rgba(148,163,184,0.6)"}
-                title="Dismiss"
-              >
-                ✕
-              </button>
+              {/* Close button row — sits above the cards, never overlaps */}
+              <div style={{
+                display: "flex",
+                justifyContent: "flex-end",
+                padding: "6px 14px 0",
+                flexShrink: 0,
+              }}>
+                <button
+                  onClick={() => setShowTicker(false)}
+                  style={{
+                    background: "transparent", border: "none",
+                    color: "rgba(148,163,184,0.6)", fontSize: 18,
+                    cursor: "pointer", lineHeight: 1, padding: "3px 8px",
+                    borderRadius: 4,
+                    transition: "color 0.15s",
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.color = "#e2e8f0"}
+                  onMouseLeave={e => e.currentTarget.style.color = "rgba(148,163,184,0.6)"}
+                  title="Dismiss"
+                >
+                  ✕
+                </button>
+              </div>
+              {/* Scrolling cards row */}
               <div style={{
                 display: "flex", gap: 14,
-                padding: "14px 18px",
+                padding: "8px 18px 14px",
                 animation: `tickerSlide ${animDuration}s linear 1 forwards`,
                 width: "max-content",
               }}>
@@ -3198,7 +3209,7 @@ const waterChartOptions = useMemo(() => ({
                         <span className="ticker-badge" style={{ color, background: `${color}26`, border: `1px solid ${color}59`, borderRadius: 4, padding: "2px 9px", fontFamily: "var(--mono)", fontWeight: 700 }}>{statusKey}</span>
                       </div>
                       <div className="ticker-card-level" style={{ color, fontFamily: "var(--mono)", lineHeight: 1, marginBottom: 10 }}>{d.value} cm</div>
-                      <div className="ticker-card-meta" style={{ color: "#4a607e" }}>Bridge of Progress · {d.label} · {fmtDate(d.ms)}</div>
+                      <div className="ticker-card-meta" style={{ color: "#e2e8f0" }}>Bridge of Progress · {d.label} · {fmtDate(d.ms)}</div>
                     </div>
                   );
                 })}
