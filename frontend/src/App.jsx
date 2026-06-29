@@ -2361,47 +2361,57 @@ export default function App() {
     if (!historyData?.values?.length) return;
 
     const pointCount = historyData.values.filter(v => v !== null).length;
-    const animDuration = pointCount * 4 * 2;
+    const animDuration = pointCount * 4 * 2; // seconds for 2 full loops
 
-    // Show immediately on first data load
-    setTickerLeaving(false);
-    setShowTicker(true);
+    let tickerTimer = null;
+    let checkTimer = null;
 
-    const fadeTimer = setTimeout(() => {
-      setTickerLeaving(true);
-      const hideTimer = setTimeout(() => {
-        setShowTicker(false);
-        setTickerLeaving(false);
+    const msUntilNextBoundary = () => {
+      const now = new Date();
+      const mins = now.getMinutes();
+      const secs = now.getSeconds();
+      const ms   = now.getMilliseconds();
+      // Next :00 or :30
+      const minsUntilNext = mins < 30 ? (30 - mins) : (60 - mins);
+      return (minsUntilNext * 60 - secs) * 1000 - ms;
+    };
 
-        // Schedule next show at the next :00 or :30 on the wall clock
-        const scheduleNext = () => {
-          const now = new Date();
-          const ms = now.getTime();
-          const mins = now.getMinutes();
-          const secs = now.getSeconds();
-          const msecs = now.getMilliseconds();
-          // Next :00 or :30 boundary
-          let minsUntilNext;
-          if (mins < 30) {
-            minsUntilNext = 30 - mins;
-          } else {
-            minsUntilNext = 60 - mins;
-          }
-          const msUntilNext = (minsUntilNext * 60 - secs) * 1000 - msecs;
-          return setTimeout(() => {
-            setTickerLeaving(false);
-            setShowTicker(true);
-          }, msUntilNext);
-        };
+    const isAtBoundary = () => {
+      const now  = new Date();
+      const mins = now.getMinutes();
+      const secs = now.getSeconds();
+      return (mins === 0 || mins === 30) && secs < 3;
+    };
 
-        const nextTimer = scheduleNext();
-        return () => clearTimeout(nextTimer);
-      }, 1500);
-      return () => clearTimeout(hideTimer);
-    }, animDuration * 1000);
+    const showAndSchedule = () => {
+      // Show ticker
+      setTickerLeaving(false);
+      setShowTicker(true);
 
-    return () => clearTimeout(fadeTimer);
-}, [historyData?.values?.length]);
+      // Hide after 2 full loops complete
+      tickerTimer = setTimeout(() => {
+        setTickerLeaving(true);
+        setTimeout(() => {
+          setShowTicker(false);
+          setTickerLeaving(false);
+          // Wait for next boundary
+          checkTimer = setTimeout(showAndSchedule, msUntilNextBoundary());
+        }, 1500);
+      }, animDuration * 1000);
+    };
+
+    // If we're already at a boundary, show now; otherwise wait
+    if (isAtBoundary()) {
+      showAndSchedule();
+    } else {
+      checkTimer = setTimeout(showAndSchedule, msUntilNextBoundary());
+    }
+
+    return () => {
+      clearTimeout(tickerTimer);
+      clearTimeout(checkTimer);
+    };
+  }, [historyData?.values?.length]);
 
   const userNameRef = useRef(user.name);
   useEffect(() => { userNameRef.current = user.name; }, [user.name]);
@@ -3166,28 +3176,6 @@ const waterChartOptions = useMemo(() => ({
               flexDirection: "column",
             }}>
               {/* Close button row — sits above the cards, never overlaps */}
-              <div style={{
-                display: "flex",
-                justifyContent: "flex-end",
-                padding: "6px 14px 0",
-                flexShrink: 0,
-              }}>
-                <button
-                  onClick={() => setShowTicker(false)}
-                  style={{
-                    background: "transparent", border: "none",
-                    color: "rgba(148,163,184,0.6)", fontSize: 18,
-                    cursor: "pointer", lineHeight: 1, padding: "3px 8px",
-                    borderRadius: 4,
-                    transition: "color 0.15s",
-                  }}
-                  onMouseEnter={e => e.currentTarget.style.color = "#e2e8f0"}
-                  onMouseLeave={e => e.currentTarget.style.color = "rgba(148,163,184,0.6)"}
-                  title="Dismiss"
-                >
-                  ✕
-                </button>
-              </div>
               {/* Scrolling cards row */}
               <div style={{
                 display: "flex", gap: 14,
