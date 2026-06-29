@@ -2799,11 +2799,19 @@ select.settings-input {
   color: var(--text-3) !important;
 }
 
-.ticker-card { min-width: 220px !important; padding: 12px 16px !important; }
-.ticker-card-name { font-size: 13px !important; }
-.ticker-card-level { font-size: 24px !important; }
-.ticker-card-meta { font-size: 10px !important; }
-.ticker-badge { font-size: 10px !important; }
+.ticker-card { min-width: 280px !important; padding: 18px 24px !important; }
+.ticker-card-name { font-size: 15px !important; }
+.ticker-card-level { font-size: 36px !important; }
+.ticker-card-meta { font-size: 13px !important; color: #fff !important; }
+.ticker-badge { font-size: 12px !important; }
+
+@media (max-width: 768px) {
+  .ticker-card { min-width: 160px !important; padding: 10px 14px !important; }
+  .ticker-card-name { font-size: 12px !important; }
+  .ticker-card-level { font-size: 22px !important; }
+  .ticker-card-meta { font-size: 10px !important; color: #fff !important; }
+  .ticker-badge { font-size: 9px !important; }
+}
 
 @media (max-width: 768px) {
   .leaflet-top.leaflet-left {

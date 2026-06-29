@@ -2350,15 +2350,42 @@ export default function App() {
 });
 
   const [chartNow, setChartNow] = useState(() => Date.now());
-  const [showTicker, setShowTicker] = useState(false);
+  const [showTicker, setShowTicker]   = useState(false);
+  const [tickerLeaving, setTickerLeaving] = useState(false);
   useEffect(() => {
     const id = setInterval(() => setChartNow(Date.now()), 30000);
     return () => clearInterval(id);
   }, []);
 
   useEffect(() => {
-    setShowTicker(historyData?.values?.length > 0);
-  }, [historyData?.values?.length]);
+  if (!historyData?.values?.length) return;
+
+  const pointCount = historyData.values.filter(v => v !== null).length;
+  const animDuration = pointCount * 4 * 2; // seconds
+
+  setTickerLeaving(false);
+  setShowTicker(true);
+
+  const fadeTimer = setTimeout(() => {
+    setTickerLeaving(true); // start fade out
+
+    const hideTimer = setTimeout(() => {
+      setShowTicker(false);
+      setTickerLeaving(false);
+
+      const restartTimer = setTimeout(() => {
+        setTickerLeaving(false);
+        setShowTicker(true);
+      }, 10 * 60 * 1000);
+
+      return () => clearTimeout(restartTimer);
+    }, 1500); // fade duration
+
+    return () => clearTimeout(hideTimer);
+  }, animDuration * 1000);
+
+  return () => clearTimeout(fadeTimer);
+}, [historyData?.values?.length]);
 
   const userNameRef = useRef(user.name);
   useEffect(() => { userNameRef.current = user.name; }, [user.name]);
@@ -3104,9 +3131,11 @@ const waterChartOptions = useMemo(() => ({
           return (
             <div className="ticker-overlay" style={{
               position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9000,
-              background: "rgba(14,30,60,0.45)", backdropFilter: "blur(8px)",
+              background: "rgba(14,30,60,0.55)",
               borderTop: "1px solid rgba(56,189,248,0.15)",
               padding: "10px 14px", overflow: "hidden",
+              transition: "opacity 1.5s ease",
+              opacity: tickerLeaving ? 0 : 1,
             }}>
               <button
                 onClick={() => setShowTicker(false)}
