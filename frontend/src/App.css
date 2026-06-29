@@ -3134,12 +3134,6 @@ select.settings-input {
 ================================ */
 @media (min-width: 1440px) {
 
-  .ticker-card { min-width: 280px !important; padding: 16px 22px !important; }
-  .ticker-card-name { font-size: 15px !important; }
-  .ticker-card-level { font-size: 32px !important; }
-  .ticker-card-meta { font-size: 12px !important; }
-  .ticker-badge { font-size: 11px !important; }
-
   /* ── Topbar ── */
   .topbar           { height: 72px; padding: 0 36px; }
   .brand            { height: 72px; }
