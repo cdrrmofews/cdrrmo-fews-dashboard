@@ -3167,3 +3167,31 @@ select.settings-input {
   .mu-email         { font-size: 11px; }
   .settings-input   { font-size: 14px; height: 42px; }
 }
+
+.leaflet-popup-content-wrapper {
+  min-width: 220px !important;
+  max-width: 300px !important;
+  font-size: 13px !important;
+}
+
+.leaflet-popup-content {
+  margin: 14px 18px !important;
+}
+
+.leaflet-popup-content div {
+  font-size: 13px !important;
+}
+
+.leaflet-popup-content strong {
+  font-size: 14px !important;
+}
+
+.leaflet-popup-content span {
+  font-size: 11px !important;
+}
+
+.leaflet-popup-content button {
+  font-size: 11px !important;
+  padding: 5px 10px !important;
+  margin-top: 9px !important;
+}
