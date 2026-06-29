@@ -2357,30 +2357,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    let intervalId = null;
-
-    const runTicker = () => {
-      if (!historyData?.values?.length) return;
-      setShowTicker(true);
-      const pointCount = historyData.values.filter(v => v !== null).length;
-      const duration = pointCount * 4 * 2 * 1000;
-      setTimeout(() => setShowTicker(false), duration);
-    };
-
-    const now = new Date();
-    const msIntoSlot =
-      ((now.getMinutes() % 30) * 60 + now.getSeconds()) * 1000 + now.getMilliseconds();
-    const msUntilNext = 30 * 60 * 1000 - msIntoSlot;
-
-    const timeoutId = setTimeout(() => {
-      runTicker();
-      intervalId = setInterval(runTicker, 30 * 60 * 1000);
-    }, msUntilNext);
-
-    return () => {
-      clearTimeout(timeoutId);
-      if (intervalId) clearInterval(intervalId);
-    };
+    setShowTicker(historyData?.values?.length > 0);
   }, [historyData?.values?.length]);
 
   const userNameRef = useRef(user.name);
