@@ -2357,16 +2357,31 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    const run = () => {
+    let intervalId = null;
+
+    const runTicker = () => {
       if (!historyData?.values?.length) return;
       setShowTicker(true);
-      const duration = historyData.values.filter(v => v !== null).length * 4000 * 3;
+      const pointCount = historyData.values.filter(v => v !== null).length;
+      const duration = pointCount * 4 * 2 * 1000;
       setTimeout(() => setShowTicker(false), duration);
     };
-    run();
-    const id = setInterval(run, 30 * 60 * 1000);
-    return () => clearInterval(id);
-  }, [historyData]);
+
+    const now = new Date();
+    const msIntoSlot =
+      ((now.getMinutes() % 30) * 60 + now.getSeconds()) * 1000 + now.getMilliseconds();
+    const msUntilNext = 30 * 60 * 1000 - msIntoSlot;
+
+    const timeoutId = setTimeout(() => {
+      runTicker();
+      intervalId = setInterval(runTicker, 30 * 60 * 1000);
+    }, msUntilNext);
+
+    return () => {
+      clearTimeout(timeoutId);
+      if (intervalId) clearInterval(intervalId);
+    };
+  }, [historyData?.values?.length]);
 
   const userNameRef = useRef(user.name);
   useEffect(() => { userNameRef.current = user.name; }, [user.name]);
@@ -3107,21 +3122,37 @@ const waterChartOptions = useMemo(() => ({
             .map((ms, i) => ({ ms, value: historyData.values[i], label: historyData.exactLabels[i] }))
             .filter(d => d.value !== null)
             .sort((a, b) => a.ms - b.ms);
-          const tripled = [...sorted, ...sorted, ...sorted];
-          const animDuration = sorted.length * 4 * 3;
+          const doubled = [...sorted, ...sorted];
+          const animDuration = sorted.length * 4 * 2;
           return (
             <div className="ticker-overlay" style={{
               position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9000,
-              background: "rgba(14,30,60,0.72)", backdropFilter: "blur(12px)",
+              background: "rgba(14,30,60,0.45)", backdropFilter: "blur(8px)",
               borderTop: "1px solid rgba(56,189,248,0.15)",
               padding: "10px 14px", overflow: "hidden",
             }}>
+              <button
+                onClick={() => setShowTicker(false)}
+                style={{
+                  position: "absolute", top: 6, right: 10,
+                  background: "transparent", border: "none",
+                  color: "rgba(148,163,184,0.6)", fontSize: 16,
+                  cursor: "pointer", lineHeight: 1, padding: "2px 6px",
+                  borderRadius: 4, zIndex: 1,
+                  transition: "color 0.15s",
+                }}
+                onMouseEnter={e => e.currentTarget.style.color = "#e2e8f0"}
+                onMouseLeave={e => e.currentTarget.style.color = "rgba(148,163,184,0.6)"}
+                title="Dismiss"
+              >
+                ✕
+              </button>
               <div style={{
                 display: "flex", gap: 10,
                 animation: `tickerSlide ${animDuration}s linear 1 forwards`,
                 width: "max-content",
               }}>
-                {tripled.map((d, i) => {
+                {doubled.map((d, i) => {
                   const statusKey = d.value > thresholds.danger ? "CRITICAL" : d.value > thresholds.warning ? "WARNING" : "SAFE";
                   const color = statusKey === "CRITICAL" ? "#ef4444" : statusKey === "WARNING" ? "#f59e0b" : "#22c55e";
                   const borderColor = statusKey === "CRITICAL" ? "rgba(239,68,68,0.2)" : statusKey === "WARNING" ? "rgba(245,158,11,0.2)" : "rgba(56,189,248,0.15)";
