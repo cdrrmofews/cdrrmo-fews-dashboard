@@ -2251,6 +2251,11 @@ select.settings-input {
   flex-shrink: 0;
 }
 
+@keyframes tickerSlide {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-33.333%); }
+}
+
 /* ================================
    MOBILE  (max-width: 768px)
 ================================ */
@@ -2662,6 +2667,10 @@ select.settings-input {
     border-radius: 8px;
   }
 
+  .ticker-overlay {
+  bottom: calc(52px + env(safe-area-inset-bottom)) !important;
+}
+
   /* settings-input selects (Add User role/dept) — styled, zoom-safe at 16px */
   select.settings-input {
     font-size: 16px !important;
@@ -2789,6 +2798,12 @@ select.settings-input {
 .leaflet-control-attribution a {
   color: var(--text-3) !important;
 }
+
+.ticker-card { min-width: 160px !important; padding: 7px 10px !important; }
+.ticker-card-name { font-size: 10px !important; }
+.ticker-card-level { font-size: 16px !important; }
+.ticker-card-meta { font-size: 8px !important; }
+.ticker-badge { font-size: 8px !important; }
 
 @media (max-width: 768px) {
   .leaflet-top.leaflet-left {
@@ -3086,6 +3101,12 @@ select.settings-input {
    LARGE SCREEN SCALING (1440p+)
 ================================ */
 @media (min-width: 1440px) {
+
+  .ticker-card { min-width: 240px !important; padding: 12px 18px !important; }
+  .ticker-card-name { font-size: 13px !important; }
+  .ticker-card-level { font-size: 26px !important; }
+  .ticker-card-meta { font-size: 10px !important; }
+  .ticker-badge { font-size: 10px !important; }
 
   /* ── Topbar ── */
   .topbar           { height: 72px; padding: 0 36px; }

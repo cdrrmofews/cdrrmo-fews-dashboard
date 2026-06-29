@@ -2350,10 +2350,23 @@ export default function App() {
 });
 
   const [chartNow, setChartNow] = useState(() => Date.now());
+  const [showTicker, setShowTicker] = useState(false);
   useEffect(() => {
     const id = setInterval(() => setChartNow(Date.now()), 30000);
     return () => clearInterval(id);
   }, []);
+
+  useEffect(() => {
+    const run = () => {
+      if (!historyData?.values?.length) return;
+      setShowTicker(true);
+      const duration = historyData.values.filter(v => v !== null).length * 4000 * 3;
+      setTimeout(() => setShowTicker(false), duration);
+    };
+    run();
+    const id = setInterval(run, 30 * 60 * 1000);
+    return () => clearInterval(id);
+  }, [historyData]);
 
   const userNameRef = useRef(user.name);
   useEffect(() => { userNameRef.current = user.name; }, [user.name]);
@@ -3089,6 +3102,48 @@ const waterChartOptions = useMemo(() => ({
         </div>
 
         {/* ─── DASHBOARD ─── */}
+        {activeNav === "Dashboard" && showTicker && historyData?.values?.length > 0 && (() => {
+          const sorted = historyData.positions
+            .map((ms, i) => ({ ms, value: historyData.values[i], label: historyData.exactLabels[i] }))
+            .filter(d => d.value !== null)
+            .sort((a, b) => a.ms - b.ms);
+          const tripled = [...sorted, ...sorted, ...sorted];
+          const animDuration = sorted.length * 4 * 3;
+          return (
+            <div className="ticker-overlay" style={{
+              position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9000,
+              background: "rgba(14,30,60,0.72)", backdropFilter: "blur(12px)",
+              borderTop: "1px solid rgba(56,189,248,0.15)",
+              padding: "10px 14px", overflow: "hidden",
+            }}>
+              <div style={{
+                display: "flex", gap: 10,
+                animation: `tickerSlide ${animDuration}s linear 1 forwards`,
+                width: "max-content",
+              }}>
+                {tripled.map((d, i) => {
+                  const statusKey = d.value > thresholds.danger ? "CRITICAL" : d.value > thresholds.warning ? "WARNING" : "SAFE";
+                  const color = statusKey === "CRITICAL" ? "#ef4444" : statusKey === "WARNING" ? "#f59e0b" : "#22c55e";
+                  const borderColor = statusKey === "CRITICAL" ? "rgba(239,68,68,0.2)" : statusKey === "WARNING" ? "rgba(245,158,11,0.2)" : "rgba(56,189,248,0.15)";
+                  return (
+                    <div key={i} className="ticker-card" style={{
+                        background: "rgba(56,189,248,0.07)", border: `1px solid ${borderColor}`,
+                        borderRadius: 10, flexShrink: 0,
+                      }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 4 }}>
+                        <span className="ticker-card-name" style={{ fontWeight: 700, color: "#e2e8f0" }}>FEWS 1</span>
+                        <span className="ticker-badge" style={{ color, background: `${color}1a`, border: `1px solid ${color}40`, borderRadius: 4, padding: "1px 7px", fontFamily: "var(--mono)", fontWeight: 700 }}>{statusKey}</span>
+                      </div>
+                      <div className="ticker-card-level" style={{ color, fontFamily: "var(--mono)", lineHeight: 1, marginBottom: 4 }}>{d.value} cm</div>
+                      <div className="ticker-card-meta" style={{ color: "#4a607e" }}>Bridge of Progress · {d.label}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+
         {activeNav === "Dashboard" && (
           <div className="dashboard-body">
             <main className="content">
