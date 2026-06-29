@@ -2358,33 +2358,49 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-  if (!historyData?.values?.length) return;
+    if (!historyData?.values?.length) return;
 
-  const pointCount = historyData.values.filter(v => v !== null).length;
-  const animDuration = pointCount * 4 * 2; // seconds
+    const pointCount = historyData.values.filter(v => v !== null).length;
+    const animDuration = pointCount * 4 * 2;
 
-  setTickerLeaving(false);
-  setShowTicker(true);
+    // Show immediately on first data load
+    setTickerLeaving(false);
+    setShowTicker(true);
 
-  const fadeTimer = setTimeout(() => {
-    setTickerLeaving(true); // start fade out
-
-    const hideTimer = setTimeout(() => {
-      setShowTicker(false);
-      setTickerLeaving(false);
-
-      const restartTimer = setTimeout(() => {
+    const fadeTimer = setTimeout(() => {
+      setTickerLeaving(true);
+      const hideTimer = setTimeout(() => {
+        setShowTicker(false);
         setTickerLeaving(false);
-        setShowTicker(true);
-      }, 10 * 60 * 1000);
 
-      return () => clearTimeout(restartTimer);
-    }, 1500); // fade duration
+        // Schedule next show at the next :00 or :30 on the wall clock
+        const scheduleNext = () => {
+          const now = new Date();
+          const ms = now.getTime();
+          const mins = now.getMinutes();
+          const secs = now.getSeconds();
+          const msecs = now.getMilliseconds();
+          // Next :00 or :30 boundary
+          let minsUntilNext;
+          if (mins < 30) {
+            minsUntilNext = 30 - mins;
+          } else {
+            minsUntilNext = 60 - mins;
+          }
+          const msUntilNext = (minsUntilNext * 60 - secs) * 1000 - msecs;
+          return setTimeout(() => {
+            setTickerLeaving(false);
+            setShowTicker(true);
+          }, msUntilNext);
+        };
 
-    return () => clearTimeout(hideTimer);
-  }, animDuration * 1000);
+        const nextTimer = scheduleNext();
+        return () => clearTimeout(nextTimer);
+      }, 1500);
+      return () => clearTimeout(hideTimer);
+    }, animDuration * 1000);
 
-  return () => clearTimeout(fadeTimer);
+    return () => clearTimeout(fadeTimer);
 }, [historyData?.values?.length]);
 
   const userNameRef = useRef(user.name);
@@ -3128,23 +3144,32 @@ const waterChartOptions = useMemo(() => ({
             .sort((a, b) => a.ms - b.ms);
           const doubled = [...sorted, ...sorted];
           const animDuration = sorted.length * 4 * 2;
+
+          const fmtDate = (ms) => {
+            const d = new Date(ms);
+            return d.toLocaleDateString("en-PH", {
+              timeZone: "Asia/Manila",
+              month: "short", day: "numeric", year: "numeric",
+            });
+          };
+
           return (
             <div className="ticker-overlay" style={{
               position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9000,
               background: "rgba(14,30,60,0.55)",
               borderTop: "1px solid rgba(56,189,248,0.15)",
-              padding: "10px 14px", overflow: "hidden",
+              overflow: "hidden",
               transition: "opacity 1.5s ease",
               opacity: tickerLeaving ? 0 : 1,
             }}>
               <button
                 onClick={() => setShowTicker(false)}
                 style={{
-                  position: "absolute", top: 6, right: 10,
+                  position: "absolute", top: 10, right: 14,
                   background: "transparent", border: "none",
-                  color: "rgba(148,163,184,0.6)", fontSize: 16,
-                  cursor: "pointer", lineHeight: 1, padding: "2px 6px",
-                  borderRadius: 4, zIndex: 1,
+                  color: "rgba(148,163,184,0.6)", fontSize: 18,
+                  cursor: "pointer", lineHeight: 1, padding: "3px 8px",
+                  borderRadius: 4, zIndex: 10,
                   transition: "color 0.15s",
                 }}
                 onMouseEnter={e => e.currentTarget.style.color = "#e2e8f0"}
@@ -3154,25 +3179,26 @@ const waterChartOptions = useMemo(() => ({
                 ✕
               </button>
               <div style={{
-                display: "flex", gap: 10,
+                display: "flex", gap: 14,
+                padding: "14px 18px",
                 animation: `tickerSlide ${animDuration}s linear 1 forwards`,
                 width: "max-content",
               }}>
                 {doubled.map((d, i) => {
                   const statusKey = d.value > thresholds.danger ? "CRITICAL" : d.value > thresholds.warning ? "WARNING" : "SAFE";
                   const color = statusKey === "CRITICAL" ? "#ef4444" : statusKey === "WARNING" ? "#f59e0b" : "#22c55e";
-                  const borderColor = statusKey === "CRITICAL" ? "rgba(239,68,68,0.2)" : statusKey === "WARNING" ? "rgba(245,158,11,0.2)" : "rgba(56,189,248,0.15)";
+                  const borderColor = statusKey === "CRITICAL" ? "rgba(239,68,68,0.2)" : statusKey === "WARNING" ? "rgba(245,158,11,0.2)" : "rgba(34,197,94,0.2)";
                   return (
                     <div key={i} className="ticker-card" style={{
-                        background: "rgba(56,189,248,0.07)", border: `1px solid ${borderColor}`,
-                        borderRadius: 10, flexShrink: 0,
+                        background: `${color}0d`, border: `1px solid ${borderColor}`,
+                        borderRadius: 12, flexShrink: 0,
                       }}>
-                      <div style={{ display: "flex", alignItems: "center", gap: 7, marginBottom: 4 }}>
+                      <div style={{ display: "flex", alignItems: "center", gap: 9, marginBottom: 10 }}>
                         <span className="ticker-card-name" style={{ fontWeight: 700, color: "#e2e8f0" }}>FEWS 1</span>
-                        <span className="ticker-badge" style={{ color, background: `${color}1a`, border: `1px solid ${color}40`, borderRadius: 4, padding: "1px 7px", fontFamily: "var(--mono)", fontWeight: 700 }}>{statusKey}</span>
+                        <span className="ticker-badge" style={{ color, background: `${color}26`, border: `1px solid ${color}59`, borderRadius: 4, padding: "2px 9px", fontFamily: "var(--mono)", fontWeight: 700 }}>{statusKey}</span>
                       </div>
-                      <div className="ticker-card-level" style={{ color, fontFamily: "var(--mono)", lineHeight: 1, marginBottom: 4 }}>{d.value} cm</div>
-                      <div className="ticker-card-meta" style={{ color: "#4a607e" }}>Bridge of Progress · {d.label}</div>
+                      <div className="ticker-card-level" style={{ color, fontFamily: "var(--mono)", lineHeight: 1, marginBottom: 10 }}>{d.value} cm</div>
+                      <div className="ticker-card-meta" style={{ color: "#4a607e" }}>Bridge of Progress · {d.label} · {fmtDate(d.ms)}</div>
                     </div>
                   );
                 })}

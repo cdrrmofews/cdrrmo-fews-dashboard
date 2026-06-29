@@ -2799,18 +2799,27 @@ select.settings-input {
   color: var(--text-3) !important;
 }
 
-.ticker-card { min-width: 280px !important; padding: 18px 24px !important; }
-.ticker-card-name { font-size: 15px !important; }
-.ticker-card-level { font-size: 36px !important; }
-.ticker-card-meta { font-size: 13px !important; color: #fff !important; }
+/* AFTER */
+.ticker-card { min-width: 320px !important; padding: 20px 28px !important; }
+.ticker-card-name { font-size: 16px !important; }
+.ticker-card-level { font-size: 42px !important; }
+.ticker-card-meta { font-size: 13px !important; color: #4a607e !important; }
 .ticker-badge { font-size: 12px !important; }
 
 @media (max-width: 768px) {
   .ticker-card { min-width: 160px !important; padding: 10px 14px !important; }
   .ticker-card-name { font-size: 12px !important; }
   .ticker-card-level { font-size: 22px !important; }
-  .ticker-card-meta { font-size: 10px !important; color: #fff !important; }
+  .ticker-card-meta { font-size: 10px !important; color: #4a607e !important; }
   .ticker-badge { font-size: 9px !important; }
+}
+
+@media (min-width: 1440px) {
+  .ticker-card { min-width: 360px !important; padding: 22px 32px !important; }
+  .ticker-card-level { font-size: 52px !important; }
+  .ticker-card-name { font-size: 18px !important; }
+  .ticker-card-meta { font-size: 14px !important; }
+  .ticker-badge { font-size: 13px !important; }
 }
 
 @media (max-width: 768px) {
