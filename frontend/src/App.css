@@ -3167,3 +3167,14 @@ select.settings-input {
   .mu-email         { font-size: 11px; }
   .settings-input   { font-size: 14px; height: 42px; }
 }
+
+  .leaflet-popup-content-wrapper {
+    min-width: 260px !important;
+    max-width: 340px !important;
+    font-size: 13px !important;
+  }
+
+  .leaflet-popup-content {
+    font-size: 13px !important;
+    margin: 14px 18px !important;
+  }
