@@ -2350,8 +2350,9 @@ export default function App() {
 });
 
   const [chartNow, setChartNow] = useState(() => Date.now());
-  const [showTicker, setShowTicker]   = useState(false);
+  const [showTicker, setShowTicker]     = useState(false);
   const [tickerLeaving, setTickerLeaving] = useState(false);
+  const [tickerOffset, setTickerOffset]   = useState(0);
   useEffect(() => {
     const id = setInterval(() => setChartNow(Date.now()), 30000);
     return () => clearInterval(id);
@@ -2360,57 +2361,28 @@ export default function App() {
   useEffect(() => {
     if (!historyData?.values?.length) return;
 
-    const pointCount = historyData.values.filter(v => v !== null).length;
-    const animDuration = pointCount * 4 * 2; // seconds for 2 full loops
+    const WINDOW = 80; // seconds — duration of 2 full loops
+    const INTERVAL = 30 * 60; // 30 minutes in seconds
 
-    let tickerTimer = null;
-    let checkTimer = null;
-
-    const msUntilNextBoundary = () => {
+    const tick = () => {
       const now = new Date();
-      const mins = now.getMinutes();
-      const secs = now.getSeconds();
-      const ms   = now.getMilliseconds();
-      // Next :00 or :30
-      const minsUntilNext = mins < 30 ? (30 - mins) : (60 - mins);
-      return (minsUntilNext * 60 - secs) * 1000 - ms;
+      const totalSecs = now.getMinutes() * 60 + now.getSeconds();
+      const secsIntoBoundary = totalSecs % INTERVAL;
+
+      if (secsIntoBoundary < WINDOW) {
+        setTickerLeaving(false);
+        setShowTicker(true);
+        setTickerOffset(secsIntoBoundary);
+      } else {
+        setShowTicker(false);
+        setTickerLeaving(false);
+        setTickerOffset(0);
+      }
     };
 
-    const isAtBoundary = () => {
-      const now  = new Date();
-      const mins = now.getMinutes();
-      const secs = now.getSeconds();
-      return (mins === 0 || mins === 30) && secs < 3;
-    };
-
-    const showAndSchedule = () => {
-      // Show ticker
-      setTickerLeaving(false);
-      setShowTicker(true);
-
-      // Hide after 2 full loops complete
-      tickerTimer = setTimeout(() => {
-        setTickerLeaving(true);
-        setTimeout(() => {
-          setShowTicker(false);
-          setTickerLeaving(false);
-          // Wait for next boundary
-          checkTimer = setTimeout(showAndSchedule, msUntilNextBoundary());
-        }, 1500);
-      }, animDuration * 1000);
-    };
-
-    // If we're already at a boundary, show now; otherwise wait
-    if (isAtBoundary()) {
-      showAndSchedule();
-    } else {
-      checkTimer = setTimeout(showAndSchedule, msUntilNextBoundary());
-    }
-
-    return () => {
-      clearTimeout(tickerTimer);
-      clearTimeout(checkTimer);
-    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
   }, [historyData?.values?.length]);
 
   const userNameRef = useRef(user.name);
@@ -3179,8 +3151,9 @@ const waterChartOptions = useMemo(() => ({
               {/* Scrolling cards row */}
               <div style={{
                 display: "flex", gap: 14,
-                padding: "8px 18px 14px",
+                padding: "8px 18px 8px",
                 animation: `tickerSlide ${animDuration}s linear 1 forwards`,
+                animationDelay: `-${tickerOffset}s`,
                 width: "max-content",
               }}>
                 {doubled.map((d, i) => {
