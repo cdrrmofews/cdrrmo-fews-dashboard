@@ -2373,16 +2373,20 @@ export default function App() {
       const now = new Date();
       const totalSecs = now.getMinutes() * 60 + now.getSeconds();
       const secsIntoBoundary = totalSecs % INTERVAL;
+      const shouldShow = secsIntoBoundary < WINDOW;
 
-      if (secsIntoBoundary < WINDOW) {
-        setTickerLeaving(false);
-        setShowTicker(true);
-        setTickerOffset(secsIntoBoundary);
-      } else {
-        setShowTicker(false);
-        setTickerLeaving(false);
-        setTickerOffset(0);
-      }
+      setShowTicker(prevShow => {
+        if (shouldShow && !prevShow) {
+          // Just entered the window — set offset ONCE, then never touch it again
+          setTickerOffset(secsIntoBoundary);
+          setTickerLeaving(false);
+        } else if (!shouldShow && prevShow) {
+          // Just left the window
+          setTickerLeaving(false);
+          setTickerOffset(0);
+        }
+        return shouldShow;
+      });
     };
 
     tick();
