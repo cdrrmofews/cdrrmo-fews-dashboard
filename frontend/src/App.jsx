@@ -935,8 +935,13 @@ function FlyToStation({ fews }) {
   const fewsId = fews?.id ?? null;
   useEffect(() => {
     if (!fews) return;
-    map.setView([fews.lat, fews.lng], 16, { animate: true, duration: 0.6 });
-  }, [fewsId]); // eslint-disable-line react-hooks/exhaustive-deps
+    const r = 0.002; // ~200m radius
+    const bounds = [
+      [fews.lat - r, fews.lng - r],
+      [fews.lat + r, fews.lng + r],
+    ];
+    map.flyToBounds(bounds, { padding: [20, 20], duration: 0.6 });
+  }, [fewsId]);
   return null;
 }
 
@@ -3204,7 +3209,9 @@ const waterChartOptions = useMemo(() => ({
                       <polyline points="8 21 3 21 3 16"/>
                     </svg>
                   </button>
-                  <MapContainer center={[13.762466, 121.068331]} zoom={15}
+                  <MapContainer
+                    bounds={[[13.760466, 121.066331], [13.764466, 121.070331]]}
+                    boundsOptions={{ padding: [20, 20] }}
                     style={{ height:"100%", width:"100%", borderRadius:"10px" }}
                     scrollWheelZoom={false}>
                     <TileLayer
@@ -3233,12 +3240,12 @@ const waterChartOptions = useMemo(() => ({
                           <Popup minWidth={180} maxWidth={260}>
                             <div style={{ fontFamily:"sans-serif", padding:"2px 0" }}>
                               <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
-                                <strong style={{ fontSize:"13px", color:"#1e293b" }}>{f.name}</strong>
-                                <span style={{ fontSize:9, color: isHardwareOnline ? "#22c55e" : "#94a3b8", fontWeight:700 }}>
+                                <strong style={{ fontSize:"clamp(13px, 1.1vw, 16px)", color:"#1e293b" }}>{f.name}</strong>
+                                <span style={{ fontSize:"clamp(9px, 0.8vw, 11px)", color: isHardwareOnline ? "#22c55e" : "#94a3b8", fontWeight:700 }}>
                                   {isHardwareOnline ? "● LIVE" : "◌ WAITING"}
                                 </span>
                               </div>
-                              <div style={{ fontSize:"11px", color:"#475569", lineHeight:1.6, marginBottom:4 }}>
+                              <div style={{ fontSize:"clamp(11px, 0.95vw, 13px)", color:"#475569", lineHeight:1.6, marginBottom:4 }}>
                                 <strong style={{ color:"#1e293b" }}>{f.location}</strong>
                                 {" · "}
                                 <span>Water: {isHardwareOnline ? `${f.waterLevel} cm` : "—"}</span>
@@ -3251,7 +3258,7 @@ const waterChartOptions = useMemo(() => ({
                                   setCopiedId(null);
                                   copiedTimerRef.current = null;
                                 }, 1500);
-                              }} style={{ marginTop:"7px", padding:"3px 8px", background: copiedId===f.id?"#38bdf8":markerColor, color:"#ffffff", border:"none", outline:"none", boxShadow:"none", borderRadius:"4px", cursor:"pointer", fontWeight:"700", fontSize:"10px", width:"100%", transition:"background 0.2s" }}>
+                              }} style={{ marginTop:"7px", padding:"3px 8px", background: copiedId===f.id?"#38bdf8":markerColor, color:"#ffffff", border:"none", outline:"none", boxShadow:"none", borderRadius:"4px", cursor:"pointer", fontWeight:"700", fontSize:"clamp(10px, 0.85vw, 12px)", width:"100%", transition:"background 0.2s" }}>
                                 {copiedId===f.id ? "Copied!" : "📋 Copy Coordinates"}
                               </button>
                             </div>
@@ -3517,7 +3524,11 @@ const waterChartOptions = useMemo(() => ({
               <div className="map-fullscreen-box" onClick={e => e.stopPropagation()}>
                 <div className="map-fullscreen-inner">
                   <button className="map-fs-close" onClick={() => { setFullscreenMap(false); setFsSelectedFEWS(null); }}>✕</button>
-                  <MapContainer center={[13.762466, 121.068331]} zoom={15} style={{ height:"100%", width:"100%" }} scrollWheelZoom={true}>
+                  <MapContainer
+                    bounds={[[13.760466, 121.066331], [13.764466, 121.070331]]}
+                    boundsOptions={{ padding: [40, 40] }}
+                    style={{ height:"100%", width:"100%" }}
+                    scrollWheelZoom={true}>
                     <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                     <OpenPopup fews={allFews[0]} markerRefs={fsMarkerRefs} />
                     {allFews.map(f => {
@@ -3540,12 +3551,12 @@ const waterChartOptions = useMemo(() => ({
                           <Popup minWidth={160} maxWidth={220}>
                             <div style={{ fontFamily:"sans-serif", padding:"2px 0" }}>
                               <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
-                                <strong style={{ fontSize:"13px", color:"#1e293b" }}>{f.name}</strong>
-                                <span style={{ fontSize:9, color: isHardwareOnline ? "#22c55e" : "#94a3b8", fontWeight:700 }}>
+                                <strong style={{ fontSize:"clamp(13px, 1.1vw, 16px)", color:"#1e293b" }}>{f.name}</strong>
+                                <span style={{ fontSize:"clamp(9px, 0.8vw, 11px)", color: isHardwareOnline ? "#22c55e" : "#94a3b8", fontWeight:700 }}>
                                   {isHardwareOnline ? "● LIVE" : "◌ WAITING"}
                                 </span>
                               </div>
-                              <div style={{ fontSize:"11px", color:"#475569", lineHeight:1.6, marginBottom:4 }}>
+                              <div style={{ fontSize:"clamp(11px, 0.95vw, 13px)", color:"#475569", lineHeight:1.6, marginBottom:4 }}>
                               <strong style={{ color:"#1e293b" }}>{f.location}</strong>
                               {" · "}
                               <span>Water: {isHardwareOnline ? `${f.waterLevel} cm` : "—"}</span>
