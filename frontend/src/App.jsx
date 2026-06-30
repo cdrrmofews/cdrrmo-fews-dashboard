@@ -3240,12 +3240,12 @@ const waterChartOptions = useMemo(() => ({
                           <Popup minWidth={180} maxWidth={260}>
                             <div style={{ fontFamily:"sans-serif", padding:"2px 0" }}>
                               <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
-                                <strong style={{ fontSize:"clamp(13px, 1.1vw, 16px)", color:"#1e293b" }}>{f.name}</strong>
-                                <span style={{ fontSize:"clamp(9px, 0.8vw, 11px)", color: isHardwareOnline ? "#22c55e" : "#94a3b8", fontWeight:700 }}>
+                                <strong style={{ fontSize:"clamp(12px, 0.85vw, 14px)", color:"#1e293b" }}>{f.name}</strong>
+                                <span style={{ fontSize:"clamp(8px, 0.6vw, 10px)", color: isHardwareOnline ? "#22c55e" : "#94a3b8", fontWeight:700 }}>
                                   {isHardwareOnline ? "● LIVE" : "◌ WAITING"}
                                 </span>
                               </div>
-                              <div style={{ fontSize:"clamp(11px, 0.95vw, 13px)", color:"#475569", lineHeight:1.6, marginBottom:4 }}>
+                              <div style={{ fontSize:"clamp(10px, 0.75vw, 12px)", color:"#475569", lineHeight:1.6, marginBottom:4 }}>
                                 <strong style={{ color:"#1e293b" }}>{f.location}</strong>
                                 {" · "}
                                 <span>Water: {isHardwareOnline ? `${f.waterLevel} cm` : "—"}</span>
@@ -3551,12 +3551,12 @@ const waterChartOptions = useMemo(() => ({
                           <Popup minWidth={160} maxWidth={220}>
                             <div style={{ fontFamily:"sans-serif", padding:"2px 0" }}>
                               <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
-                                <strong style={{ fontSize:"clamp(13px, 1.1vw, 16px)", color:"#1e293b" }}>{f.name}</strong>
-                                <span style={{ fontSize:"clamp(9px, 0.8vw, 11px)", color: isHardwareOnline ? "#22c55e" : "#94a3b8", fontWeight:700 }}>
+                                <strong style={{ fontSize:"clamp(12px, 0.85vw, 14px)", color:"#1e293b" }}>{f.name}</strong>
+                                <span style={{ fontSize:"clamp(8px, 0.6vw, 10px)", color: isHardwareOnline ? "#22c55e" : "#94a3b8", fontWeight:700 }}>
                                   {isHardwareOnline ? "● LIVE" : "◌ WAITING"}
                                 </span>
                               </div>
-                              <div style={{ fontSize:"clamp(11px, 0.95vw, 13px)", color:"#475569", lineHeight:1.6, marginBottom:4 }}>
+                              <div style={{ fontSize:"clamp(10px, 0.75vw, 12px)", color:"#475569", lineHeight:1.6, marginBottom:4 }}>
                               <strong style={{ color:"#1e293b" }}>{f.location}</strong>
                               {" · "}
                               <span>Water: {isHardwareOnline ? `${f.waterLevel} cm` : "—"}</span>
