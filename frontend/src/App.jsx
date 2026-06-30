@@ -3245,7 +3245,7 @@ const waterChartOptions = useMemo(() => ({
                                   {isHardwareOnline ? "● LIVE" : "◌ WAITING"}
                                 </span>
                               </div>
-                              <div style={{ fontSize:"clamp(11px, 0.95vw, 13px)", color:"#475569", lineHeight:1.6, marginBottom:4 }}>
+                              <div style={{ fontSize:"clamp(11px, 0.9vw, 13px)", color:"#475569", lineHeight:1.2, marginBottom:4 }}>
                                 <strong style={{ color:"#1e293b" }}>{f.location}</strong>
                                 {" · "}
                                 <span>Water: {isHardwareOnline ? `${f.waterLevel} cm` : "—"}</span>
@@ -3556,7 +3556,7 @@ const waterChartOptions = useMemo(() => ({
                                   {isHardwareOnline ? "● LIVE" : "◌ WAITING"}
                                 </span>
                               </div>
-                              <div style={{ fontSize:"clamp(11px, 0.95vw, 13px)", color:"#475569", lineHeight:1.6, marginBottom:4 }}>
+                              <div style={{ fontSize:"clamp(11px, 0.9vw, 13px)", color:"#475569", lineHeight:1.2, marginBottom:4 }}>
                               <strong style={{ color:"#1e293b" }}>{f.location}</strong>
                               {" · "}
                               <span>Water: {isHardwareOnline ? `${f.waterLevel} cm` : "—"}</span>
