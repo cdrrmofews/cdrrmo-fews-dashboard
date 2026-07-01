@@ -2437,6 +2437,45 @@ export default function App() {
         pollUnitsNowRef.current = null;
     };
 }, [token]);
+
+  // ── Poll own profile every 5s to sync alert preferences across devices ──
+  useEffect(() => {
+    if (!token || !user?.name) return;
+    let timeoutId = null;
+
+    const pollProfile = async () => {
+      try {
+        const res = await authFetch(`${API_BASE}/users`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (res.ok) {
+          const rows = await res.json();
+          const me = Array.isArray(rows) ? rows.find(u => u.email === user.email) : null;
+          if (me) {
+            setUser(prev => {
+              const merged = normalizeUser({
+                ...prev,
+                push_enabled:   me.notif_push_enabled,
+                audio_enabled:  me.notif_audio_enabled,
+                banner_enabled: me.notif_banner_enabled,
+                ticker_enabled: me.notif_ticker_enabled,
+              });
+              getStorage().setItem("user", JSON.stringify(merged));
+              return merged;
+            });
+          }
+        }
+      } catch {
+        // silent — retries next tick
+      } finally {
+        timeoutId = setTimeout(pollProfile, 5000);
+      }
+    };
+
+    timeoutId = setTimeout(pollProfile, 5000);
+    return () => { if (timeoutId) clearTimeout(timeoutId); };
+  }, [token, user.email]);
+
   const [historyData, setHistoryData] = useState({ positions: [], values: [], exactLabels: [] });
   const [hadDataBefore, setHadDataBefore] = useState(() => {
   return sessionStorage.getItem("fews1_had_data") === "true";
