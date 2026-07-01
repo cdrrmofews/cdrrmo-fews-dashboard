@@ -2224,6 +2224,20 @@ export default function App() {
   const [sirens, setSirens] = useState({ 1: false });
   const pollUnitsNowRef = useRef(null);
   const [sirenLoading, setSirenLoading] = useState({});
+
+  const sirenAudioRef = useRef(null);
+  useEffect(() => {
+    if (!sirenAudioRef.current) {
+      sirenAudioRef.current = new Audio("/siren.mp3");
+      sirenAudioRef.current.loop = true;
+    }
+    if (true) { // ← temporary, change back to sirens[1] after testing
+      sirenAudioRef.current.play().catch(() => {});
+    } else {
+      sirenAudioRef.current.pause();
+      sirenAudioRef.current.currentTime = 0;
+    }
+  }, [sirens[1]]);
   const [thresholds, setThresholds] = useState({ warning: 200, danger: 300 });
   const { showToast, ToastContainer: AppToastContainer } = useToast();
 
@@ -3217,7 +3231,7 @@ const waterChartOptions = useMemo(() => ({
                     bounds={[[13.760466, 121.066331], [13.764466, 121.070331]]}
                     boundsOptions={{ padding: [20, 20] }}
                     style={{ height:"100%", width:"100%", borderRadius:"10px" }}
-                    scrollWheelZoom={false}>
+                    scrollWheelZoom={true}>
                     <TileLayer
                       attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>'
                       url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
