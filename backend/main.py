@@ -22,6 +22,7 @@ from models import (
     UpdateProfileRequest, ChangeEmailRequest, ChangePasswordRequest,
     ChangePhoneRequest, SmsEnabledRequest, CreateLogRequest,
     SirenRequest, UpdateUnitRequest, PushSubscribeRequest,
+    UpdateNotifPrefsRequest,
 )
 
 DEPLOY_TIME          = datetime.utcnow().isoformat()
@@ -90,6 +91,17 @@ def startup():
                     sub_json   TEXT NOT NULL,
                     created_at TIMESTAMPTZ DEFAULT NOW()
                 )
+            """)
+            cur.execute("""
+                ALTER TABLE users
+                  ADD COLUMN IF NOT EXISTS notif_push_enabled   BOOLEAN DEFAULT TRUE,
+                  ADD COLUMN IF NOT EXISTS notif_audio_enabled  BOOLEAN DEFAULT TRUE,
+                  ADD COLUMN IF NOT EXISTS notif_banner_enabled BOOLEAN DEFAULT TRUE,
+                  ADD COLUMN IF NOT EXISTS notif_ticker_enabled BOOLEAN DEFAULT TRUE
+            """)
+            cur.execute("""
+                ALTER TABLE push_subscriptions
+                  ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)
             """)
             conn.commit()
         except Exception as e:
@@ -171,6 +183,10 @@ def login(request: Request, req: LoginRequest):
             "id":         user["id"],
             "photo":      user.get("photo"),
             "phone":      user.get("phone"),
+            "notif_push_enabled":   user.get("notif_push_enabled", True),
+            "notif_audio_enabled":  user.get("notif_audio_enabled", True),
+            "notif_banner_enabled": user.get("notif_banner_enabled", True),
+            "notif_ticker_enabled": user.get("notif_ticker_enabled", True),
         }
     finally:
         cur.close()
@@ -319,6 +335,35 @@ def change_phone(req: ChangePhoneRequest, user=Depends(get_current_user)):
         cur.execute(
             "UPDATE users SET phone = %s WHERE id = %s RETURNING id, name, email, role, department, photo, phone",
             (req.phone, user_id)
+        )
+        conn.commit()
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="User not found")
+        return row
+    finally:
+        cur.close()
+        release_db(conn)
+
+@app.put("/users/me/notifications")
+def update_notif_prefs(req: UpdateNotifPrefsRequest, user=Depends(get_current_user)):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        user_id = int(user["sub"])
+        fields = []
+        values = []
+        if req.push_enabled   is not None: fields.append("notif_push_enabled = %s");   values.append(req.push_enabled)
+        if req.audio_enabled  is not None: fields.append("notif_audio_enabled = %s");  values.append(req.audio_enabled)
+        if req.banner_enabled is not None: fields.append("notif_banner_enabled = %s"); values.append(req.banner_enabled)
+        if req.ticker_enabled is not None: fields.append("notif_ticker_enabled = %s"); values.append(req.ticker_enabled)
+        if not fields:
+            raise HTTPException(status_code=400, detail="Nothing to update")
+        values.append(user_id)
+        cur.execute(
+            f"""UPDATE users SET {', '.join(fields)} WHERE id = %s
+                RETURNING id, notif_push_enabled, notif_audio_enabled, notif_banner_enabled, notif_ticker_enabled""",
+            values
         )
         conn.commit()
         row = cur.fetchone()
@@ -565,7 +610,11 @@ def list_users(user=Depends(get_current_user)):
     conn = get_db()
     cur  = conn.cursor()
     try:
-        cur.execute("SELECT id, name, email, role, department, photo, phone, sms_enabled, created_at FROM users ORDER BY id")
+        cur.execute("""
+            SELECT id, name, email, role, department, photo, phone, sms_enabled, created_at,
+                   notif_push_enabled, notif_audio_enabled, notif_banner_enabled, notif_ticker_enabled
+            FROM users ORDER BY id
+        """)
         return cur.fetchall()
     finally:
         cur.close()
@@ -682,13 +731,14 @@ def push_subscribe(req: PushSubscribeRequest, user=Depends(get_current_user)):
         endpoint = req.subscription.get("endpoint", "")
         if not endpoint:
             raise HTTPException(status_code=400, detail="Invalid subscription")
+        user_id = int(user["sub"])
         cur.execute("""
-            INSERT INTO push_subscriptions (endpoint, sub_json)
-            VALUES (%s, %s)
-            ON CONFLICT (endpoint) DO UPDATE SET sub_json = EXCLUDED.sub_json
-        """, (endpoint, json.dumps(req.subscription)))
+            INSERT INTO push_subscriptions (endpoint, sub_json, user_id)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (endpoint) DO UPDATE SET sub_json = EXCLUDED.sub_json, user_id = EXCLUDED.user_id
+        """, (endpoint, json.dumps(req.subscription), user_id))
         conn.commit()
-        print(f"[PUSH] Subscription saved for user {user.get('sub')}")
+        print(f"[PUSH] Subscription saved for user {user_id}")
         return {"ok": True}
     finally:
         cur.close()

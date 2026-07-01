@@ -38,15 +38,19 @@ export default function Login({ onLogin }) {
         return;
       }
       const userData = JSON.stringify({
-        id:         data.id,
-        name:       data.username,
-        email:      data.email,
-        role:       data.role,
-        department: data.department,
-        initials:   data.username.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase(),
-        photo:      data.photo || null,
-        phone:      data.phone || "",
-        dob:        "",
+        id:             data.id,
+        name:           data.username,
+        email:          data.email,
+        role:           data.role,
+        department:     data.department,
+        initials:       data.username.split(" ").map(w => w[0]).join("").slice(0, 2).toUpperCase(),
+        photo:          data.photo || null,
+        phone:          data.phone || "",
+        dob:            "",
+        push_enabled:   data.notif_push_enabled   ?? true,
+        audio_enabled:  data.notif_audio_enabled  ?? true,
+        banner_enabled: data.notif_banner_enabled ?? true,
+        ticker_enabled: data.notif_ticker_enabled ?? true,
       });
       const storage = rememberMe ? localStorage : sessionStorage;
       storage.setItem("token",      data.token);

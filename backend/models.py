@@ -52,5 +52,12 @@ class UpdateUnitRequest(BaseModel):
     threshold_warning: Optional[int]   = None
     threshold_danger:  Optional[int]   = None
     
+# AFTER — end of models.py
 class PushSubscribeRequest(BaseModel):
     subscription: dict
+
+class UpdateNotifPrefsRequest(BaseModel):
+    push_enabled:   Optional[bool] = None
+    audio_enabled:  Optional[bool] = None
+    banner_enabled: Optional[bool] = None
+    ticker_enabled: Optional[bool] = None

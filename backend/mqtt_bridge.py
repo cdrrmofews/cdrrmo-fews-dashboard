@@ -495,7 +495,12 @@ def send_push_notifications(title: str, body: str):
         conn = get_db()
         cur  = conn.cursor()
         try:
-            cur.execute("SELECT sub_json FROM push_subscriptions")
+            cur.execute("""
+                SELECT ps.sub_json
+                FROM push_subscriptions ps
+                JOIN users u ON u.id = ps.user_id
+                WHERE u.notif_push_enabled = TRUE
+            """)
             rows = cur.fetchall()
         finally:
             cur.close()

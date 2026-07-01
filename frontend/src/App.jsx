@@ -186,7 +186,12 @@ function can(role, feature) {
 // ─── User normalization helper ────────────────────────────────────────────────
 function normalizeUser(parsed) {
   if (!parsed || typeof parsed !== "object") {
-    return { name: "", role: "Operator", department: "", email: "", phone: "", photo: null, sms_enabled: false, initials: "?" };
+    return {
+      name: "", role: "Operator", department: "", email: "", phone: "", photo: null,
+      sms_enabled: false,
+      push_enabled: true, audio_enabled: true, banner_enabled: true, ticker_enabled: true,
+      initials: "?",
+    };
   }
   const name = parsed.name || "";
   const initials =
@@ -194,12 +199,16 @@ function normalizeUser(parsed) {
     "?";
   return {
     name,
-    role:        parsed.role        || "Operator",
-    department:  parsed.department  || "",
-    email:       parsed.email       || "",
-    phone:       parsed.phone       || "",
-    photo:       parsed.photo       || null,
-    sms_enabled: parsed.sms_enabled ?? false,
+    role:           parsed.role           || "Operator",
+    department:     parsed.department     || "",
+    email:          parsed.email          || "",
+    phone:          parsed.phone          || "",
+    photo:          parsed.photo          || null,
+    sms_enabled:    parsed.sms_enabled    ?? false,
+    push_enabled:   parsed.push_enabled   ?? true,
+    audio_enabled:  parsed.audio_enabled  ?? true,
+    banner_enabled: parsed.banner_enabled ?? true,
+    ticker_enabled: parsed.ticker_enabled ?? true,
     initials,
   };
 }
@@ -1871,8 +1880,46 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
   const [confirmSave, setConfirmSave]         = useState(null);
   const [confirmSaveLoading, setConfirmSaveLoading] = useState(false);
   const [confirmRemove, setConfirmRemove]   = useState(null);
+  const [notifSaving, setNotifSaving]       = useState({});
 
   const isAdmin = userRole === "Admin";
+
+  const handleNotifToggle = async (key, newVal) => {
+    setNotifSaving(p => ({ ...p, [key]: true }));
+    try {
+      const res = await authFetch(`${API_BASE}/users/me/notifications`, {
+        method:  "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ [key]: newVal }),
+      });
+      if (res.ok) {
+        onUserUpdate(normalizeUser({ ...user, [key]: newVal }));
+
+        // Push toggled off — actively unsubscribe this browser, not just the DB flag
+        if (key === "push_enabled" && newVal === false && 'serviceWorker' in navigator) {
+          try {
+            const reg = await navigator.serviceWorker.ready;
+            const sub = await reg.pushManager.getSubscription();
+            if (sub) {
+              await sub.unsubscribe();
+              await authFetch(`${API_BASE}/push/unsubscribe`, {
+                method:  "DELETE",
+                headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+                body:    JSON.stringify({ subscription: sub.toJSON() }),
+              });
+            }
+          } catch (e) {
+            console.warn('[PUSH] Unsubscribe failed:', e);
+          }
+        }
+      } else {
+        setActionError("Failed to update alert preference. Try again.");
+      }
+    } catch (err) {
+      if (err?.message !== "Unauthorized") setActionError("Failed to update alert preference. Try again.");
+    }
+    setNotifSaving(p => ({ ...p, [key]: false }));
+  };
 
   useEffect(() => {
     setLoadingUsers(true);
@@ -2075,6 +2122,33 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
           </div>
         )}
 
+        <div className="page-card">
+          <div className="page-card-title">Alert Preferences</div>
+          <div className="page-card-sub">Control how you receive alerts from FEWS.</div>
+          {[
+            { key: "push_enabled",   icon: "🔔", label: "Push Notifications",   sub: "Browser/phone alerts for CRITICAL events" },
+            { key: "audio_enabled",  icon: "🔊", label: "Alert Sound",           sub: "Play siren audio when an alert is active" },
+            { key: "banner_enabled", icon: "🚨", label: "Critical Alert Banner", sub: "Show the scrolling banner during CRITICAL events" },
+            { key: "ticker_enabled", icon: "📊", label: "Water Level Ticker",    sub: "Show the rolling 5-hour reading ticker" },
+          ].map(({ key, icon, label, sub }) => (
+            <div key={key} className="settings-toggle-row">
+              <div className="settings-toggle-info">
+                <div className="settings-toggle-label">{icon} {label}</div>
+                <div className="settings-toggle-sub">{sub}</div>
+              </div>
+              <button
+                className={`settings-toggle ${user[key] ? "stoggle-on" : "stoggle-off"}`}
+                onClick={() => handleNotifToggle(key, !user[key])}
+                disabled={notifSaving[key]}
+              >
+                {notifSaving[key]
+                  ? <span className="btn-spinner" style={{ width:10, height:10, borderWidth:1.5 }} />
+                  : user[key] ? "ON" : "OFF"}
+              </button>
+            </div>
+          ))}
+        </div>
+
       {isAdmin && (
         <div className="page-card">
           <div className="page-card-title">SMS Notifications</div>
@@ -2231,13 +2305,13 @@ export default function App() {
       sirenAudioRef.current = new Audio("/siren.mp3");
       sirenAudioRef.current.loop = true;
     }
-    if (sirens[1]) {
+    if (sirens[1] && user.audio_enabled) {
       sirenAudioRef.current.play().catch(() => {});
     } else {
       sirenAudioRef.current.pause();
       sirenAudioRef.current.currentTime = 0;
     }
-  }, [sirens[1]]);
+  }, [sirens[1], user.audio_enabled]);
   const [thresholds, setThresholds] = useState({ warning: 200, danger: 300 });
   const { showToast, ToastContainer: AppToastContainer } = useToast();
 
@@ -2748,7 +2822,7 @@ export default function App() {
     useEffect(() => { prevCriticalRef.current = isCritical; }, [isCritical]);
 
     useEffect(() => {
-      if (!isLoggedIn) return;
+      if (!isLoggedIn || !user.push_enabled) return;
       const setupPush = async () => {
         try {
           if (!('serviceWorker' in navigator) || !('PushManager' in window)) return;
@@ -2781,7 +2855,7 @@ export default function App() {
         }
       };
       setupPush();
-    }, [isLoggedIn]);
+    }, [isLoggedIn, user.push_enabled]);
 
     const [sirenConfirm, setSirenConfirm] = useState(null);
     const [fullscreenMap, setFullscreenMap] = useState(false);
@@ -3002,7 +3076,7 @@ const waterChartOptions = useMemo(() => ({
       )}
 
       {/* ─── CRITICAL BANNER (desktop only) ─── */}
-      <div className={`critical-banner critical-banner-desktop ${isCritical ? "active" : ""}`}>
+      <div className={`critical-banner critical-banner-desktop ${isCritical && user.banner_enabled ? "active" : ""}`}>
         <div className="critical-banner-inner">
           <div className="marquee-track">
             <div className="marquee-content">
@@ -3128,7 +3202,7 @@ const waterChartOptions = useMemo(() => ({
         </header>
 
         {/* ─── CRITICAL BANNER (mobile only) ─── */}
-        <div className={`critical-banner critical-banner-mobile ${isCritical ? "active" : ""}`}>
+        <div className={`critical-banner critical-banner-mobile ${isCritical && user.banner_enabled ? "active" : ""}`}>
           <div className="critical-banner-inner">
             <div className="marquee-track">
               <div className="marquee-content">
@@ -3142,7 +3216,7 @@ const waterChartOptions = useMemo(() => ({
         </div>
 
         {/* ─── DASHBOARD ─── */}
-        {activeNav === "Dashboard" && showTicker && historyData?.values?.length > 0 && (() => {
+        {activeNav === "Dashboard" && showTicker && user.ticker_enabled && historyData?.values?.length > 0 && (() => {
           const sorted = historyData.positions
             .map((ms, i) => ({ ms, value: historyData.values[i], label: historyData.exactLabels[i] }))
             .filter(d => d.value !== null)
