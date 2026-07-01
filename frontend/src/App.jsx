@@ -2231,7 +2231,7 @@ export default function App() {
       sirenAudioRef.current = new Audio("/siren.mp3");
       sirenAudioRef.current.loop = true;
     }
-    if (true) { // ← temporary, change back to sirens[1] after testing
+    if (sirens[1]) {
       sirenAudioRef.current.play().catch(() => {});
     } else {
       sirenAudioRef.current.pause();
