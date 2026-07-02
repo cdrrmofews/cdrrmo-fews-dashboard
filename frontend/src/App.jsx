@@ -2137,25 +2137,27 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
         <div className="page-card">
           <div className="page-card-title">Alert Preferences</div>
           <div className="page-card-sub">Control how you receive alerts from FEWS.</div>
-          {[
-            { key: "push_enabled",   icon: "🔔", label: "Push Notifications",   sub: "Browser/phone alerts for CRITICAL events" },
-            { key: "audio_enabled",  icon: "🔊", label: "Alert Sound",           sub: "Play siren audio when an alert is active" },
-            { key: "banner_enabled", icon: "🚨", label: "Critical Alert Banner", sub: "Show the scrolling banner during CRITICAL events" },
-            { key: "ticker_enabled", icon: "📊", label: "Water Level Ticker",    sub: "Show the rolling 5-hour reading ticker" },
-          ].map(({ key, icon, label, sub }) => (
-            <div key={key} className="settings-toggle-row">
-              <div className="settings-toggle-info">
-                <div className="settings-toggle-label">{icon} {label}</div>
-                <div className="settings-toggle-sub">{sub}</div>
+          <div className="settings-toggle-table">
+            {[
+              { key: "push_enabled",   icon: "🔔", label: "Push Notifications",   sub: "Browser/phone alerts for CRITICAL events" },
+              { key: "audio_enabled",  icon: "🔊", label: "Alert Sound",           sub: "Play siren audio when an alert is active" },
+              { key: "banner_enabled", icon: "🚨", label: "Critical Alert Banner", sub: "Show the scrolling banner during CRITICAL events" },
+              { key: "ticker_enabled", icon: "📊", label: "Water Level Ticker",    sub: "Show the rolling 5-hour reading ticker" },
+            ].map(({ key, icon, label, sub }) => (
+              <div key={key} className="settings-toggle-row">
+                <div className="settings-toggle-info">
+                  <div className="settings-toggle-label">{icon} {label}</div>
+                  <div className="settings-toggle-sub">{sub}</div>
+                </div>
+                <button
+                  className={`settings-toggle ${user[key] ? "stoggle-on" : "stoggle-off"}`}
+                  onClick={() => setConfirmNotif({ key, label, newVal: !user[key] })}
+                >
+                  {user[key] ? "ON" : "OFF"}
+                </button>
               </div>
-              <button
-                className={`settings-toggle ${user[key] ? "stoggle-on" : "stoggle-off"}`}
-                onClick={() => setConfirmNotif({ key, label, newVal: !user[key] })}
-              >
-                {user[key] ? "ON" : "OFF"}
-              </button>
-            </div>
-          ))}
+            ))}
+          </div>
         </div>
 
       {isAdmin && (
@@ -2447,7 +2449,7 @@ export default function App() {
     };
 }, [token]);
 
-  // ── Poll own profile every 5s to sync alert preferences across devices ──
+  // ── Poll own profile every 30s to sync alert preferences across devices ──
   useEffect(() => {
     if (!token || !user?.name) return;
     let timeoutId = null;
@@ -2477,11 +2479,11 @@ export default function App() {
       } catch {
         // silent — retries next tick
       } finally {
-        timeoutId = setTimeout(pollProfile, 5000);
+        timeoutId = setTimeout(pollProfile, 30000);
       }
     };
 
-    timeoutId = setTimeout(pollProfile, 5000);
+    timeoutId = setTimeout(pollProfile, 30000);
     return () => { if (timeoutId) clearTimeout(timeoutId); };
   }, [token, user.email]);
 
