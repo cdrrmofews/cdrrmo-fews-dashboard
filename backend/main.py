@@ -431,6 +431,28 @@ def history():
         cur.close()
         release_db(conn)
 
+@app.get("/data/today-range")
+def today_range():
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT device_id, MIN(water_level_cm) as low, MAX(water_level_cm) as high
+            FROM sensor_readings
+            WHERE (timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date =
+                  (NOW() AT TIME ZONE 'Asia/Manila')::date
+            GROUP BY device_id
+        """)
+        rows = cur.fetchall()
+        result = {}
+        for row in rows:
+            key = row["device_id"].lower().replace("-", "_").replace(" ", "_")
+            result[key] = {"high": row["high"], "low": row["low"]}
+        return result
+    finally:
+        cur.close()
+        release_db(conn)
+
 @app.get("/status/fews1")
 def fews1_status():
     from mqtt_bridge import get_last_online

@@ -2449,6 +2449,27 @@ export default function App() {
     };
 }, [token]);
 
+  const [todayStats, setTodayStats] = useState({});
+
+  useEffect(() => {
+    let timeoutId = null;
+    const poll = async () => {
+      try {
+        const res = await fetch(`${API_BASE}/data/today-range`);
+        if (res.ok) {
+          const data = await res.json();
+          setTodayStats(data);
+        }
+      } catch {
+        // silent — retries next tick
+      } finally {
+        timeoutId = setTimeout(poll, 60000);
+      }
+    };
+    poll();
+    return () => { if (timeoutId) clearTimeout(timeoutId); };
+  }, []);
+
   // ── Poll own profile every 30s to sync alert preferences across devices ──
   useEffect(() => {
     if (!token || !user?.name) return;
@@ -3629,6 +3650,26 @@ const waterChartOptions = useMemo(() => ({
                       <strong style={{ color: !isActuallyLive ? "var(--text-3)" : "var(--text-1)" }}>
                         {lastUpdatedStr ? lastUpdatedStr : "—"}
                       </strong>
+                    </div>
+                    <div className="rsb-stat">
+                      <span>Today's highest</span>
+                      <strong>{todayStats[`fews_${f.id}`]?.high != null ? `${todayStats[`fews_${f.id}`].high} cm` : "—"}</strong>
+                    </div>
+                    <div className="rsb-stat">
+                      <span>Today's lowest</span>
+                      <strong>{todayStats[`fews_${f.id}`]?.low != null ? `${todayStats[`fews_${f.id}`].low} cm` : "—"}</strong>
+                    </div>
+                    <div className="rsb-stat">
+                      <span>Warning at</span>
+                      <strong style={{ color: "var(--amber)" }}>{thresholds.warning} cm</strong>
+                    </div>
+                    <div className="rsb-stat">
+                      <span>Danger at</span>
+                      <strong style={{ color: "var(--red)" }}>{thresholds.danger} cm</strong>
+                    </div>
+                    <div className="rsb-stat">
+                      <span>Coordinates</span>
+                      <strong style={{ fontFamily: "var(--mono)", fontSize: 10 }}>{f.lat}, {f.lng}</strong>
                     </div>
                     {canSiren && (
                       <div className="rsb-siren">
