@@ -1880,12 +1880,13 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
   const [confirmSave, setConfirmSave]         = useState(null);
   const [confirmSaveLoading, setConfirmSaveLoading] = useState(false);
   const [confirmRemove, setConfirmRemove]   = useState(null);
-  const [notifSaving, setNotifSaving]       = useState({});
+  const [confirmNotif, setConfirmNotif]               = useState(null);
+  const [confirmNotifLoading, setConfirmNotifLoading] = useState(false);
 
   const isAdmin = userRole === "Admin";
 
   const handleNotifToggle = async (key, newVal) => {
-    setNotifSaving(p => ({ ...p, [key]: true }));
+    setConfirmNotifLoading(true);
     try {
       const res = await authFetch(`${API_BASE}/users/me/notifications`, {
         method:  "PUT",
@@ -1918,9 +1919,10 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
     } catch (err) {
       if (err?.message !== "Unauthorized") setActionError("Failed to update alert preference. Try again.");
     }
-    setNotifSaving(p => ({ ...p, [key]: false }));
+    setConfirmNotifLoading(false);
+    setConfirmNotif(null);
   };
-
+  
   useEffect(() => {
     setLoadingUsers(true);
     setLoadUsersError(false);
@@ -2045,6 +2047,16 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
         confirmColor={confirmSms.newVal ? "var(--green)" : "var(--red)"}
         onConfirm={() => { handleSmsToggle(confirmSms.userId, confirmSms.newVal); setConfirmSms(null); }}
         onCancel={() => setConfirmSms(null)} />}
+      {confirmNotif && <ConfirmModal
+        icon={confirmNotif.newVal ? "🔔" : "🔕"}
+        iconColor={confirmNotif.newVal ? "var(--green)" : "var(--red)"}
+        title={confirmNotif.newVal ? `Turn on ${confirmNotif.label}?` : `Turn off ${confirmNotif.label}?`}
+        message={confirmNotif.newVal ? `You'll start receiving alerts for ${confirmNotif.label}.` : `You'll stop receiving alerts for ${confirmNotif.label}.`}
+        confirmLabel={confirmNotif.newVal ? "Yes, Turn On" : "Yes, Turn Off"}
+        confirmColor={confirmNotif.newVal ? "var(--green)" : "var(--red)"}
+        confirmLoading={confirmNotifLoading}
+        onConfirm={() => handleNotifToggle(confirmNotif.key, confirmNotif.newVal)}
+        onCancel={() => { if (!confirmNotifLoading) setConfirmNotif(null); }} />}
       {confirmSave   && <ConfirmModal icon="👤" iconColor="var(--blue)" title={`Save Changes for ${confirmSave.name}?`} message={`Role → ${getDraft(confirmSave).role} · Department → ${getDraft(confirmSave).department}`} confirmLabel="Yes, Save" confirmLoading={confirmSaveLoading} onConfirm={doSave} onCancel={() => { if (!confirmSaveLoading) setConfirmSave(null); }} />}
       {confirmRemove && <ConfirmModal icon="🗑" iconColor="var(--red)" title={`Remove ${confirmRemove.name}?`} message={`This will permanently remove ${confirmRemove.name} from the system.`} confirmLabel="Yes, Remove" confirmColor="var(--red)" onConfirm={doRemove} onCancel={() => setConfirmRemove(null)} />}
       <div className="page-body">
@@ -2138,12 +2150,9 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
               </div>
               <button
                 className={`settings-toggle ${user[key] ? "stoggle-on" : "stoggle-off"}`}
-                onClick={() => handleNotifToggle(key, !user[key])}
-                disabled={notifSaving[key]}
+                onClick={() => setConfirmNotif({ key, label, newVal: !user[key] })}
               >
-                {notifSaving[key]
-                  ? <span className="btn-spinner" style={{ width:10, height:10, borderWidth:1.5 }} />
-                  : user[key] ? "ON" : "OFF"}
+                {user[key] ? "ON" : "OFF"}
               </button>
             </div>
           ))}
