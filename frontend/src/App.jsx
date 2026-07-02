@@ -3422,7 +3422,7 @@ const waterChartOptions = useMemo(() => ({
                                   copiedTimerRef.current = null;
                                 }, 1500);
                               }} style={{ marginTop:"7px", padding:"3px 8px", background: copiedId===f.id?"#38bdf8":markerColor, color:"#ffffff", border:"none", outline:"none", boxShadow:"none", borderRadius:"4px", cursor:"pointer", fontWeight:"700", fontSize:"clamp(10px, 0.85vw, 12px)", width:"100%", transition:"background 0.2s" }}>
-                                {copiedId===f.id ? "Copied!" : "📋 Copy Coordinates"}
+                                {copiedId===f.id ? "Copied!" : "Copy Coordinates"}
                               </button>
                             </div>
                           </Popup>
