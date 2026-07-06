@@ -3402,7 +3402,7 @@ const waterChartOptions = useMemo(() => ({
                           eventHandlers={{ click: () => setSelectedFEWS(selectedFEWS === f.id ? null : f.id) }}>
                           <Popup minWidth={180} maxWidth={260}>
                             <div style={{ fontFamily:"sans-serif", padding:"2px 0" }}>
-                              <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
+                              <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3 }}>
                                 <strong style={{ fontSize:"clamp(13px, 1.1vw, 16px)", color:"#1e293b" }}>{f.name}</strong>
                                 <span style={{ fontSize:"clamp(9px, 0.8vw, 11px)", color: isHardwareOnline ? "#22c55e" : "#94a3b8", fontWeight:700 }}>
                                   {isHardwareOnline ? "● LIVE" : "◌ WAITING"}
@@ -3411,7 +3411,7 @@ const waterChartOptions = useMemo(() => ({
                               <div style={{ fontSize:"clamp(11px, 0.9vw, 13px)", color:"#1e293b", marginBottom:2 }}>
                                 {f.location}
                               </div>
-                              <div style={{ display:"flex", alignItems:"baseline", gap:4, marginBottom:3 }}>
+                              <div style={{ display:"flex", alignItems:"baseline", gap:4, marginBottom:6 }}>
                                 <span style={{ fontSize:"clamp(22px, 1.8vw, 28px)", fontWeight:800, lineHeight:1, color: isHardwareOnline ? markerColor : "#94a3b8" }}>
                                   {isHardwareOnline ? f.waterLevel : "—"}
                                 </span>
