@@ -3408,7 +3408,7 @@ const waterChartOptions = useMemo(() => ({
                                   {isHardwareOnline ? "● LIVE" : "◌ WAITING"}
                                 </span>
                               </div>
-                              <div style={{ fontSize:"clamp(10px, 0.9vw, 13px)", color:"#1e293b", marginBottom:2 }}>
+                              <div style={{ fontSize:"clamp(10px, 0.9vw, 12px)", color:"#1e293b", marginBottom:2 }}>
                                 {f.location}
                               </div>
                               <div style={{ display:"flex", alignItems:"baseline", gap:4, marginBottom:3 }}>
