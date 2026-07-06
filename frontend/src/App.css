@@ -854,10 +854,20 @@ body {
 .map-fs-row-val { font-size: 10px; }
 
 .map-fullscreen-inner .leaflet-popup-content-wrapper {
-  max-width: 280px !important;
-  width: auto !important;
-  min-width: 0 !important;
-}
+    max-width: 280px !important;
+    width: auto !important;
+    min-width: 0 !important;
+  }
+
+  .map-wrap .leaflet-popup-content-wrapper {
+    max-width: 190px !important;
+    width: auto !important;
+    min-width: 0 !important;
+  }
+
+  .map-wrap .leaflet-popup-content {
+    margin: 10px 12px !important;
+  }
 }
 
 /* ================================

@@ -3411,7 +3411,7 @@ const waterChartOptions = useMemo(() => ({
                               <div style={{ fontSize:"clamp(11px, 0.9vw, 13px)", color:"#1e293b", marginBottom:2 }}>
                                 {f.location}
                               </div>
-                              <div style={{ display:"flex", alignItems:"baseline", gap:4, marginBottom:6 }}>
+                              <div style={{ display:"flex", alignItems:"baseline", gap:4, marginBottom:3 }}>
                                 <span style={{ fontSize:"clamp(22px, 1.8vw, 28px)", fontWeight:800, lineHeight:1, color: isHardwareOnline ? markerColor : "#94a3b8" }}>
                                   {isHardwareOnline ? f.waterLevel : "—"}
                                 </span>
@@ -3427,8 +3427,8 @@ const waterChartOptions = useMemo(() => ({
                                   setCopiedId(null);
                                   copiedTimerRef.current = null;
                                 }, 1500);
-                              }} style={{ marginTop:"7px", padding:"3px 8px", background: copiedId===f.id?"#38bdf8":markerColor, color:"#ffffff", border:"none", outline:"none", boxShadow:"none", borderRadius:"4px", cursor:"pointer", fontWeight:"700", fontSize:"clamp(10px, 0.85vw, 12px)", width:"100%", transition:"background 0.2s" }}>
-                                {copiedId===f.id ? "Copied!" : "📋 Copy Coordinates"}
+                              }} style={{ marginTop:"4px", padding:"3px 8px", background: copiedId===f.id?"#38bdf8":markerColor, color:"#ffffff", border:"none", outline:"none", boxShadow:"none", borderRadius:"4px", cursor:"pointer", fontWeight:"700", fontSize:"clamp(10px, 0.85vw, 12px)", width:"100%", transition:"background 0.2s" }}>
+                                {copiedId===f.id ? "Copied!" : "Copy Coordinates"}
                               </button>
                             </div>
                           </Popup>
