@@ -3408,10 +3408,16 @@ const waterChartOptions = useMemo(() => ({
                                   {isHardwareOnline ? "● LIVE" : "◌ WAITING"}
                                 </span>
                               </div>
-                              <div style={{ fontSize:"clamp(11px, 0.9vw, 13px)", color:"#475569", lineHeight:1.2, marginBottom:4 }}>
+                              <div style={{ fontSize:"clamp(11px, 0.9vw, 13px)", color:"#475569", marginBottom:6 }}>
                                 <strong style={{ color:"#1e293b" }}>{f.location}</strong>
-                                {" · "}
-                                <span>Water: {isHardwareOnline ? `${f.waterLevel} cm` : "—"}</span>
+                              </div>
+                              <div style={{ display:"flex", alignItems:"baseline", gap:4, marginBottom:10 }}>
+                                <span style={{ fontSize:"clamp(26px, 2.2vw, 32px)", fontWeight:800, lineHeight:1, color: isHardwareOnline ? markerColor : "#94a3b8" }}>
+                                  {isHardwareOnline ? f.waterLevel : "—"}
+                                </span>
+                                {isHardwareOnline && (
+                                  <span style={{ fontSize:"clamp(12px, 1vw, 14px)", fontWeight:600, color: markerColor }}>cm</span>
+                                )}
                               </div>
                               <button onClick={() => {
                                 navigator.clipboard.writeText(`${f.lat}, ${f.lng}`);
@@ -3422,7 +3428,7 @@ const waterChartOptions = useMemo(() => ({
                                   copiedTimerRef.current = null;
                                 }, 1500);
                               }} style={{ marginTop:"7px", padding:"3px 8px", background: copiedId===f.id?"#38bdf8":markerColor, color:"#ffffff", border:"none", outline:"none", boxShadow:"none", borderRadius:"4px", cursor:"pointer", fontWeight:"700", fontSize:"clamp(10px, 0.85vw, 12px)", width:"100%", transition:"background 0.2s" }}>
-                                {copiedId===f.id ? "Copied!" : "Copy Coordinates"}
+                                {copiedId===f.id ? "Copied!" : "📋 Copy Coordinates"}
                               </button>
                             </div>
                           </Popup>
