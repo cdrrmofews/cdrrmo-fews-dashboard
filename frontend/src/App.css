@@ -866,6 +866,7 @@ body {
   }
 
   .map-wrap .leaflet-popup-content {
+    width: 170px !important;
     margin: 10px 12px !important;
   }
 }
