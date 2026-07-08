@@ -22,7 +22,7 @@ from models import (
     UpdateProfileRequest, ChangeEmailRequest, ChangePasswordRequest,
     ChangePhoneRequest, SmsEnabledRequest, CreateLogRequest,
     SirenRequest, UpdateUnitRequest, PushSubscribeRequest,
-    UpdateNotifPrefsRequest, UpdateManualUnitRequest,
+    UpdateNotifPrefsRequest,
 )
 
 DEPLOY_TIME          = datetime.utcnow().isoformat()
@@ -84,52 +84,6 @@ def startup():
                     "Deployed at the Bridge of Progress along Calumpang River, Batangas City. Monitors the water level of the river passing beneath the bridge to provide early flood warnings for the surrounding community.",
                     200, 300
                 ))
-            cur.execute("""
-                CREATE TABLE IF NOT EXISTS manual_fews_units (
-                    id             SERIAL PRIMARY KEY,
-                    device_id      TEXT UNIQUE NOT NULL,
-                    name           TEXT NOT NULL,
-                    location       TEXT NOT NULL,
-                    latitude       DOUBLE PRECISION NOT NULL,
-                    longitude      DOUBLE PRECISION NOT NULL,
-                    status         TEXT NOT NULL DEFAULT 'serviceable',
-                    description    TEXT DEFAULT '',
-                    hw_technician  TEXT DEFAULT '',
-                    installed_date TEXT DEFAULT '',
-                    created_at     TIMESTAMPTZ DEFAULT NOW(),
-                    updated_at     TIMESTAMPTZ DEFAULT NOW()
-                )
-            """)
-            cur.execute("SELECT COUNT(*) as cnt FROM manual_fews_units")
-            if cur.fetchone()["cnt"] == 0:
-                manual_seed = [
-                    ("manual_1",  "FEWS 1",  "Cuta Sitio Buhanginan",                 13.746451, 121.061156, "serviceable",   ""),
-                    ("manual_2",  "FEWS 2",  "Kumintang Ibaba Sitio Ferry",           13.761058, 121.066804, "unserviceable", "Stolen parts (wire and sensor)"),
-                    ("manual_3",  "FEWS 3",  "Libjo Old San Vicente",                 13.732562, 121.073700, "serviceable",   ""),
-                    ("manual_4",  "FEWS 4",  "Malitam",                               13.747917, 121.055238, "serviceable",   ""),
-                    ("manual_5",  "FEWS 5",  "Pallocan East",                         13.755576, 121.079892, "serviceable",   ""),
-                    ("manual_6",  "FEWS 6",  "Pallocan West Sitio Ternate",           13.748540, 121.065023, "serviceable",   "For replacement of liquid level controller"),
-                    ("manual_7",  "FEWS 7",  "Pallocan West Sitio Ternate Creek",     13.749544, 121.065986, "serviceable",   "For replacement of one siren"),
-                    ("manual_8",  "FEWS 8",  "Poblacion 1",                           13.754366, 121.062169, "serviceable",   ""),
-                    ("manual_9",  "FEWS 9",  "Poblacion 2",                           13.755707, 121.062567, "serviceable",   ""),
-                    ("manual_10", "FEWS 10", "Poblacion 3",                           13.756666, 121.063044, "serviceable",   ""),
-                    ("manual_11", "FEWS 11", "Poblacion 4",                           13.759262, 121.064646, "serviceable",   ""),
-                    ("manual_12", "FEWS 12", "Poblacion 24",                          13.759710, 121.053972, "unserviceable", "1 unit unserviceable due to complaint from a resident"),
-                    ("manual_13", "FEWS 13", "San Isidro Sitio Gitna",                13.737219, 121.072214, "unserviceable", "Dismantled due to ongoing construction of the creek"),
-                    ("manual_14", "FEWS 14", "San Isidro Sitio Gitna Little Simlong", 13.736153, 121.072892, "unserviceable", "Dismantled due to ongoing construction of the creek"),
-                    ("manual_15", "FEWS 15", "Talahib Pandayan",                      13.641939, 121.143401, "serviceable",   "For relocation"),
-                    ("manual_16", "FEWS 16", "Tierra Verde Ville Entrance",           13.752524, 121.070501, "serviceable",   ""),
-                    ("manual_17", "FEWS 17", "Tierra Verde Ville Inside",             13.751590, 121.071212, "serviceable",   ""),
-                    ("manual_18", "FEWS 18", "Wawa – COURT",                          13.761058, 121.052390, "unserviceable", "For relocation"),
-                ]
-                for device_id, name, location, lat, lng, status, desc in manual_seed:
-                    cur.execute("""
-                        INSERT INTO manual_fews_units
-                            (device_id, name, location, latitude, longitude, status, description, hw_technician)
-                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    """, (device_id, name, location, lat, lng, status, desc,
-                          "Monitoring, Information and Analytics Division"))
-                print("[STARTUP] Seeded 18 manual FEWS units")
             cur.execute("""
                 CREATE TABLE IF NOT EXISTS push_subscriptions (
                     id         SERIAL PRIMARY KEY,
@@ -887,74 +841,6 @@ def update_unit(device_id: str, req: UpdateUnitRequest, user=Depends(get_current
             publish_config(device_id, row["threshold_warning"], row["threshold_danger"])
 
         return row
-    finally:
-        cur.close()
-        release_db(conn)
-
-# --- MANUAL FEWS UNITS ---
-
-@app.get("/manual-units")
-def get_manual_units(user=Depends(get_current_user)):
-    conn = get_db()
-    cur  = conn.cursor()
-    try:
-        cur.execute("SELECT * FROM manual_fews_units ORDER BY id")
-        return cur.fetchall()
-    finally:
-        cur.close()
-        release_db(conn)
-
-@app.put("/manual-units/{device_id}")
-def update_manual_unit(device_id: str, req: UpdateManualUnitRequest, admin=Depends(require_admin)):
-    conn = get_db()
-    cur  = conn.cursor()
-    try:
-        cur.execute("SELECT * FROM manual_fews_units WHERE device_id = %s", (device_id,))
-        existing = cur.fetchone()
-        if not existing:
-            raise HTTPException(status_code=404, detail="Manual unit not found")
-
-        fields, values = [], []
-        if req.latitude       is not None: fields.append("latitude = %s");       values.append(req.latitude)
-        if req.longitude      is not None: fields.append("longitude = %s");      values.append(req.longitude)
-        if req.installed_date is not None: fields.append("installed_date = %s"); values.append(req.installed_date)
-        if req.status         is not None: fields.append("status = %s");         values.append(req.status)
-        if req.hw_technician  is not None: fields.append("hw_technician = %s");  values.append(req.hw_technician)
-        if req.description    is not None: fields.append("description = %s");    values.append(req.description)
-        if not fields:
-            raise HTTPException(status_code=400, detail="No fields to update")
-        fields.append("updated_at = NOW()")
-        values.append(device_id)
-
-        cur.execute(
-            f"UPDATE manual_fews_units SET {', '.join(fields)} WHERE device_id = %s RETURNING *",
-            values
-        )
-        row = cur.fetchone()
-
-        admin_id = int(admin["sub"])
-        cur.execute("SELECT name FROM users WHERE id = %s", (admin_id,))
-        admin_row  = cur.fetchone()
-        admin_name = admin_row["name"] if admin_row else "Unknown"
-
-        if req.status is not None and req.status != existing["status"]:
-            message = (
-                f"Manual {row['name']} ({row['location']}) status changed from "
-                f"{existing['status'].capitalize()} to {row['status'].capitalize()} by {admin_name}"
-            )
-        else:
-            message = f"Manual {row['name']} ({row['location']}) station information updated by {admin_name}"
-
-        cur.execute("""
-            INSERT INTO system_logs (station, type, message, user_name)
-            VALUES (%s, %s, %s, %s)
-        """, ("Manual FEWS", "system", message, admin_name))
-
-        conn.commit()
-        return row
-    except HTTPException:
-        conn.rollback()
-        raise
     finally:
         cur.close()
         release_db(conn)

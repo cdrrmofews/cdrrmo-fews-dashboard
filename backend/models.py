@@ -61,11 +61,3 @@ class UpdateNotifPrefsRequest(BaseModel):
     audio_enabled:  Optional[bool] = None
     banner_enabled: Optional[bool] = None
     ticker_enabled: Optional[bool] = None
-
-class UpdateManualUnitRequest(BaseModel):
-    latitude:       Optional[float] = None
-    longitude:      Optional[float] = None
-    installed_date: Optional[str]   = None
-    status:         Optional[Literal["serviceable", "unserviceable"]] = None
-    hw_technician:  Optional[str]   = None
-    description:    Optional[str]   = None
