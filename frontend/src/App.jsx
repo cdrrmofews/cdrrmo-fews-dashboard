@@ -2270,6 +2270,7 @@ export default function App() {
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [sidebarOpen, setSidebarOpen]                 = useState(false);
   const [selectedFEWS, setSelectedFEWS]               = useState(null);
+  const [manualExpanded, setManualExpanded]           = useState(true);
   const [activeNav, setActiveNav]                     = useState(() => {
     return sessionStorage.getItem("activeNav") || "Dashboard";
   });
@@ -3602,38 +3603,90 @@ const waterChartOptions = useMemo(() => ({
                 <span className="rsb-count">{allFews.length}</span>
               </div>
               <div className="rsb-list">
-                {allFews.map(f => {
-                  const cfg   = STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"];
-                  const isSel = selectedFEWS === f.id;
-                  const isActuallyLive = f.isLive && isHardwareOnline;
+                {(() => {
+                  const liveFews   = allFews.filter(f => f.isLive);
+                  const manualFews = allFews.filter(f => !f.isLive);
+
+                  const renderItem = (f) => {
+                    const cfg   = STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"];
+                    const isSel = selectedFEWS === f.id;
+                    const isActuallyLive = f.isLive && isHardwareOnline;
+                    return (
+                      <button key={f.id} className={`rsb-item ${isSel ? "selected" : ""}`}
+                        onClick={() => setSelectedFEWS(isSel ? null : f.id)}
+                        style={{ "--status-color": f.isLive ? cfg.color : "#7e92b4" }}>
+                        <div className="rsb-dot" style={{ background: isActuallyLive ? cfg.color : "#334155" }} />
+                        <div className="rsb-info">
+                          <div className="rsb-name" style={{ display:"flex", alignItems:"center", gap:5 }}>
+                            {f.name}
+                            {f.isLive && (
+                              <span style={{ fontSize: 8, fontWeight: 700, color: isActuallyLive ? "var(--green)" : "var(--text-3)", fontFamily: "var(--mono)" }}>
+                                {isActuallyLive ? "LIVE" : "WAITING"}
+                              </span>
+                            )}
+                          </div>
+                          <div className="rsb-loc">{f.location || "-"}</div>
+                        </div>
+                        {f.isLive ? (
+                          <div className="rsb-badge" style={{
+                            color: isActuallyLive ? cfg.color : "var(--text-3)",
+                            background: isActuallyLive ? cfg.bg : "rgba(255,255,255,0.04)"
+                          }}>
+                            {isActuallyLive ? cfg.label : "—"}
+                          </div>
+                        ) : (
+                          <div className="rsb-badge rsb-badge-manual">MANUAL</div>
+                        )}
+                      </button>
+                    );
+                  };
+
                   return (
-                    <button key={f.id} className={`rsb-item ${isSel ? "selected" : ""}`}
-                      onClick={() => setSelectedFEWS(isSel ? null : f.id)}
-                      style={{ "--status-color": cfg.color }}>
-                      <div className="rsb-dot" style={{ background: isActuallyLive ? cfg.color : "#334155" }} />
-                      <div className="rsb-info">
-                        <div className="rsb-name" style={{ display:"flex", alignItems:"center", gap:5 }}>
-                          {f.name}
-                          {f.isLive && (
-                            <span style={{ fontSize: 8, fontWeight: 700, color: isActuallyLive ? "var(--green)" : "var(--text-3)", fontFamily: "var(--mono)" }}>
-                              {isActuallyLive ? "LIVE" : "WAITING"}
-                            </span>
+                    <>
+                      {liveFews.length > 0 && (
+                        <div className="rsb-section">
+                          <div className="rsb-section-label">Live · {liveFews.length}</div>
+                          <div className="rsb-section-items">{liveFews.map(renderItem)}</div>
+                        </div>
+                      )}
+                      {manualFews.length > 0 && (
+                        <div className="rsb-section">
+                          <button type="button" className="rsb-section-label rsb-section-toggle"
+                            onClick={() => setManualExpanded(v => !v)}>
+                            <span>Manual · {manualFews.length}</span>
+                            <span className="rsb-toggle-arrow">{manualExpanded ? "▾" : "▸"}</span>
+                          </button>
+                          {manualExpanded && (
+                            <div className="rsb-section-items">{manualFews.map(renderItem)}</div>
                           )}
                         </div>
-                        <div className="rsb-loc">{f.location || "-"}</div>
-                      </div>
-                      <div className="rsb-badge" style={{ 
-                        color: isActuallyLive ? cfg.color : "var(--text-3)", 
-                        background: isActuallyLive ? cfg.bg : "rgba(255,255,255,0.04)" 
-                      }}>
-                        {isActuallyLive ? cfg.label : "—"}
-                      </div>
-                    </button>
+                      )}
+                    </>
                   );
-                })}
+                })()}
               </div>
               {selectedFEWS && (() => {
                 const f       = allFews.find(s => s.id === selectedFEWS);
+
+                if (!f.isLive) {
+                  return (
+                    <div className="rsb-detail">
+                      <div className="rsb-detail-title" style={{ display:"flex", alignItems:"center", gap:6 }}>
+                        {f.name}
+                        <span style={{ fontSize:9, fontWeight:700, fontFamily:"var(--mono)", color:"var(--text-3)" }}>
+                          ◌ MANUAL
+                        </span>
+                      </div>
+                      <div className="rsb-stat"><span>Status</span><strong style={{ color: "var(--text-2)" }}>SERVICEABLE</strong></div>
+                      <div className="rsb-stat"><span>Location</span><strong>{f.location || "—"}</strong></div>
+                      <div className="rsb-stat">
+                        <span>Coordinates</span>
+                        <strong style={{ fontFamily: "var(--mono)", fontSize: 10 }}>{f.lat}, {f.lng}</strong>
+                      </div>
+                    </div>
+                  );
+                }
+
                 const cfg     = STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"];
                 const sirenOn = sirens[f.id];
                 const isActuallyLive = f.isLive && isHardwareOnline;
@@ -3642,12 +3695,10 @@ const waterChartOptions = useMemo(() => ({
                   <div className="rsb-detail" style={{ "--status-color": isActuallyLive ? cfg.color : "var(--text-3)" }}>
                     <div className="rsb-detail-title" style={{ display:"flex", alignItems:"center", gap:6 }}>
                       {f.name}
-                      {f.isLive && (
-                        <span style={{ marginLeft:0, marginTop:3, fontSize:9, fontWeight:700, fontFamily:"var(--mono)",
-                          color: isActuallyLive ? "var(--green)" : "var(--text-3)" }}>
-                          {isActuallyLive ? "● LIVE" : "◌ WAITING"}
-                        </span>
-                      )}
+                      <span style={{ marginLeft:0, marginTop:3, fontSize:9, fontWeight:700, fontFamily:"var(--mono)",
+                        color: isActuallyLive ? "var(--green)" : "var(--text-3)" }}>
+                        {isActuallyLive ? "● LIVE" : "◌ WAITING"}
+                      </span>
                     </div>
                     <div className="rsb-stat"><span>Water Level</span><strong style={{ color: isActuallyLive ? cfg.color : "var(--text-3)" }}>{isActuallyLive ? `${f.waterLevel} cm` : "—"}</strong></div>
                     <div className="rsb-stat"><span>Status</span><strong style={{ color: isActuallyLive ? cfg.color : "var(--text-3)" }}>{isActuallyLive ? cfg.label : "WAITING"}</strong></div>

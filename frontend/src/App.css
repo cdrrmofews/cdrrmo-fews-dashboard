@@ -908,6 +908,34 @@ body {
 
 .rsb-list { display: flex; flex-direction: column; gap: 6px; flex: 1; }
 
+.rsb-list {
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.rsb-section { display: flex; flex-direction: column; gap: 6px; }
+
+.rsb-section-label {
+  font-size: 9px; font-weight: 700; color: var(--text-3);
+  letter-spacing: 0.08em; text-transform: uppercase;
+}
+
+.rsb-section-toggle {
+  display: flex; align-items: center; justify-content: space-between;
+  background: transparent; border: none; padding: 0; cursor: pointer;
+  width: 100%; font-family: var(--font);
+}
+
+.rsb-toggle-arrow { font-size: 9px; color: var(--text-3); }
+
+.rsb-section-items { display: flex; flex-direction: column; gap: 6px; }
+
+.rsb-badge-manual {
+  color: var(--text-2);
+  background: rgba(255,255,255,0.06);
+  font-family: var(--mono);
+}
+
 .rsb-item {
   display: flex;
   align-items: center;
