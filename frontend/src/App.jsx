@@ -4078,7 +4078,7 @@ const waterChartOptions = useMemo(() => ({
                     boundsOptions={{ padding: [40, 40] }}
                     style={{ height:"100%", width:"100%" }}
                     scrollWheelZoom={true}
-                    minZoom={20}>
+                    minZoom={16}>
                     <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                     <OpenAllPopups fewsList={allFews} markerRefs={fsMarkerRefs} active={fullscreenMap} />
                     {allFews.map(f => {
