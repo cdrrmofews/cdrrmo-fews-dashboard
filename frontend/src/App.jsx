@@ -979,8 +979,16 @@ function OpenPopup({ fews, markerRefs }) {
 }
 
 function OpenAllPopups({ fewsList, markerRefs, active }) {
+  const map = useMap();
   useEffect(() => {
     if (!active) return;
+    if (fewsList.length === 0) return;
+
+    // Fit the whole city in view FIRST, in one clean pan — before any
+    // popup opens. This is what stops the tile layer from glitching.
+    const bounds = L.latLngBounds(fewsList.map(f => [f.lat, f.lng]));
+    map.fitBounds(bounds, { padding: [60, 60] });
+
     const t = setTimeout(() => {
       fewsList.forEach(f => {
         const markerRef = markerRefs.current[f.id];
@@ -3659,12 +3667,14 @@ const waterChartOptions = useMemo(() => ({
                                 <>
                                   <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3 }}>
                                     <strong style={{ fontSize:"clamp(13px, 1.1vw, 16px)", color:"#1e293b" }}>{f.name}</strong>
-                                    <span style={{ fontSize:"clamp(9px, 0.8vw, 11px)", color:"#64748b", fontWeight:700 }}>MANUAL</span>
+                                    <span style={{ fontSize:"clamp(9px, 0.8vw, 11px)", color: isManualServiceable ? "#38bdf8" : "#94a3b8", fontWeight:700 }}>
+                                      {isManualServiceable ? "● MANUAL" : "◌ MANUAL"}
+                                    </span>
                                   </div>
                                   <div style={{ fontSize:"clamp(10px, 0.9vw, 12px)", color:"#1e293b", marginBottom:2 }}>
                                     {f.location}
                                   </div>
-                                  <div style={{ marginBottom:6 }}>
+                                  <div style={{ marginBottom:3 }}>
                                     <span style={{ fontSize:"clamp(14px, 1.2vw, 18px)", fontWeight:800, lineHeight:1, color: markerColor }}>
                                       {isManualServiceable ? "SERVICEABLE" : "UNSERVICEABLE"}
                                     </span>
@@ -4059,20 +4069,20 @@ const waterChartOptions = useMemo(() => ({
                         <Marker key={f.id} position={[f.lat, f.lng]} icon={icon}
                           ref={el => { fsMarkerRefs.current[f.id] = el; }}
                           eventHandlers={{ click: () => setFsSelectedFEWS(fsSelectedFEWS === f.id ? null : f.id) }}>
-                          <Popup minWidth={160} maxWidth={220} autoClose={false} closeOnClick={false}>
+                          <Popup minWidth={160} maxWidth={360} autoPan={false} autoClose={false} closeOnClick={false}>
                             <div style={{ fontFamily:"sans-serif", padding:"2px 0" }}>
                               <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
                                 <strong style={{ fontSize:"clamp(13px, 1.1vw, 16px)", color:"#1e293b" }}>{f.name}</strong>
-                                <span style={{ fontSize:"clamp(9px, 0.8vw, 11px)", color: f.isLive ? (isHardwareOnline ? "#22c55e" : "#94a3b8") : "#64748b", fontWeight:700 }}>
-                                  {f.isLive ? (isHardwareOnline ? "● LIVE" : "◌ WAITING") : "MANUAL"}
+                                <span style={{ fontSize:"clamp(9px, 0.8vw, 11px)", color: f.isLive ? (isHardwareOnline ? "#22c55e" : "#94a3b8") : (isManualServiceable ? "#38bdf8" : "#94a3b8"), fontWeight:700 }}>
+                                  {f.isLive ? (isHardwareOnline ? "● LIVE" : "◌ WAITING") : (isManualServiceable ? "● MANUAL" : "◌ MANUAL")}
                                 </span>
                               </div>
-                              <div style={{ fontSize:"clamp(11px, 0.9vw, 13px)", color:"#475569", lineHeight:1.2, marginBottom:4 }}>
+                              <div style={{ fontSize:"clamp(11px, 0.9vw, 13px)", color:"#475569", lineHeight:1.2, marginBottom:4, whiteSpace:"nowrap" }}>
                                 <strong style={{ color:"#1e293b" }}>{f.location}</strong>
                                 {" · "}
                                 {f.isLive
                                   ? <span>Water: {isHardwareOnline ? `${f.waterLevel} cm` : "—"}</span>
-                                  : <span>Status: {isManualServiceable ? "Serviceable" : "Unserviceable"}</span>
+                                  : <span>{isManualServiceable ? "SERVICEABLE" : "UNSERVICEABLE"}</span>
                                 }
                               </div>
                             </div>
