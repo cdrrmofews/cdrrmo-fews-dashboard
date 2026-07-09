@@ -974,6 +974,20 @@ function OpenPopup({ fews, markerRefs }) {
   return null;
 }
 
+function OpenAllPopups({ fewsList, markerRefs, active }) {
+  useEffect(() => {
+    if (!active) return;
+    const t = setTimeout(() => {
+      fewsList.forEach(f => {
+        const markerRef = markerRefs.current[f.id];
+        if (markerRef) markerRef.openPopup();
+      });
+    }, 700);
+    return () => clearTimeout(t);
+  }, [active]); // eslint-disable-line react-hooks/exhaustive-deps
+  return null;
+}
+
 // ─── MODALS ───────────────────────────────────────────────────────────────────
 function ConfirmModal({ icon, iconColor, title, message, confirmLabel, confirmColor, onConfirm, onCancel, confirmLoading }) {
   return (
@@ -1543,9 +1557,9 @@ function ManualFewsCard({ m, canControl, token, manualEditing, setManualEditing,
   );
 }
 
-function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, token, onThresholdSaved, onManualUnitSaved }) {
+function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userName, addLog, token, onThresholdSaved, onManualUnitSaved }) {
   const liveFewsOnly = allFews.filter(f => f.isLive);
-  const manualFewsOnly = allFews.filter(f => !f.isLive);
+  const manualFewsOnly = manualFews;
 
   const [fewsData, setFewsData]           = useState(liveFewsOnly.map(f => ({ ...f })));
   const [thresholds, setThr]              = useState(Object.fromEntries(liveFewsOnly.map(f => [f.id, { warning: 200, danger: 300 }])));
@@ -3643,13 +3657,13 @@ const waterChartOptions = useMemo(() => ({
                                     <strong style={{ fontSize:"clamp(13px, 1.1vw, 16px)", color:"#1e293b" }}>{f.name}</strong>
                                     <span style={{ fontSize:"clamp(9px, 0.8vw, 11px)", color:"#64748b", fontWeight:700 }}>MANUAL</span>
                                   </div>
-                                  <div style={{ fontSize:"clamp(10px, 0.9vw, 12px)", color:"#1e293b", marginBottom:6 }}>
+                                  <div style={{ fontSize:"clamp(10px, 0.9vw, 12px)", color:"#1e293b", marginBottom:2 }}>
                                     {f.location}
                                   </div>
-                                  <div style={{ fontSize:"clamp(11px, 0.9vw, 13px)", color:"#1e293b", marginBottom:8 }}>
-                                    Status: <strong style={{ color: isManualServiceable ? "#0c447c" : "#64748b" }}>
+                                  <div style={{ marginBottom:6 }}>
+                                    <span style={{ fontSize:"clamp(22px, 1.8vw, 28px)", fontWeight:800, lineHeight:1, color: markerColor }}>
                                       {isManualServiceable ? "SERVICEABLE" : "UNSERVICEABLE"}
-                                    </strong>
+                                    </span>
                                   </div>
                                 </>
                               )}
@@ -3873,6 +3887,7 @@ const waterChartOptions = useMemo(() => ({
                           </div>
                         ) : (
                           <div className="rsb-badge" style={{
+                            fontSize: 7,
                             color: f.manualStatus === "serviceable" ? "#04304a" : "var(--text-3)",
                             background: f.manualStatus === "serviceable" ? "var(--blue)" : "rgba(255,255,255,0.04)"
                           }}>
@@ -4018,7 +4033,7 @@ const waterChartOptions = useMemo(() => ({
                     style={{ height:"100%", width:"100%" }}
                     scrollWheelZoom={true}>
                     <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                    <OpenPopup fews={allFews[0]} markerRefs={fsMarkerRefs} />
+                    <OpenAllPopups fewsList={allFews} markerRefs={fsMarkerRefs} active={fullscreenMap} />
                     {allFews.map(f => {
                       const isManualServiceable = !f.isLive && f.manualStatus === "serviceable";
                       const cfg = STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"];
@@ -4157,7 +4172,7 @@ const waterChartOptions = useMemo(() => ({
             </div>
           )}
 
-        {activeNav === "UnitControl" && <UnitControlPage allFews={allFews} fews1Connected={isHardwareOnline} userRole={user.role} userName={user.name} addLog={addLog} token={token} onThresholdSaved={(t) => setThresholds(t)} onManualUnitSaved={(updated) => setManualFews(prev => prev.map(m => m.device_id === updated.device_id ? updated : m))} />}
+        {activeNav === "UnitControl" && <UnitControlPage allFews={allFews} manualFews={manualFews} fews1Connected={isHardwareOnline} userRole={user.role} userName={user.name} addLog={addLog} token={token} onThresholdSaved={(t) => setThresholds(t)} onManualUnitSaved={(updated) => setManualFews(prev => prev.map(m => m.device_id === updated.device_id ? updated : m))} />}
         {activeNav === "Logs"        && <LogsPage token={token} userRole={user.role} showToast={showToast} />}
         {activeNav === "Settings"    && <SettingsPage
           userRole={user.role}
