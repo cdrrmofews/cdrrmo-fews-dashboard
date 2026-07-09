@@ -122,6 +122,32 @@ def startup():
                     ("manual_17", "FEWS 17", "Tierra Verde Ville Inside",             13.751590, 121.071212, "serviceable",   "Installed within Tierra Verde Ville subdivision to monitor rising water levels in the surrounding area."),
                     ("manual_18", "FEWS 18", "Wawa – COURT",                          13.761058, 121.052390, "unserviceable", "Monitors river conditions near the court area in Barangay Wawa. Currently unserviceable and slated for relocation."),
                 ]
+                manual_descriptions = {
+                    "manual_1":  "Monitors the river segment along Sitio Buhanginan in Barangay Cuta, providing early flood warning for nearby residential areas.",
+                    "manual_2":  "Deployed near the ferry crossing in Sitio Ferry, Kumintang Ibaba. Currently unserviceable due to stolen wire and sensor components; repair pending.",
+                    "manual_3":  "Monitors water levels along the river in Old San Vicente, Barangay Libjo, supporting flood early warning for the community.",
+                    "manual_4":  "Installed along the riverbank in Barangay Malitam to monitor rising water levels and alert nearby residents of potential flooding.",
+                    "manual_5":  "Monitors the river passing through Barangay Pallocan East, providing flood alerts to residents along the waterway.",
+                    "manual_6":  "Deployed in Sitio Ternate, Pallocan West. Scheduled for replacement of its liquid level controller.",
+                    "manual_7":  "Monitors the creek in Sitio Ternate, Pallocan West. Scheduled for replacement of one siren unit.",
+                    "manual_8":  "Monitors river conditions within Barangay Poblacion 1 to support early flood warning for the town center.",
+                    "manual_9":  "Monitors river conditions within Barangay Poblacion 2 to support early flood warning for the town center.",
+                    "manual_10": "Monitors river conditions within Barangay Poblacion 3 to support early flood warning for the town center.",
+                    "manual_11": "Monitors river conditions within Barangay Poblacion 4 to support early flood warning for the town center.",
+                    "manual_12": "Monitors river conditions within Barangay Poblacion 24. Currently unserviceable — one unit was reported unserviceable following a resident complaint.",
+                    "manual_13": "Monitors the creek in Sitio Gitna, Barangay San Isidro. Currently unserviceable and dismantled due to ongoing creek construction work.",
+                    "manual_14": "Monitors the creek near Little Simlong, Sitio Gitna, Barangay San Isidro. Currently unserviceable and dismantled due to ongoing creek construction work.",
+                    "manual_15": "Monitors flood-prone areas in Barangay Talahib Pandayan. Slated for relocation to a more effective monitoring site.",
+                    "manual_16": "Installed at the entrance of Tierra Verde Ville subdivision to monitor rising water levels in the surrounding area.",
+                    "manual_17": "Installed within Tierra Verde Ville subdivision to monitor rising water levels in the surrounding area.",
+                    "manual_18": "Monitors river conditions near the court area in Barangay Wawa. Currently unserviceable and slated for relocation.",
+                }
+                for device_id, desc in manual_descriptions.items():
+                    cur.execute(
+                        "UPDATE manual_fews_units SET description = %s WHERE device_id = %s",
+                        (desc, device_id)
+                    )
+                print("[STARTUP] Manual FEWS descriptions updated")
                 for device_id, name, location, lat, lng, status, desc in manual_seed:
                     cur.execute("""
                         INSERT INTO manual_fews_units
