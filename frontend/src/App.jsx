@@ -3674,7 +3674,7 @@ const waterChartOptions = useMemo(() => ({
                                       {isHardwareOnline ? "● LIVE" : "◌ WAITING"}
                                     </span>
                                   </div>
-                                  <div style={{ fontSize:"clamp(10px, 0.9vw, 12px)", color:"#1e293b", marginBottom:2 }}>
+                                  <div style={{ fontSize:"clamp(10px, 0.9vw, 12px)", color:"#1e293b", marginBottom:3 }}>
                                     {f.location}
                                   </div>
                                   <div style={{ display:"flex", alignItems:"baseline", gap:4, marginBottom:3 }}>
@@ -3925,8 +3925,8 @@ const waterChartOptions = useMemo(() => ({
                         ) : (
                           <div className="rsb-badge" style={{
                             fontSize: 7,
-                            color: f.manualStatus === "serviceable" ? "#04304a" : "var(--text-3)",
-                            background: f.manualStatus === "serviceable" ? "var(--blue)" : "rgba(255,255,255,0.04)"
+                            color: f.manualStatus === "serviceable" ? "var(--blue)" : "var(--text-3)",
+                            background: f.manualStatus === "serviceable" ? "rgba(56,189,248,0.12)" : "rgba(255,255,255,0.04)"
                           }}>
                             {f.manualStatus === "serviceable" ? "SERVICEABLE" : "UNSERVICEABLE"}
                           </div>
