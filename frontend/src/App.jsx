@@ -1455,7 +1455,7 @@ function ManualFewsCard({ m, canControl, token, manualEditing, setManualEditing,
     setManualSaving(prev => ({ ...prev, [m.id]: true }));
     setManualError(prev => ({ ...prev, [m.id]: "" }));
     try {
-      const res = await fetch(`${API_BASE}/manual-units/${m.id}`, {
+      const res = await fetch(`${API_BASE}/manual-units/${m.device_id}`, {
         method:  "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
@@ -2033,14 +2033,29 @@ function DateRangeFilter({ from, to, onChange }) {
 
 // ─── SETTINGS PAGE ────────────────────────────────────────────────────────────
 function MuDropdown({ value, options, onChange }) {
-  const [open, setOpen] = useState(false);
-  const ref = useRef();
+  const [open, setOpen]       = useState(false);
+  const [menuPos, setMenuPos] = useState({ top: 0, left: 0, width: 0 });
+  const ref        = useRef();
+  const triggerRef = useRef();
 
   useEffect(() => {
-    const h = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const h = (e) => {
+      if (ref.current && !ref.current.contains(e.target) &&
+          !(e.target.closest && e.target.closest(".mu-dd-menu-portal"))) {
+        setOpen(false);
+      }
+    };
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
+
+  const toggleOpen = () => {
+    if (!open && triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      setMenuPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+    }
+    setOpen(o => !o);
+  };
 
   const selected = options.find(o => o === value) || value;
 
@@ -2048,16 +2063,20 @@ function MuDropdown({ value, options, onChange }) {
     <div className="mu-dd-wrap" ref={ref}>
       <button
         type="button"
+        ref={triggerRef}
         className={`mu-dd-trigger ${open ? "mu-dd-open" : ""}`}
-        onClick={() => setOpen(o => !o)}
+        onClick={toggleOpen}
       >
         <span className="mu-dd-label">{selected}</span>
         <svg width="10" height="6" viewBox="0 0 10 6" fill="none" className="mu-dd-chevron">
           <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
         </svg>
       </button>
-      {open && (
-        <div className="mu-dd-menu">
+      {open && createPortal(
+        <div
+          className="mu-dd-menu mu-dd-menu-portal"
+          style={{ position: "fixed", top: menuPos.top, left: menuPos.left, minWidth: menuPos.width }}
+        >
           {options.map(opt => (
             <button
               key={opt}
@@ -2068,7 +2087,8 @@ function MuDropdown({ value, options, onChange }) {
               {opt}
             </button>
           ))}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
