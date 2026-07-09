@@ -2503,7 +2503,6 @@ export default function App() {
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const [sidebarOpen, setSidebarOpen]                 = useState(false);
   const [selectedFEWS, setSelectedFEWS]               = useState(null);
-  const [manualExpanded, setManualExpanded]           = useState(true);
   const [activeNav, setActiveNav]                     = useState(() => {
     return sessionStorage.getItem("activeNav") || "Dashboard";
   });
@@ -3698,7 +3697,7 @@ const waterChartOptions = useMemo(() => ({
                                   <div style={{ fontSize:"clamp(10px, 0.9vw, 12px)", color:"#1e293b", marginBottom:2 }}>
                                     {f.location}
                                   </div>
-                                  <div style={{ marginBottom:3 }}>
+                                  <div>
                                     <span style={{ fontSize:"clamp(11px, 0.95vw, 14px)", fontWeight:700, lineHeight:1, color: markerColor }}>
                                       {isManualServiceable ? "SERVICEABLE" : "UNSERVICEABLE"}
                                     </span>
@@ -3946,14 +3945,8 @@ const waterChartOptions = useMemo(() => ({
                       )}
                       {manualFews.length > 0 && (
                         <div className="rsb-section">
-                          <button type="button" className="rsb-section-label rsb-section-toggle"
-                            onClick={() => setManualExpanded(v => !v)}>
-                            <span>Manual · {manualFews.length}</span>
-                            <span className="rsb-toggle-arrow">{manualExpanded ? "▾" : "▸"}</span>
-                          </button>
-                          {manualExpanded && (
-                            <div className="rsb-section-items">{manualFews.map(renderItem)}</div>
-                          )}
+                          <div className="rsb-section-label">Manual · {manualFews.length}</div>
+                          <div className="rsb-section-items">{manualFews.map(renderItem)}</div>
                         </div>
                       )}
                     </>
