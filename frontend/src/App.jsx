@@ -982,7 +982,7 @@ function OpenPopup({ fews, markerRefs }) {
 // around Batangas City proper. Deliberately excludes FEWS 15 (Talahib
 // Pandayan), which sits ~15km south and would force an extreme zoom-out
 // if included — its popup just opens off-screen until the user pans out.
-const CITY_DEFAULT_BOUNDS = [[13.728, 121.048], [13.766, 121.084]];
+const CITY_DEFAULT_BOUNDS = [[13.744, 121.050], [13.766, 121.082]];
 
 function OpenAllPopups({ fewsList, markerRefs, active }) {
   const map = useMap();
@@ -3904,7 +3904,12 @@ const waterChartOptions = useMemo(() => ({
                           const newSel = isSel ? null : f.id;
                           setSelectedFEWS(newSel);
                           if (newSel && window.innerWidth <= 768 && mapCardRef.current) {
-                            mapCardRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+                            const scrollParent = mapCardRef.current.closest(".main");
+                            if (scrollParent) {
+                              scrollParent.scrollTo({ top: 0, behavior: "smooth" });
+                            } else {
+                              mapCardRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+                            }
                           }
                         }}
                         style={{ "--status-color": f.isLive ? cfg.color : "#7e92b4" }}>
