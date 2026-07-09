@@ -978,16 +978,20 @@ function OpenPopup({ fews, markerRefs }) {
   return null;
 }
 
+const FEWS1_DEFAULT_BOUNDS = [[13.760466, 121.066331], [13.764466, 121.070331]];
+
 function OpenAllPopups({ fewsList, markerRefs, active }) {
   const map = useMap();
   useEffect(() => {
     if (!active) return;
     if (fewsList.length === 0) return;
 
-    // Fit the whole city in view FIRST, in one clean pan — before any
-    // popup opens. This is what stops the tile layer from glitching.
-    const bounds = L.latLngBounds(fewsList.map(f => [f.lat, f.lng]));
-    map.fitBounds(bounds, { padding: [60, 60] });
+    // Default the fullscreen view to FEWS 1's area — same framing as the
+    // main dashboard map — instead of zooming out to fit all 19 stations
+    // across the whole city. autoPan={false} on the popups (already set)
+    // means no popup will fight to re-center the map, so this is safe
+    // regardless of which bounds we start from.
+    map.fitBounds(FEWS1_DEFAULT_BOUNDS, { padding: [20, 20] });
 
     const t = setTimeout(() => {
       fewsList.forEach(f => {
@@ -3695,7 +3699,7 @@ const waterChartOptions = useMemo(() => ({
                                     {f.location}
                                   </div>
                                   <div style={{ marginBottom:3 }}>
-                                    <span style={{ fontSize:"clamp(14px, 1.2vw, 18px)", fontWeight:800, lineHeight:1, color: markerColor }}>
+                                    <span style={{ fontSize:"clamp(11px, 0.95vw, 14px)", fontWeight:700, lineHeight:1, color: markerColor }}>
                                       {isManualServiceable ? "SERVICEABLE" : "UNSERVICEABLE"}
                                     </span>
                                   </div>
@@ -3966,7 +3970,7 @@ const waterChartOptions = useMemo(() => ({
                       <div className="rsb-detail-title" style={{ display:"flex", alignItems:"center", gap:6 }}>
                         {f.name}
                         <span style={{ fontSize:9, fontWeight:700, fontFamily:"var(--mono)", color: isServiceable ? "var(--blue)" : "var(--text-3)" }}>
-                          ◌ MANUAL
+                          {isServiceable ? "● MANUAL" : "◌ MANUAL"}
                         </span>
                       </div>
                       <div className="rsb-stat">
