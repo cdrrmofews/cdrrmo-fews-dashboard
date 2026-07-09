@@ -926,7 +926,7 @@ body {
   width: 100%; font-family: var(--font);
 }
 
-.rsb-toggle-arrow { font-size: 9px; color: var(--text-3); }
+.rsb-toggle-arrow { font-size: 9px; color: var(--text-3); margin-left: auto; }
 
 .rsb-section-items { display: flex; flex-direction: column; gap: 6px; }
 
@@ -2509,8 +2509,9 @@ select.settings-input {
   .card-header  { margin-bottom: 5px; }
 
   .right-sidebar { width: 100%; min-width: 100%; height: auto; }
-  .rsb-list      { flex-direction: row; flex-wrap: wrap; gap: 8px; }
-  .rsb-item      { flex: 1; min-width: 130px; }
+  .rsb-list      { flex-direction: column; gap: 6px; max-height: 420px; }
+  .rsb-section-items { flex-direction: column; }
+  .rsb-item      { width: 100%; min-width: 0; }
   .rsb-detail    { margin-top: 10px; }
 
   /* ── Charts & Map ── */

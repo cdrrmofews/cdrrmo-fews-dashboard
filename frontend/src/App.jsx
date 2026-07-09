@@ -234,6 +234,10 @@ const STATUS_CONFIG = {
   CRITICAL: { color: "#ef4444", bg: "rgba(239,68,68,0.12)",  label: "CRITICAL" },
 };
 
+function fmtCoord(n) {
+  return Number(n).toFixed(4);
+}
+
 function backendStatusToKey(status) {
   if (!status) return "safe";
   switch (status.toUpperCase()) {
@@ -3661,7 +3665,7 @@ const waterChartOptions = useMemo(() => ({
                                     {f.location}
                                   </div>
                                   <div style={{ marginBottom:6 }}>
-                                    <span style={{ fontSize:"clamp(22px, 1.8vw, 28px)", fontWeight:800, lineHeight:1, color: markerColor }}>
+                                    <span style={{ fontSize:"clamp(14px, 1.2vw, 18px)", fontWeight:800, lineHeight:1, color: markerColor }}>
                                       {isManualServiceable ? "SERVICEABLE" : "UNSERVICEABLE"}
                                     </span>
                                   </div>
@@ -3944,7 +3948,7 @@ const waterChartOptions = useMemo(() => ({
                       <div className="rsb-stat"><span>Location</span><strong>{f.location || "—"}</strong></div>
                       <div className="rsb-stat">
                         <span>Coordinates</span>
-                        <strong style={{ fontFamily: "var(--mono)", fontSize: 10 }}>{f.lat}, {f.lng}</strong>
+                        <strong style={{ fontFamily: "var(--mono)", fontSize: 10 }}>{fmtCoord(f.lat)}, {fmtCoord(f.lng)}</strong>
                       </div>
                     </div>
                   );
@@ -4055,7 +4059,7 @@ const waterChartOptions = useMemo(() => ({
                         <Marker key={f.id} position={[f.lat, f.lng]} icon={icon}
                           ref={el => { fsMarkerRefs.current[f.id] = el; }}
                           eventHandlers={{ click: () => setFsSelectedFEWS(fsSelectedFEWS === f.id ? null : f.id) }}>
-                          <Popup minWidth={160} maxWidth={220}>
+                          <Popup minWidth={160} maxWidth={220} autoClose={false} closeOnClick={false}>
                             <div style={{ fontFamily:"sans-serif", padding:"2px 0" }}>
                               <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
                                 <strong style={{ fontSize:"clamp(13px, 1.1vw, 16px)", color:"#1e293b" }}>{f.name}</strong>
@@ -4105,7 +4109,7 @@ const waterChartOptions = useMemo(() => ({
                         </div>
                         <div className="map-fs-row">
                           <span className="map-fs-row-label">Coordinates</span>
-                          <span className="map-fs-row-val">{f.lat}, {f.lng}</span>
+                          <span className="map-fs-row-val">{fmtCoord(f.lat)}, {fmtCoord(f.lng)}</span>
                         </div>
                       </div>
                     );
