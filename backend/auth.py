@@ -14,12 +14,13 @@ def hash_password(plain: str) -> str:
 def verify_password(plain: str, hashed: str) -> bool:
     return bcrypt.checkpw(plain.encode(), hashed.encode())
 
-def create_token(user_id: int, role: str, token_version: int = 0) -> str:
+def create_token(user_id: int, role: str, token_version: int = 0, remember_me: bool = False) -> str:
+    expiry = timedelta(days=30) if remember_me else timedelta(hours=12)
     payload = {
         "sub":           str(user_id),
         "role":          role,
         "token_version": token_version,
-        "exp":           datetime.now(timezone.utc) + timedelta(hours=12),
+        "exp":           datetime.now(timezone.utc) + expiry,
     }
     return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
 

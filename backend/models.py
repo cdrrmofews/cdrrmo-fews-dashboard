@@ -3,8 +3,9 @@ from typing import Optional, Literal
 
 
 class LoginRequest(BaseModel):
-    username: str
-    password: str
+    username:    str
+    password:    str
+    remember_me: bool = False
 
 class CreateUserRequest(BaseModel):
     name:       str

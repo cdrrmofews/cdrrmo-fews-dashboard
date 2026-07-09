@@ -2,6 +2,8 @@ from fastapi import FastAPI, HTTPException, Depends, Header
 from mqtt_bridge import start_bridge_thread
 from fastapi.middleware.cors import CORSMiddleware
 
+import jwt
+
 from database import get_db, release_db, init_db
 from auth import hash_password, verify_password, create_token, decode_token
 
@@ -165,28 +167,39 @@ def startup():
 def get_current_user(authorization: str = Header(...)):
     try:
         scheme, token = authorization.split()
-        if scheme.lower() != "bearer":
-            raise HTTPException(status_code=401, detail="Invalid auth scheme")
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Invalid auth scheme")
+    if scheme.lower() != "bearer":
+        raise HTTPException(status_code=401, detail="Invalid auth scheme")
+
+    try:
         payload = decode_token(token)
-        user_id = int(payload["sub"])
-        token_version = payload.get("token_version", 0)
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Session expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    user_id = int(payload["sub"])
+    token_version = payload.get("token_version", 0)
+
+    try:
         conn = get_db()
-        cur  = conn.cursor()
-        try:
-            cur.execute("SELECT token_version FROM users WHERE id = %s", (user_id,))
-            row = cur.fetchone()
-            if not row:
-                raise HTTPException(status_code=401, detail="User no longer exists")
-            if row["token_version"] != token_version:
-                raise HTTPException(status_code=401, detail="Session expired")
-        finally:
-            cur.close()
-            release_db(conn)
-        return payload
-    except HTTPException:
-        raise
     except Exception:
-        raise HTTPException(status_code=401, detail="Invalid or expired token")
+        raise HTTPException(status_code=503, detail="Database temporarily unavailable, please retry")
+
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT token_version FROM users WHERE id = %s", (user_id,))
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=401, detail="User no longer exists")
+        if row["token_version"] != token_version:
+            raise HTTPException(status_code=401, detail="Session expired")
+    finally:
+        cur.close()
+        release_db(conn)
+
+    return payload
 
 def require_admin(user=Depends(get_current_user)):
     if user.get("role") != "Admin":
@@ -208,7 +221,7 @@ def login(request: Request, req: LoginRequest):
         user = cur.fetchone()
         if not user or not verify_password(req.password, user["password"]):
             raise HTTPException(status_code=401, detail="Invalid credentials")
-        token = create_token(user["id"], user["role"], user["token_version"])
+        token = create_token(user["id"], user["role"], user["token_version"], req.remember_me)
 
         cur.execute("""
             INSERT INTO system_logs (station, type, message, user_name)
