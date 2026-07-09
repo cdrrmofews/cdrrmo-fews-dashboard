@@ -1419,6 +1419,23 @@ select.settings-input {
   margin-top: 4px;
 }
 
+.uc-badge-manual {
+  letter-spacing: 0.03em;
+}
+
+@media (max-width: 768px) {
+  .uc-badge-manual {
+    font-size: 9px;
+    padding: 2px 8px;
+  }
+}
+
+@media (min-width: 1440px) {
+  .uc-badge-manual {
+    font-size: 11px;
+  }
+}
+
 .uc-power-btn {
   width: 36px; height: 36px; border-radius: 50%;
   display: flex; align-items: center; justify-content: center;

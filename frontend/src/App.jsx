@@ -465,9 +465,10 @@ function LogsPage({ token, userRole, showToast }) {
   const safePage   = Math.min(page, totalPages);
 
   const stationOptions = [
-    { value: "All",    label: "All Stations" },
-    { value: "System", label: "System"       },
-    { value: "FEWS 1", label: "Fews 1"       },
+    { value: "All",         label: "All Stations" },
+    { value: "System",      label: "System"       },
+    { value: "FEWS 1",      label: "Fews 1"       },
+    { value: "Manual FEWS", label: "Manual Fews"  },
   ];
 
   const typeOptions = [
@@ -1391,10 +1392,164 @@ function ProfileDropdown({ user, token, onSave, onClose, addLog }) {
 }
 
 // ─── UNIT CONTROL PAGE ────────────────────────────────────────────────────────
-function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, token, onThresholdSaved }) {
-  const [fewsData, setFewsData]           = useState(allFews.map(f => ({ ...f })));
-  const [thresholds, setThr]              = useState(Object.fromEntries(allFews.map(f => [f.id, { warning: 200, danger: 300 }])));
-  const [prevThresholds, setPrevThr]      = useState(Object.fromEntries(allFews.map(f => [f.id, { warning: 200, danger: 300 }])));
+
+const MANUAL_STATUS_OPTIONS = ["Serviceable", "Unserviceable"];
+
+function ManualFewsCard({ m, canControl, token, manualEditing, setManualEditing, manualSaving, setManualSaving, manualError, setManualError, onSaved }) {
+  const ed = manualEditing[m.id];
+  const isServiceable = m.status === "serviceable";
+
+  const startEdit = () => {
+    setManualEditing(prev => ({
+      ...prev,
+      [m.id]: {
+        latitude:       String(m.latitude),
+        longitude:      String(m.longitude),
+        installed_date: m.installed_date || "",
+        status:         isServiceable ? "Serviceable" : "Unserviceable",
+        hw_technician:  m.hw_technician || "",
+        description:    m.description || "",
+      }
+    }));
+  };
+
+  const cancelEdit = () => {
+    setManualEditing(prev => { const n = { ...prev }; delete n[m.id]; return n; });
+    setManualError(prev => ({ ...prev, [m.id]: "" }));
+  };
+
+  const save = async () => {
+    const draft = manualEditing[m.id];
+    const lat = parseFloat(draft.latitude);
+    const lng = parseFloat(draft.longitude);
+    if (Number.isNaN(lat) || Number.isNaN(lng)) {
+      setManualError(prev => ({ ...prev, [m.id]: "Latitude and longitude must be valid numbers." }));
+      return;
+    }
+    setManualSaving(prev => ({ ...prev, [m.id]: true }));
+    setManualError(prev => ({ ...prev, [m.id]: "" }));
+    try {
+      const res = await fetch(`${API_BASE}/manual-units/${m.id}`, {
+        method:  "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({
+          latitude:       lat,
+          longitude:      lng,
+          installed_date: draft.installed_date,
+          status:         draft.status.toLowerCase(),
+          hw_technician:  draft.hw_technician,
+          description:    draft.description,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setManualError(prev => ({ ...prev, [m.id]: data.detail || "Failed to save." }));
+        return;
+      }
+      onSaved(data);
+      cancelEdit();
+    } catch {
+      setManualError(prev => ({ ...prev, [m.id]: "Network error. Try again." }));
+    } finally {
+      setManualSaving(prev => ({ ...prev, [m.id]: false }));
+    }
+  };
+
+  return (
+    <div className={`uc-card ${!isServiceable ? "uc-card-offline" : ""}`} style={{ "--status-color": "#38bdf8" }}>
+      <div className="uc-card-header">
+        <div className="uc-card-left">
+          <div className="uc-status-dot" style={{ background: isServiceable ? "#38bdf8" : "#334155" }} />
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <div className="uc-card-name">{m.name}</div>
+              <span style={{
+                fontSize: 9, fontWeight: 700, fontFamily: "var(--mono)",
+                background: "rgba(56,189,248,0.12)", color: "var(--text-3)",
+                border: "1px solid rgba(56,189,248,0.2)",
+                borderRadius: 999, padding: "2px 7px", letterSpacing: "0.07em"
+              }}>
+                ◌ MANUAL
+              </span>
+            </div>
+            <div className="uc-card-loc">📍 {m.location}, Batangas City</div>
+          </div>
+        </div>
+        <div className="uc-card-right">
+          <div className="uc-badge uc-badge-manual" style={{
+            color: isServiceable ? "#38bdf8" : "var(--text-3)",
+            background: isServiceable ? "rgba(56,189,248,0.12)" : "rgba(255,255,255,0.04)"
+          }}>
+            {isServiceable ? "SERVICEABLE" : "UNSERVICEABLE"}
+          </div>
+        </div>
+      </div>
+
+      <div className="uc-stats-row">
+        <div className="uc-stat">
+          <span className="uc-stat-label">Coordinates</span>
+          {ed ? (
+            <div style={{ display: "flex", gap: 4 }}>
+              <input className="uc-inline-input" type="number" step="any" value={ed.latitude}
+                onChange={e => setManualEditing(prev => ({ ...prev, [m.id]: { ...prev[m.id], latitude: e.target.value } }))} />
+              <input className="uc-inline-input" type="number" step="any" value={ed.longitude}
+                onChange={e => setManualEditing(prev => ({ ...prev, [m.id]: { ...prev[m.id], longitude: e.target.value } }))} />
+            </div>
+          ) : <span className="uc-stat-val" style={{ fontFamily:"var(--mono)", fontSize:10 }}>{m.latitude}, {m.longitude}</span>}
+        </div>
+        <div className="uc-stat">
+          <span className="uc-stat-label">Installed</span>
+          {ed ? (
+            <input className="uc-inline-input" value={ed.installed_date}
+              onChange={e => setManualEditing(prev => ({ ...prev, [m.id]: { ...prev[m.id], installed_date: e.target.value } }))} />
+          ) : <span className="uc-stat-val">{m.installed_date || "—"}</span>}
+        </div>
+        <div className="uc-stat">
+          <span className="uc-stat-label">Status</span>
+          {ed ? (
+            <MuDropdown value={ed.status} options={MANUAL_STATUS_OPTIONS}
+              onChange={val => setManualEditing(prev => ({ ...prev, [m.id]: { ...prev[m.id], status: val } }))} />
+          ) : <span className="uc-stat-val">{isServiceable ? "Serviceable" : "Unserviceable"}</span>}
+        </div>
+        <div className="uc-stat" style={{ flex: 1 }}>
+          <span className="uc-stat-label">Hardware Technician</span>
+          {ed ? (
+            <input className="uc-inline-input" value={ed.hw_technician}
+              onChange={e => setManualEditing(prev => ({ ...prev, [m.id]: { ...prev[m.id], hw_technician: e.target.value } }))} />
+          ) : <span className="uc-stat-val">{m.hw_technician || "—"}</span>}
+        </div>
+      </div>
+
+      <div className="uc-desc-section">
+        <div className="uc-desc-header">
+          <span className="uc-thr-label">Station Description</span>
+          {canControl && !ed && (
+            <button className="uc-edit-btn" onClick={startEdit}>✎ Edit</button>
+          )}
+          {canControl && ed && (
+            <div style={{ display:"flex", gap:6 }}>
+              <button className="uc-edit-btn" onClick={cancelEdit}>Cancel</button>
+              <button className="uc-save-info-btn" onClick={save}>{manualSaving[m.id] ? <span className="btn-spinner" /> : "Save"}</button>
+            </div>
+          )}
+        </div>
+        {ed ? (
+          <textarea className="uc-desc-textarea" rows={3} value={ed.description}
+            onChange={e => setManualEditing(prev => ({ ...prev, [m.id]: { ...prev[m.id], description: e.target.value } }))} />
+        ) : <div className="uc-description">{m.description || "—"}</div>}
+        {manualError[m.id] && <div className="settings-error" style={{ fontSize: 11, marginTop: 4 }}>{manualError[m.id]}</div>}
+      </div>
+    </div>
+  );
+}
+
+function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, token, onThresholdSaved, onManualUnitSaved }) {
+  const liveFewsOnly = allFews.filter(f => f.isLive);
+  const manualFewsOnly = allFews.filter(f => !f.isLive);
+
+  const [fewsData, setFewsData]           = useState(liveFewsOnly.map(f => ({ ...f })));
+  const [thresholds, setThr]              = useState(Object.fromEntries(liveFewsOnly.map(f => [f.id, { warning: 200, danger: 300 }])));
+  const [prevThresholds, setPrevThr]      = useState(Object.fromEntries(liveFewsOnly.map(f => [f.id, { warning: 200, danger: 300 }])));
   const [thrSaving, setThrSaving]         = useState({});
   const [thrConfirm, setThrConfirm]       = useState(null);
   const [editing, setEditing]             = useState({});
@@ -1402,6 +1557,10 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, 
   const [loadError, setLoadError]         = useState(false);
   const [thrError, setThrError]           = useState({});
   const [infoError, setInfoError]         = useState({});
+
+  const [manualEditing, setManualEditing] = useState({});
+  const [manualSaving, setManualSaving]   = useState({});
+  const [manualError, setManualError]     = useState({});
 
   const canControl = can(userRole, "unitControl");
 
@@ -1548,7 +1707,12 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, 
             ⚠️ Failed to load unit data — showing defaults. Check your connection and refresh.
           </div>
         )}
-        {allFews.map(f => {
+
+        <div style={{ fontSize: 9, fontWeight: 700, color: "var(--text-3)", letterSpacing: "0.08em", textTransform: "uppercase" }}>
+          Live · {liveFewsOnly.length}
+        </div>
+
+        {liveFewsOnly.map(f => {
           const localData = fewsData.find(x => x.id === f.id) || f;
           const cfg = STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"];
           const thr = thresholds[f.id];
@@ -1665,7 +1829,6 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, 
                         onChange={e => setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], danger: parseInt(e.target.value) } }))} />
                     </div>
                     <button className="uc-thr-save" disabled={!isActuallyLive} onClick={() => {
-                      // Run validation first before showing modal
                       const thr = thresholds[f.id];
                       if (!thr.warning || thr.warning < 100 || thr.warning % 100 !== 0) {
                         setThrError(p => ({ ...p, [f.id]: "Warning must be a multiple of 100 and at least 100cm." })); return;
@@ -1686,6 +1849,26 @@ function UnitControlPage({ allFews, fews1Connected, userRole, userName, addLog, 
             </div>
           );
         })}
+
+        <div style={{ fontSize: 9, fontWeight: 700, color: "var(--text-3)", letterSpacing: "0.08em", textTransform: "uppercase", marginTop: 8 }}>
+          Manual · {manualFewsOnly.length}
+        </div>
+
+        {manualFewsOnly.map(m => (
+          <ManualFewsCard
+            key={m.id}
+            m={m}
+            canControl={canControl}
+            token={token}
+            manualEditing={manualEditing}
+            setManualEditing={setManualEditing}
+            manualSaving={manualSaving}
+            setManualSaving={setManualSaving}
+            manualError={manualError}
+            setManualError={setManualError}
+            onSaved={onManualUnitSaved}
+          />
+        ))}
       </div>
     </>
   );
@@ -2308,6 +2491,21 @@ export default function App() {
 
   const [token, setToken] = useState(() => getStoredToken());
   const [sirens, setSirens] = useState({ 1: false });
+  const [manualFews, setManualFews] = useState([]);
+
+  const fetchManualUnits = useCallback(() => {
+    if (!token) return;
+    authFetch(`${API_BASE}/manual-units`, { headers: { Authorization: `Bearer ${token}` } })
+      .then(r => r.ok ? r.json() : [])
+      .then(rows => { if (Array.isArray(rows)) setManualFews(rows); })
+      .catch(() => {});
+  }, [token]);
+
+  useEffect(() => {
+    fetchManualUnits();
+    const id = setInterval(fetchManualUnits, 60000);
+    return () => clearInterval(id);
+  }, [fetchManualUnits]);
   const pollUnitsNowRef = useRef(null);
   const [sirenLoading, setSirenLoading] = useState({});
 
@@ -2882,8 +3080,20 @@ export default function App() {
           };
         }
       }
-      return [fews1];
-    }, [fews1Live, isHardwareOnline]);
+      const manualMapped = manualFews.map(m => ({
+        id:            m.device_id,
+        name:          m.name,
+        location:      m.location,
+        lat:           m.latitude,
+        lng:           m.longitude,
+        isLive:        false,
+        manualStatus:  m.status,
+        description:   m.description,
+        hw_technician: m.hw_technician,
+        installedDate: m.installed_date,
+      }));
+      return [fews1, ...manualMapped];
+    }, [fews1Live, isHardwareOnline, manualFews]);
 
     const isCritical = useMemo(() => 
       isHardwareOnline && fews1DataRecent && allFews.some(f => f.status === "danger"),
@@ -3384,15 +3594,19 @@ const waterChartOptions = useMemo(() => ({
                     <FlyToStation fews={selectedStation} />
                     <OpenPopup fews={selectedStation} markerRefs={markerRefs} />
                     {allFews.map(f => {
+                      const isManualServiceable = !f.isLive && f.manualStatus === "serviceable";
                       const cfg            = STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"];
                       const isSel          = selectedFEWS === f.id;
                       const isActuallyLive = f.isLive && isHardwareOnline;
-                      const markerColor    = isActuallyLive ? cfg.color : "#64748b";
+                      const markerColor    = f.isLive
+                        ? (isActuallyLive ? cfg.color : "#64748b")
+                        : (isManualServiceable ? "#38bdf8" : "#64748b");
+                      const showPulse = isActuallyLive || isManualServiceable;
                       const icon = L.divIcon({
                         className: "",
                         html: `<div style="position:relative;width:${isSel?"18px":"14px"};height:${isSel?"18px":"14px"}">
                           <div style="position:absolute;inset:0;border-radius:50%;background:${markerColor};border:2px solid white;box-shadow:0 0 ${isSel?"12px":"8px"} ${markerColor};z-index:2"></div>
-                          ${isActuallyLive ? `<div class="radar-pulse" style="width:${isSel?"18px":"14px"};height:${isSel?"18px":"14px"};background:${markerColor};top:0;left:0;"></div>` : ""}
+                          ${showPulse ? `<div class="radar-pulse" style="width:${isSel?"18px":"14px"};height:${isSel?"18px":"14px"};background:${markerColor};top:0;left:0;"></div>` : ""}
                         </div>`,
                         iconSize: [isSel?18:14, isSel?18:14],
                         iconAnchor: [isSel?9:7, isSel?9:7],
@@ -3403,23 +3617,42 @@ const waterChartOptions = useMemo(() => ({
                           eventHandlers={{ click: () => setSelectedFEWS(selectedFEWS === f.id ? null : f.id) }}>
                           <Popup minWidth={180} maxWidth={260}>
                             <div style={{ fontFamily:"sans-serif", padding:"2px 0" }}>
-                              <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3 }}>
-                                <strong style={{ fontSize:"clamp(13px, 1.1vw, 16px)", color:"#1e293b" }}>{f.name}</strong>
-                                <span style={{ fontSize:"clamp(9px, 0.8vw, 11px)", color: isHardwareOnline ? "#22c55e" : "#94a3b8", fontWeight:700 }}>
-                                  {isHardwareOnline ? "● LIVE" : "◌ WAITING"}
-                                </span>
-                              </div>
-                              <div style={{ fontSize:"clamp(10px, 0.9vw, 12px)", color:"#1e293b", marginBottom:2 }}>
-                                {f.location}
-                              </div>
-                              <div style={{ display:"flex", alignItems:"baseline", gap:4, marginBottom:3 }}>
-                                <span style={{ fontSize:"clamp(22px, 1.8vw, 28px)", fontWeight:800, lineHeight:1, color: isHardwareOnline ? markerColor : "#94a3b8" }}>
-                                  {isHardwareOnline ? f.waterLevel : "—"}
-                                </span>
-                                {isHardwareOnline && (
-                                  <span style={{ fontSize:"clamp(11px, 0.9vw, 13px)", fontWeight:600, color: markerColor }}>cm</span>
-                                )}
-                              </div>
+                              {f.isLive ? (
+                                <>
+                                  <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3 }}>
+                                    <strong style={{ fontSize:"clamp(13px, 1.1vw, 16px)", color:"#1e293b" }}>{f.name}</strong>
+                                    <span style={{ fontSize:"clamp(9px, 0.8vw, 11px)", color: isHardwareOnline ? "#22c55e" : "#94a3b8", fontWeight:700 }}>
+                                      {isHardwareOnline ? "● LIVE" : "◌ WAITING"}
+                                    </span>
+                                  </div>
+                                  <div style={{ fontSize:"clamp(10px, 0.9vw, 12px)", color:"#1e293b", marginBottom:2 }}>
+                                    {f.location}
+                                  </div>
+                                  <div style={{ display:"flex", alignItems:"baseline", gap:4, marginBottom:3 }}>
+                                    <span style={{ fontSize:"clamp(22px, 1.8vw, 28px)", fontWeight:800, lineHeight:1, color: isHardwareOnline ? markerColor : "#94a3b8" }}>
+                                      {isHardwareOnline ? f.waterLevel : "—"}
+                                    </span>
+                                    {isHardwareOnline && (
+                                      <span style={{ fontSize:"clamp(11px, 0.9vw, 13px)", fontWeight:600, color: markerColor }}>cm</span>
+                                    )}
+                                  </div>
+                                </>
+                              ) : (
+                                <>
+                                  <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3 }}>
+                                    <strong style={{ fontSize:"clamp(13px, 1.1vw, 16px)", color:"#1e293b" }}>{f.name}</strong>
+                                    <span style={{ fontSize:"clamp(9px, 0.8vw, 11px)", color:"#64748b", fontWeight:700 }}>MANUAL</span>
+                                  </div>
+                                  <div style={{ fontSize:"clamp(10px, 0.9vw, 12px)", color:"#1e293b", marginBottom:6 }}>
+                                    {f.location}
+                                  </div>
+                                  <div style={{ fontSize:"clamp(11px, 0.9vw, 13px)", color:"#1e293b", marginBottom:8 }}>
+                                    Status: <strong style={{ color: isManualServiceable ? "#0c447c" : "#64748b" }}>
+                                      {isManualServiceable ? "SERVICEABLE" : "UNSERVICEABLE"}
+                                    </strong>
+                                  </div>
+                                </>
+                              )}
                               <button onClick={() => {
                                 navigator.clipboard.writeText(`${f.lat}, ${f.lng}`);
                                 setCopiedId(f.id);
@@ -3428,7 +3661,7 @@ const waterChartOptions = useMemo(() => ({
                                   setCopiedId(null);
                                   copiedTimerRef.current = null;
                                 }, 1500);
-                              }} style={{ marginTop:"4px", padding:"3px 8px", background: copiedId===f.id?"#38bdf8":markerColor, color:"#ffffff", border:"none", outline:"none", boxShadow:"none", borderRadius:"4px", cursor:"pointer", fontWeight:"700", fontSize:"clamp(10px, 0.85vw, 12px)", width:"100%", transition:"background 0.2s" }}>
+                              }} style={{ marginTop:"4px", padding:"3px 8px", background: markerColor, color:"#ffffff", border:"none", outline:"none", boxShadow:"none", borderRadius:"4px", cursor:"pointer", fontWeight:"700", fontSize:"clamp(10px, 0.85vw, 12px)", width:"100%", transition:"background 0.2s" }}>
                                 {copiedId===f.id ? "Copied!" : "Copy Coordinates"}
                               </button>
                             </div>
@@ -3615,7 +3848,11 @@ const waterChartOptions = useMemo(() => ({
                       <button key={f.id} className={`rsb-item ${isSel ? "selected" : ""}`}
                         onClick={() => setSelectedFEWS(isSel ? null : f.id)}
                         style={{ "--status-color": f.isLive ? cfg.color : "#7e92b4" }}>
-                        <div className="rsb-dot" style={{ background: isActuallyLive ? cfg.color : "#334155" }} />
+                        <div className="rsb-dot" style={{
+                          background: f.isLive
+                            ? (isActuallyLive ? cfg.color : "#334155")
+                            : (f.manualStatus === "serviceable" ? "var(--blue)" : "#334155")
+                        }} />
                         <div className="rsb-info">
                           <div className="rsb-name" style={{ display:"flex", alignItems:"center", gap:5 }}>
                             {f.name}
@@ -3635,7 +3872,12 @@ const waterChartOptions = useMemo(() => ({
                             {isActuallyLive ? cfg.label : "—"}
                           </div>
                         ) : (
-                          <div className="rsb-badge rsb-badge-manual">MANUAL</div>
+                          <div className="rsb-badge" style={{
+                            color: f.manualStatus === "serviceable" ? "#04304a" : "var(--text-3)",
+                            background: f.manualStatus === "serviceable" ? "var(--blue)" : "rgba(255,255,255,0.04)"
+                          }}>
+                            {f.manualStatus === "serviceable" ? "SERVICEABLE" : "UNSERVICEABLE"}
+                          </div>
                         )}
                       </button>
                     );
@@ -3669,15 +3911,21 @@ const waterChartOptions = useMemo(() => ({
                 const f       = allFews.find(s => s.id === selectedFEWS);
 
                 if (!f.isLive) {
+                  const isServiceable = f.manualStatus === "serviceable";
                   return (
                     <div className="rsb-detail">
                       <div className="rsb-detail-title" style={{ display:"flex", alignItems:"center", gap:6 }}>
                         {f.name}
-                        <span style={{ fontSize:9, fontWeight:700, fontFamily:"var(--mono)", color:"var(--text-3)" }}>
+                        <span style={{ fontSize:9, fontWeight:700, fontFamily:"var(--mono)", color: isServiceable ? "var(--blue)" : "var(--text-3)" }}>
                           ◌ MANUAL
                         </span>
                       </div>
-                      <div className="rsb-stat"><span>Status</span><strong style={{ color: "var(--text-2)" }}>SERVICEABLE</strong></div>
+                      <div className="rsb-stat">
+                        <span>Status</span>
+                        <strong style={{ color: isServiceable ? "var(--blue)" : "var(--text-3)" }}>
+                          {isServiceable ? "SERVICEABLE" : "UNSERVICEABLE"}
+                        </strong>
+                      </div>
                       <div className="rsb-stat"><span>Location</span><strong>{f.location || "—"}</strong></div>
                       <div className="rsb-stat">
                         <span>Coordinates</span>
@@ -3772,14 +4020,18 @@ const waterChartOptions = useMemo(() => ({
                     <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                     <OpenPopup fews={allFews[0]} markerRefs={fsMarkerRefs} />
                     {allFews.map(f => {
+                      const isManualServiceable = !f.isLive && f.manualStatus === "serviceable";
                       const cfg = STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"];
                       const isActuallyLive = f.isLive && isHardwareOnline;
-                      const markerColor = isActuallyLive ? cfg.color : "#64748b";
+                      const markerColor = f.isLive
+                        ? (isActuallyLive ? cfg.color : "#64748b")
+                        : (isManualServiceable ? "#38bdf8" : "#64748b");
+                      const showPulse = isActuallyLive || isManualServiceable;
                       const icon = L.divIcon({
                         className: "",
                         html: `<div style="position:relative;width:14px;height:14px">
                           <div style="position:absolute;inset:0;border-radius:50%;background:${markerColor};border:2px solid white;box-shadow:0 0 8px ${markerColor};z-index:2"></div>
-                          ${isActuallyLive ? `<div class="radar-pulse" style="width:14px;height:14px;background:${markerColor};top:0;left:0;"></div>` : ""}
+                          ${showPulse ? `<div class="radar-pulse" style="width:14px;height:14px;background:${markerColor};top:0;left:0;"></div>` : ""}
                         </div>`,
                         iconSize: [14, 14],
                         iconAnchor: [7, 7],
@@ -3792,15 +4044,18 @@ const waterChartOptions = useMemo(() => ({
                             <div style={{ fontFamily:"sans-serif", padding:"2px 0" }}>
                               <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
                                 <strong style={{ fontSize:"clamp(13px, 1.1vw, 16px)", color:"#1e293b" }}>{f.name}</strong>
-                                <span style={{ fontSize:"clamp(9px, 0.8vw, 11px)", color: isHardwareOnline ? "#22c55e" : "#94a3b8", fontWeight:700 }}>
-                                  {isHardwareOnline ? "● LIVE" : "◌ WAITING"}
+                                <span style={{ fontSize:"clamp(9px, 0.8vw, 11px)", color: f.isLive ? (isHardwareOnline ? "#22c55e" : "#94a3b8") : "#64748b", fontWeight:700 }}>
+                                  {f.isLive ? (isHardwareOnline ? "● LIVE" : "◌ WAITING") : "MANUAL"}
                                 </span>
                               </div>
                               <div style={{ fontSize:"clamp(11px, 0.9vw, 13px)", color:"#475569", lineHeight:1.2, marginBottom:4 }}>
-                              <strong style={{ color:"#1e293b" }}>{f.location}</strong>
-                              {" · "}
-                              <span>Water: {isHardwareOnline ? `${f.waterLevel} cm` : "—"}</span>
-                            </div>
+                                <strong style={{ color:"#1e293b" }}>{f.location}</strong>
+                                {" · "}
+                                {f.isLive
+                                  ? <span>Water: {isHardwareOnline ? `${f.waterLevel} cm` : "—"}</span>
+                                  : <span>Status: {isManualServiceable ? "Serviceable" : "Unserviceable"}</span>
+                                }
+                              </div>
                             </div>
                           </Popup>
                         </Marker>
@@ -3810,48 +4065,77 @@ const waterChartOptions = useMemo(() => ({
 
                   {/* Station info panel — bottom left */}
                   {fsSelectedFEWS && (() => {
-                    const f = allFews.find(x => x.id === fsSelectedFEWS);
-                    if (!f) return null;
-                    const cfg = STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"];
-                    const isActuallyLive = f.isLive && isHardwareOnline;
+                  const f = allFews.find(x => x.id === fsSelectedFEWS);
+                  if (!f) return null;
+
+                  if (!f.isLive) {
+                    const isManualServiceable = f.manualStatus === "serviceable";
+                    const manualColor = isManualServiceable ? "#0c447c" : "#94a3b8";
                     return (
                       <div className="map-fs-station">
                         <div className="map-fs-station-name">
-                          <div style={{ width:9, height:9, borderRadius:"50%", background: isActuallyLive ? cfg.color : "#94a3b8", flexShrink:0 }} />
+                          <div style={{ width:9, height:9, borderRadius:"50%", background: isManualServiceable ? "#38bdf8" : "#94a3b8", flexShrink:0 }} />
                           {f.name}
-                          <span className="map-fs-live" style={{ background: isActuallyLive ? `${cfg.color}22` : "rgba(0,0,0,0.06)", color: isActuallyLive ? cfg.color : "#94a3b8" }}>
-                            {isActuallyLive ? "● LIVE" : "◌ WAITING"}
+                          <span className="map-fs-live" style={{ background: isManualServiceable ? "rgba(56,189,248,0.13)" : "rgba(0,0,0,0.06)", color: "#64748b" }}>
+                            MANUAL
                           </span>
                         </div>
-                        <div className="map-fs-water">
-                          <span className="map-fs-water-val" style={{ color: isActuallyLive ? cfg.color : "#94a3b8" }}>
-                            {isActuallyLive ? f.waterLevel : "—"}
-                          </span>
-                          {isActuallyLive && <span className="map-fs-water-unit">cm</span>}
-                        </div>
-                        <span className="map-fs-status" style={{ background: isActuallyLive ? `${cfg.color}18` : "rgba(0,0,0,0.06)", color: isActuallyLive ? cfg.color : "#94a3b8", border: `1px solid ${isActuallyLive ? cfg.color + "35" : "rgba(0,0,0,0.08)"}` }}>
-                          {isActuallyLive ? cfg.label : "OFFLINE"}
+                        <span className="map-fs-status" style={{ background: isManualServiceable ? "rgba(56,189,248,0.13)" : "rgba(0,0,0,0.06)", color: manualColor, border: `1px solid ${isManualServiceable ? "rgba(56,189,248,0.35)" : "rgba(0,0,0,0.08)"}` }}>
+                          {isManualServiceable ? "SERVICEABLE" : "UNSERVICEABLE"}
                         </span>
                         <div className="map-fs-divider" />
                         <div className="map-fs-row">
-                          <span className="map-fs-row-label">Last sync</span>
-                          <span className="map-fs-row-val">{lastUpdatedStr ?? "—"}</span>
-                        </div>
-                        <div className="map-fs-row">
                           <span className="map-fs-row-label">Location</span>
-                          <span className="map-fs-row-val">Bridge of Progress</span>
+                          <span className="map-fs-row-val">{f.location}</span>
                         </div>
                         <div className="map-fs-row">
-                          <span className="map-fs-row-label">Warning</span>
-                          <span className="map-fs-row-val" style={{ color: "#f59e0b" }}>{thresholds.warning} cm</span>
-                        </div>
-                        <div className="map-fs-row">
-                          <span className="map-fs-row-label">Danger</span>
-                          <span className="map-fs-row-val" style={{ color: "#ef4444" }}>{thresholds.danger} cm</span>
+                          <span className="map-fs-row-label">Coordinates</span>
+                          <span className="map-fs-row-val">{f.lat}, {f.lng}</span>
                         </div>
                       </div>
                     );
-                  })()}
+                  }
+
+                  const cfg = STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"];
+                  const isActuallyLive = f.isLive && isHardwareOnline;
+                  return (
+                    <div className="map-fs-station">
+                      <div className="map-fs-station-name">
+                        <div style={{ width:9, height:9, borderRadius:"50%", background: isActuallyLive ? cfg.color : "#94a3b8", flexShrink:0 }} />
+                        {f.name}
+                        <span className="map-fs-live" style={{ background: isActuallyLive ? `${cfg.color}22` : "rgba(0,0,0,0.06)", color: isActuallyLive ? cfg.color : "#94a3b8" }}>
+                          {isActuallyLive ? "● LIVE" : "◌ WAITING"}
+                        </span>
+                      </div>
+                      <div className="map-fs-water">
+                        <span className="map-fs-water-val" style={{ color: isActuallyLive ? cfg.color : "#94a3b8" }}>
+                          {isActuallyLive ? f.waterLevel : "—"}
+                        </span>
+                        {isActuallyLive && <span className="map-fs-water-unit">cm</span>}
+                      </div>
+                      <span className="map-fs-status" style={{ background: isActuallyLive ? `${cfg.color}18` : "rgba(0,0,0,0.06)", color: isActuallyLive ? cfg.color : "#94a3b8", border: `1px solid ${isActuallyLive ? cfg.color + "35" : "rgba(0,0,0,0.08)"}` }}>
+                        {isActuallyLive ? cfg.label : "OFFLINE"}
+                      </span>
+                      <div className="map-fs-divider" />
+                      <div className="map-fs-row">
+                        <span className="map-fs-row-label">Last sync</span>
+                        <span className="map-fs-row-val">{lastUpdatedStr ?? "—"}</span>
+                      </div>
+                      <div className="map-fs-row">
+                        <span className="map-fs-row-label">Location</span>
+                        <span className="map-fs-row-val">Bridge of Progress</span>
+                      </div>
+                      <div className="map-fs-row">
+                        <span className="map-fs-row-label">Warning</span>
+                        <span className="map-fs-row-val" style={{ color: "#f59e0b" }}>{thresholds.warning} cm</span>
+                      </div>
+                      <div className="map-fs-row">
+                        <span className="map-fs-row-label">Danger</span>
+                        <span className="map-fs-row-val" style={{ color: "#ef4444" }}>{thresholds.danger} cm</span>
+                      </div>
+                    </div>
+                  );
+                })()}
 
                   {/* Legend — top center pill */}
                   <div className="map-fs-legend">
@@ -3873,7 +4157,7 @@ const waterChartOptions = useMemo(() => ({
             </div>
           )}
 
-        {activeNav === "UnitControl" && <UnitControlPage allFews={allFews} fews1Connected={isHardwareOnline} userRole={user.role} userName={user.name} addLog={addLog} token={token} onThresholdSaved={(t) => setThresholds(t)} />}
+        {activeNav === "UnitControl" && <UnitControlPage allFews={allFews} fews1Connected={isHardwareOnline} userRole={user.role} userName={user.name} addLog={addLog} token={token} onThresholdSaved={(t) => setThresholds(t)} onManualUnitSaved={(updated) => setManualFews(prev => prev.map(m => m.device_id === updated.device_id ? updated : m))} />}
         {activeNav === "Logs"        && <LogsPage token={token} userRole={user.role} showToast={showToast} />}
         {activeNav === "Settings"    && <SettingsPage
           userRole={user.role}
