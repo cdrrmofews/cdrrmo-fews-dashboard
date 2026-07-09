@@ -2509,6 +2509,7 @@ export default function App() {
     return sessionStorage.getItem("activeNav") || "Dashboard";
   });
   const markerRefs = useRef({});
+  const mapCardRef = useRef();
   const [copiedId, setCopiedId] = useState(null);
   const avatarBtnRef = useRef();
   const copiedTimerRef = useRef(null);
@@ -3612,7 +3613,7 @@ const waterChartOptions = useMemo(() => ({
         {activeNav === "Dashboard" && (
           <div className="dashboard-body">
             <main className="content">
-              <div className="card card-map" style={{ position: "relative" }}>
+              <div className="card card-map" ref={mapCardRef} style={{ position: "relative" }}>
                 <div className="card-header">
                   <h2>FEWS Locations</h2>
                   <span className="card-tag">Batangas City</span>
@@ -3899,7 +3900,13 @@ const waterChartOptions = useMemo(() => ({
                     const isActuallyLive = f.isLive && isHardwareOnline;
                     return (
                       <button key={f.id} className={`rsb-item ${isSel ? "selected" : ""}`}
-                        onClick={() => setSelectedFEWS(isSel ? null : f.id)}
+                        onClick={() => {
+                          const newSel = isSel ? null : f.id;
+                          setSelectedFEWS(newSel);
+                          if (newSel && window.innerWidth <= 768 && mapCardRef.current) {
+                            mapCardRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
+                          }
+                        }}
                         style={{ "--status-color": f.isLive ? cfg.color : "#7e92b4" }}>
                         <div className="rsb-dot" style={{
                           background: f.isLive
