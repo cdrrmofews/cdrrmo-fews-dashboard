@@ -3667,7 +3667,7 @@ const waterChartOptions = useMemo(() => ({
                         <Marker key={f.id} position={[f.lat, f.lng]} icon={icon}
                           ref={el => { markerRefs.current[f.id] = el; }}
                           eventHandlers={{ click: () => setSelectedFEWS(selectedFEWS === f.id ? null : f.id) }}>
-                          <Popup minWidth={180} maxWidth={260}>
+                          <Popup minWidth={180} maxWidth={260} autoPan={false} autoClose={false} closeOnClick={false}>
                             <div style={{ fontFamily:"sans-serif", padding:"2px 0" }}>
                               {f.isLive ? (
                                 <>
