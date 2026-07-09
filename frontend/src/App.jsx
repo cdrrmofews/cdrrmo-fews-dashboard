@@ -978,7 +978,11 @@ function OpenPopup({ fews, markerRefs }) {
   return null;
 }
 
-const FEWS1_DEFAULT_BOUNDS = [[13.760466, 121.066331], [13.764466, 121.070331]];
+// Covers FEWS 1 plus manual stations 2–14 and 16–18, all clustered
+// around Batangas City proper. Deliberately excludes FEWS 15 (Talahib
+// Pandayan), which sits ~15km south and would force an extreme zoom-out
+// if included — its popup just opens off-screen until the user pans out.
+const CITY_DEFAULT_BOUNDS = [[13.728, 121.048], [13.766, 121.084]];
 
 function OpenAllPopups({ fewsList, markerRefs, active }) {
   const map = useMap();
@@ -986,12 +990,10 @@ function OpenAllPopups({ fewsList, markerRefs, active }) {
     if (!active) return;
     if (fewsList.length === 0) return;
 
-    // Default the fullscreen view to FEWS 1's area — same framing as the
-    // main dashboard map — instead of zooming out to fit all 19 stations
-    // across the whole city. autoPan={false} on the popups (already set)
-    // means no popup will fight to re-center the map, so this is safe
-    // regardless of which bounds we start from.
-    map.fitBounds(FEWS1_DEFAULT_BOUNDS, { padding: [20, 20] });
+    // Single upfront pan, same as before — autoPan={false} on the popups
+    // means none of them can trigger their own pan, so this is safe
+    // regardless of which bounds we fit to.
+    map.fitBounds(CITY_DEFAULT_BOUNDS, { padding: [20, 20] });
 
     const t = setTimeout(() => {
       fewsList.forEach(f => {
