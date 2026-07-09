@@ -3694,7 +3694,7 @@ const waterChartOptions = useMemo(() => ({
                                       {isManualServiceable ? "● MANUAL" : "◌ MANUAL"}
                                     </span>
                                   </div>
-                                  <div style={{ fontSize:"clamp(10px, 0.9vw, 12px)", color:"#1e293b", marginBottom:2 }}>
+                                  <div style={{ fontSize:"clamp(10px, 0.9vw, 12px)", color:"#1e293b", marginBottom:3 }}>
                                     {f.location}
                                   </div>
                                   <div>
