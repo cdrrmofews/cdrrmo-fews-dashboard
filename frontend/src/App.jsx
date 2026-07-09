@@ -3834,7 +3834,7 @@ const waterChartOptions = useMemo(() => ({
                       minHeight: 0,
                     }}>
                       {/* Square icon — fixed wrapper prevents pulse from shifting layout */}
-                      <div className="alarm-icon-wrap" style={{ width: "clamp(38px, 3.2vw, 64px)", height: "clamp(38px, 3.2vw, 64px)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <div className="alarm-icon-wrap" style={{ width: "clamp(38px, 11cqw, 100px)", height: "clamp(38px, 11cqw, 100px)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
                         <div className="alarm-icon" style={{
                           width: "100%", height: "100%",
                           borderRadius: 8,
@@ -3843,7 +3843,7 @@ const waterChartOptions = useMemo(() => ({
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          fontSize: worstStatus === "danger" ? "clamp(14px, 1.4vw, 28px)" : "clamp(17px, 1.7vw, 32px)",
+                          fontSize: worstStatus === "danger" ? "clamp(14px, 4.6cqw, 40px)" : "clamp(17px, 5.5cqw, 46px)",
                           fontWeight: 900,
                           fontFamily: cfg.iconFont || "var(--mono)",
                           lineHeight: 1,
@@ -3857,7 +3857,7 @@ const waterChartOptions = useMemo(() => ({
 
                       {/* Label */}
                       <div className="alarm-label" style={{
-                        fontSize: "clamp(14px, 1.5vw, 26px)",
+                        fontSize: "clamp(14px, 5cqw, 36px)",
                         fontWeight: 800,
                         color: cfg.color,
                         fontFamily: "var(--mono)",
@@ -3869,12 +3869,12 @@ const waterChartOptions = useMemo(() => ({
 
                       {/* Dynamic sub message */}
                       <div className="alarm-sub" style={{
-                        fontSize: "clamp(10px, 0.95vw, 15px)",
+                        fontSize: "clamp(10px, 3cqw, 19px)",
                         color: cfg.color,
                         textAlign: "center",
                         lineHeight: 1.5,
                         opacity: 0.75,
-                        maxWidth: "clamp(160px, 20vw, 260px)",
+                        maxWidth: "clamp(160px, 65cqw, 320px)",
                       }}>
                         {buildSub()}
                       </div>
