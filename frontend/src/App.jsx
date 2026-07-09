@@ -1589,6 +1589,7 @@ function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userNa
   const [loadError, setLoadError]         = useState(false);
   const [thrError, setThrError]           = useState({});
   const [infoError, setInfoError]         = useState({});
+  const [initialLoad, setInitialLoad]     = useState(true);
 
   const [manualEditing, setManualEditing] = useState({});
   const [manualSaving, setManualSaving]   = useState({});
@@ -1632,7 +1633,8 @@ function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userNa
       })
       .catch(err => {
         if (err?.message !== "Unauthorized") setLoadError(true);
-      });
+      })
+      .finally(() => setInitialLoad(false));
   }, [token]);
 
   const getDeviceId = (id) => "fews_" + id;
@@ -1744,7 +1746,7 @@ function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userNa
           Live · {liveFewsOnly.length}
         </div>
 
-        {liveFewsOnly.map(f => {
+        {!initialLoad && liveFewsOnly.map(f => {
           const localData = fewsData.find(x => x.id === f.id) || f;
           const cfg = STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"];
           const thr = thresholds[f.id];
@@ -3667,7 +3669,7 @@ const waterChartOptions = useMemo(() => ({
                         <Marker key={f.id} position={[f.lat, f.lng]} icon={icon}
                           ref={el => { markerRefs.current[f.id] = el; }}
                           eventHandlers={{ click: () => setSelectedFEWS(selectedFEWS === f.id ? null : f.id) }}>
-                          <Popup minWidth={180} maxWidth={260} autoPan={false} autoClose={false} closeOnClick={false}>
+                          <Popup minWidth={180} maxWidth={260} autoPan={false}>
                             <div style={{ fontFamily:"sans-serif", padding:"2px 0" }}>
                               {f.isLive ? (
                                 <>
@@ -4072,11 +4074,11 @@ const waterChartOptions = useMemo(() => ({
                 <div className="map-fullscreen-inner">
                   <button className="map-fs-close" onClick={() => { setFullscreenMap(false); setFsSelectedFEWS(null); }}>✕</button>
                   <MapContainer
-                    bounds={[[13.760466, 121.066331], [13.764466, 121.070331]]}
+                    bounds={[[13.761466, 121.067331], [13.763466, 121.069331]]}
                     boundsOptions={{ padding: [40, 40] }}
                     style={{ height:"100%", width:"100%" }}
                     scrollWheelZoom={true}
-                    minZoom={15}>
+                    minZoom={20}>
                     <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                     <OpenAllPopups fewsList={allFews} markerRefs={fsMarkerRefs} active={fullscreenMap} />
                     {allFews.map(f => {
