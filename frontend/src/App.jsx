@@ -3847,7 +3847,7 @@ const waterChartOptions = useMemo(() => ({
                           fontWeight: 900,
                           fontFamily: cfg.iconFont || "var(--mono)",
                           lineHeight: 1,
-                          color: "#ffffff",
+                          color: cfg.color,
                           letterSpacing: worstStatus === "danger" ? "-1px" : "0",
                           animation: cfg.anim ? "pulse 1.8s ease-in-out infinite" : "none",
                         }}>
@@ -3859,7 +3859,7 @@ const waterChartOptions = useMemo(() => ({
                       <div className="alarm-label" style={{
                         fontSize: "clamp(14px, 1.5vw, 26px)",
                         fontWeight: 800,
-                        color: "#ffffff",
+                        color: cfg.color,
                         fontFamily: "var(--mono)",
                         letterSpacing: "0.10em",
                         animation: cfg.anim ? "blink 1.2s infinite" : "none",
@@ -3870,10 +3870,10 @@ const waterChartOptions = useMemo(() => ({
                       {/* Dynamic sub message */}
                       <div className="alarm-sub" style={{
                         fontSize: "clamp(10px, 0.95vw, 15px)",
-                        color: "#ffffff",
+                        color: cfg.color,
                         textAlign: "center",
                         lineHeight: 1.5,
-                        opacity: 0.85,
+                        opacity: 0.75,
                         maxWidth: "clamp(160px, 20vw, 260px)",
                       }}>
                         {buildSub()}
