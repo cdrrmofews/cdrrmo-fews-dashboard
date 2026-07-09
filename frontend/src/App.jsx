@@ -3834,20 +3834,20 @@ const waterChartOptions = useMemo(() => ({
                       minHeight: 0,
                     }}>
                       {/* Square icon — fixed wrapper prevents pulse from shifting layout */}
-                      <div className="alarm-icon-wrap" style={{ width: 38, height: 38, flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <div className="alarm-icon-wrap" style={{ width: "clamp(38px, 3.2vw, 64px)", height: "clamp(38px, 3.2vw, 64px)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
                         <div className="alarm-icon" style={{
-                          width: 38, height: 38,
+                          width: "100%", height: "100%",
                           borderRadius: 8,
                           border: `2px solid ${cfg.sqBor}`,
                           background: cfg.sqBg,
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          fontSize: worstStatus === "danger" ? 15 : 18,
+                          fontSize: worstStatus === "danger" ? "clamp(14px, 1.4vw, 28px)" : "clamp(17px, 1.7vw, 32px)",
                           fontWeight: 900,
                           fontFamily: cfg.iconFont || "var(--mono)",
                           lineHeight: 1,
-                          color: cfg.color,
+                          color: "#ffffff",
                           letterSpacing: worstStatus === "danger" ? "-1px" : "0",
                           animation: cfg.anim ? "pulse 1.8s ease-in-out infinite" : "none",
                         }}>
@@ -3857,9 +3857,9 @@ const waterChartOptions = useMemo(() => ({
 
                       {/* Label */}
                       <div className="alarm-label" style={{
-                        fontSize: 14,
+                        fontSize: "clamp(14px, 1.5vw, 26px)",
                         fontWeight: 800,
-                        color: cfg.color,
+                        color: "#ffffff",
                         fontFamily: "var(--mono)",
                         letterSpacing: "0.10em",
                         animation: cfg.anim ? "blink 1.2s infinite" : "none",
@@ -3869,12 +3869,12 @@ const waterChartOptions = useMemo(() => ({
 
                       {/* Dynamic sub message */}
                       <div className="alarm-sub" style={{
-                        fontSize: 10,
-                        color: cfg.color,
+                        fontSize: "clamp(10px, 0.95vw, 15px)",
+                        color: "#ffffff",
                         textAlign: "center",
                         lineHeight: 1.5,
-                        opacity: 0.75,
-                        maxWidth: 160,
+                        opacity: 0.85,
+                        maxWidth: "clamp(160px, 20vw, 260px)",
                       }}>
                         {buildSub()}
                       </div>
@@ -3937,8 +3937,7 @@ const waterChartOptions = useMemo(() => ({
                             {isActuallyLive ? cfg.label : "—"}
                           </div>
                         ) : (
-                          <div className="rsb-badge" style={{
-                            fontSize: 7,
+                          <div className="rsb-badge rsb-badge-manual-size" style={{
                             color: f.manualStatus === "serviceable" ? "var(--blue)" : "var(--text-3)",
                             background: f.manualStatus === "serviceable" ? "rgba(56,189,248,0.12)" : "rgba(255,255,255,0.04)"
                           }}>
@@ -4076,7 +4075,8 @@ const waterChartOptions = useMemo(() => ({
                     bounds={[[13.760466, 121.066331], [13.764466, 121.070331]]}
                     boundsOptions={{ padding: [40, 40] }}
                     style={{ height:"100%", width:"100%" }}
-                    scrollWheelZoom={true}>
+                    scrollWheelZoom={true}
+                    minZoom={15}>
                     <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                     <OpenAllPopups fewsList={allFews} markerRefs={fsMarkerRefs} active={fullscreenMap} />
                     {allFews.map(f => {

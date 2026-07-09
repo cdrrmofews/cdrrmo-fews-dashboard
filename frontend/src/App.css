@@ -962,6 +962,12 @@ body {
 .rsb-loc  { font-size: 10px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .rsb-badge { font-size: 9px; font-weight: 700; letter-spacing: 0.06em; padding: 2px 6px; border-radius: 4px; flex-shrink: 0; }
 
+.rsb-badge-manual-size { font-size: 8px; }
+
+@media (max-width: 768px) {
+  .rsb-badge-manual-size { font-size: 9px; }
+}
+
 .rsb-detail {
   margin-top: 14px;
   background: var(--bg-raised);
@@ -3276,11 +3282,7 @@ select.settings-input {
   .uc-description   { font-size: 13px; }
   .uc-stat { flex: 1; }
 
-/* ── Alarm Status ── */
-  .alarm-icon-wrap  { width: 56px !important; height: 56px !important; }
-  .alarm-icon       { width: 56px !important; height: 56px !important; font-size: 28px !important; border-radius: 12px !important; }
-  .alarm-label      { font-size: 22px !important; }
-  .alarm-sub        { font-size: 13px !important; max-width: 240px !important; }
+/* ── Alarm Status ── (sizing now handled by clamp() inline in App.jsx) */
 
   /* ── Settings ── */
   .sa-label         { font-size: 14px; }
