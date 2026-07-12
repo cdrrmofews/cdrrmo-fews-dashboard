@@ -2266,6 +2266,9 @@ select.settings-input {
   to { transform: rotate(360deg); }
 }
 
+.uc-manual-icon { font-size: 11px; }
+
+
 /* ================================
    SMS NOTIFICATIONS TABLE
 ================================ */
@@ -2586,6 +2589,10 @@ select.settings-input {
   .uc-stat:nth-child(3)  { border-right: none; }
   .uc-stat:nth-child(4)  { grid-column: span 3; border-right: none; border-bottom: 1px solid var(--border); }
   .uc-stat:nth-child(5)  { grid-column: span 3; border-right: none; border-bottom: none; }
+
+  .uc-stats-row:has(.uc-stat:nth-child(4):last-child) .uc-stat:nth-child(4) {
+    border-bottom: none;
+  }
   .uc-stat-val      { white-space: normal; word-break: break-word; }
   .uc-stat-label    { font-size: 8px; }
   .uc-stat-val      { font-size: 11px; }
@@ -2880,6 +2887,10 @@ select.settings-input {
   color: var(--text-3) !important;
 }
 
+.map-fullscreen-inner .leaflet-control-zoom {
+  z-index: 1200;
+}
+
 /* AFTER */
 
 /* Mobile */
@@ -2934,6 +2945,11 @@ select.settings-input {
     z-index: 400 !important;
   }
 
+  .map-fullscreen-inner .leaflet-top,
+  .map-fullscreen-inner .leaflet-control {
+    z-index: 1200 !important;
+  }
+
   .leaflet-control-zoom-in,
   .leaflet-control-zoom-out {
     width: 32px !important;
@@ -2944,6 +2960,9 @@ select.settings-input {
   .leaflet-control-attribution {
     font-size: 8px !important;
   }
+
+  .uc-manual-icon { font-size: 9px; }
+
 }
 
 /* ── Hide mobile logout button on desktop ── */

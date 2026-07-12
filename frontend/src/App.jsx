@@ -954,7 +954,11 @@ function FlyToStation({ fews }) {
       [fews.lat - r, fews.lng - r],
       [fews.lat + r, fews.lng + r],
     ];
-    map.flyToBounds(bounds, { padding: [20, 20], duration: 0.6 });
+    map.flyToBounds(bounds, {
+      paddingTopLeft: [20, 90],
+      paddingBottomRight: [20, 20],
+      duration: 0.6,
+    });
   }, [fewsId]);
   return null;
 }
@@ -1496,12 +1500,12 @@ function ManualFewsCard({ m, canControl, token, manualEditing, setManualEditing,
             <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
               <div className="uc-card-name">{m.name}</div>
               <span style={{
-                fontSize: 9, fontWeight: 700, fontFamily: "var(--mono)",
+                fontSize: 10, fontWeight: 700, fontFamily: "var(--mono)",
                 background: "rgba(56,189,248,0.12)", color: "var(--text-3)",
                 border: "1px solid rgba(56,189,248,0.2)",
                 borderRadius: 999, padding: "2px 7px", letterSpacing: "0.07em"
               }}>
-                ◌ MANUAL
+                <span className="uc-manual-icon">◌</span> MANUAL
               </span>
             </div>
             <div className="uc-card-loc">📍 {m.location}, Batangas City</div>
@@ -1762,7 +1766,7 @@ function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userNa
                       <div className="uc-card-name">{f.name}</div>
                       {f.isLive && (
                         <span style={{
-                          fontSize: 9, fontWeight: 700, fontFamily: "var(--mono)",
+                          fontSize: 10, fontWeight: 700, fontFamily: "var(--mono)",
                           background: isActuallyLive ? "rgba(34,197,94,0.15)" : "rgba(148,163,184,0.12)",
                           color: isActuallyLive ? "var(--green)" : "var(--text-3)",
                           border: `1px solid ${isActuallyLive ? "rgba(34,197,94,0.3)" : "rgba(148,163,184,0.2)"}`,
@@ -1779,14 +1783,6 @@ function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userNa
                   <div className="uc-badge" style={{ color: isActuallyLive ? cfg.color : "var(--text-3)", background: isActuallyLive ? cfg.bg : "rgba(255,255,255,0.04)" }}>
                     {isActuallyLive ? cfg.label : "OFFLINE"}
                   </div>
-                  <button
-                    className={`uc-power-btn ${isActuallyLive ? "uc-power-on" : "uc-power-off"}`}
-                    style={{ cursor: "default", pointerEvents: "none" }}
-                    tabIndex={-1}
-                    aria-hidden="true"
-                  >
-                    ↻
-                  </button>
                 </div>
               </div>
 
