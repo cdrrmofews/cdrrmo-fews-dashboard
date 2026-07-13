@@ -3973,8 +3973,15 @@ const waterChartOptions = useMemo(() => ({
                     <div className="rsb-detail">
                       <div className="rsb-detail-title" style={{ display:"flex", alignItems:"center", gap:6 }}>
                         {f.name}
-                        <span style={{ fontSize:9, fontWeight:700, fontFamily:"var(--mono)", color: isServiceable ? "var(--blue)" : "var(--text-3)" }}>
-                          {isServiceable ? "● MANUAL" : "◌ MANUAL"}
+                        <span style={{ fontSize:9, fontWeight:700, fontFamily:"var(--mono)", color: isServiceable ? "var(--blue)" : "var(--text-3)", display:"inline-flex", alignItems:"center", gap:4 }}>
+                          {isServiceable ? (
+                            "● MANUAL"
+                          ) : (
+                            <>
+                              <span style={{ width:6, height:6, borderRadius:"50%", border:"1.3px solid var(--text-3)", display:"inline-block", flexShrink:0 }} />
+                              MANUAL
+                            </>
+                          )}
                         </span>
                       </div>
                       <div className="rsb-stat">
@@ -4074,7 +4081,7 @@ const waterChartOptions = useMemo(() => ({
                     boundsOptions={{ padding: [40, 40] }}
                     style={{ height:"100%", width:"100%" }}
                     scrollWheelZoom={true}
-                    minZoom={16}>
+                    minZoom={3}>
                     <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                     <OpenAllPopups fewsList={allFews} markerRefs={fsMarkerRefs} active={fullscreenMap} />
                     {allFews.map(f => {

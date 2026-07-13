@@ -121,9 +121,7 @@ def water_level_to_status_label(water_level_cm, threshold_warning=200, threshold
         return "CRITICAL"
     if water_level_cm > threshold_warning:
         return "WARNING"
-    if water_level_cm > 0:
-        return "SAFE"
-    return "NORMAL"
+    return "SAFE"
 
 def on_connect(client, userdata, flags, rc):
     if rc == 0:
