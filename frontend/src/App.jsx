@@ -2558,6 +2558,9 @@ export default function App() {
   }, [fetchManualUnits]);
   const pollUnitsNowRef = useRef(null);
   const [sirenLoading, setSirenLoading] = useState({});
+  
+  const activeNavRef = useRef(activeNav);
+  useEffect(() => { activeNavRef.current = activeNav; }, [activeNav]);
 
   const sirenAudioRef = useRef(null);
   useEffect(() => {
@@ -2652,6 +2655,10 @@ export default function App() {
     let failCount = 0;
 
     const pollUnits = () => {
+        if (activeNavRef.current !== "Dashboard") {
+            timeoutId = setTimeout(pollUnits, 15000);
+            return;
+        }
         fetch(`${API_BASE}/units`, { headers: { Authorization: `Bearer ${token}` } })
             .then(r => r.ok ? r.json() : null)
             .then(rows => {
@@ -2681,7 +2688,7 @@ export default function App() {
             })
             .catch(() => { failCount += 1; })
             .finally(() => {
-                const delay = failCount === 0 ? 5000 : failCount <= 2 ? 15000 : 30000;
+                const delay = failCount === 0 ? 15000 : failCount <= 2 ? 30000 : 45000;
                 timeoutId = setTimeout(pollUnits, delay);
             });
     };
@@ -2749,11 +2756,11 @@ export default function App() {
       } catch {
         // silent — retries next tick
       } finally {
-        timeoutId = setTimeout(pollProfile, 30000);
+        timeoutId = setTimeout(pollProfile, 180000);
       }
     };
 
-    timeoutId = setTimeout(pollProfile, 30000);
+    timeoutId = setTimeout(pollProfile, 180000);
     return () => { if (timeoutId) clearTimeout(timeoutId); };
   }, [token, user.email]);
 
@@ -2970,6 +2977,10 @@ export default function App() {
     let timeoutId = null;
 
     const poll = async () => {
+      if (activeNavRef.current !== "Dashboard") {
+        timeoutId = setTimeout(poll, 15000);
+        return;
+      }
       try {
         const res = await fetch(`${API_BASE}/data/latest`);
         if (!res.ok) throw new Error("non-200");
@@ -3002,10 +3013,10 @@ export default function App() {
         handleOffline();
         failCount.current += 1;
       } finally {
-        const delay = failCount.current === 0 ? 5000
-                    : failCount.current === 1 ? 10000
-                    : failCount.current === 2 ? 20000
-                    : 30000;
+        const delay = failCount.current === 0 ? 15000
+                    : failCount.current === 1 ? 25000
+                    : failCount.current === 2 ? 35000
+                    : 45000;
         timeoutId = setTimeout(poll, delay);
       }
     };
@@ -3022,6 +3033,10 @@ export default function App() {
     let statusFailCount = 0;
 
     const pollStatus = async () => {
+      if (activeNavRef.current !== "Dashboard") {
+        statusTimeoutId = setTimeout(pollStatus, 15000);
+        return;
+      }
       try {
         const res = await fetch(`${API_BASE}/status/fews1`);
         if (!res.ok) throw new Error("non-200");
@@ -3031,9 +3046,9 @@ export default function App() {
       } catch {
         statusFailCount += 1;
       } finally {
-        const delay = statusFailCount === 0 ? 5000
-                    : statusFailCount === 1 ? 15000
-                    : statusFailCount === 2 ? 30000
+        const delay = statusFailCount === 0 ? 15000
+                    : statusFailCount === 1 ? 25000
+                    : statusFailCount === 2 ? 40000
                     : 60000;
         statusTimeoutId = setTimeout(pollStatus, delay);
       }
@@ -3088,6 +3103,10 @@ export default function App() {
     let historyTimeoutId = null;
 
     const scheduledFetch = async () => {
+      if (activeNavRef.current !== "Dashboard") {
+        historyTimeoutId = setTimeout(scheduledFetch, 45000);
+        return;
+      }
       try {
         const res = await fetch(`${API_BASE}/data/history`);
         if (!res.ok) throw new Error("non-200");
@@ -3098,10 +3117,10 @@ export default function App() {
       } catch {
         historyFailCount.current += 1;
       } finally {
-        const delay = historyFailCount.current === 0 ? 5000
-                    : historyFailCount.current === 1 ? 15000
-                    : historyFailCount.current === 2 ? 30000
-                    : 60000;
+        const delay = historyFailCount.current === 0 ? 45000
+                    : historyFailCount.current === 1 ? 60000
+                    : historyFailCount.current === 2 ? 90000
+                    : 120000;
         historyTimeoutId = setTimeout(scheduledFetch, delay);
       }
     };
