@@ -553,6 +553,12 @@ body {
 .card-header h2 { font-size: 11px; font-weight: 600; color: var(--text-1); letter-spacing: -0.01em; }
 .card-tag       { font-size: 9px; color: var(--text-3); font-family: var(--mono); }
 
+.wl-legend-row { display: flex; align-items: center; gap: 14px; flex-shrink: 0; }
+.wl-legend     { display: flex; align-items: center; gap: 5px; font-size: 11px; color: var(--text-2); font-family: var(--mono); white-space: nowrap; }
+.wl-legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
+
+.wl-abbr { display: none; }
+
 .chart-wrap { flex: 1; min-height: 0; position: relative; display: block; }
 
 /* ================================
@@ -2518,6 +2524,12 @@ select.settings-input {
   .card-battery { height: 170px; }
   .card         { padding: 10px 12px; }
   .card-header  { margin-bottom: 5px; }
+
+  .wl-legend-row { gap: 6px; }
+  .wl-legend      { font-size: 9px; gap: 3px; }
+  .wl-legend-dot  { width: 6px; height: 6px; }
+  .wl-full        { display: none; }
+  .wl-abbr        { display: inline; }
 
   .right-sidebar { width: 100%; min-width: 100%; height: auto; }
   .rsb-list      { flex-direction: column; gap: 6px; max-height: none; overflow-y: visible; margin-right: 0; padding-right: 0; }

@@ -3748,9 +3748,23 @@ const waterChartOptions = useMemo(() => ({
               <div className="card card-water">
                 <div className="card-header">
                   <h2>Water Level</h2>
+
+                  {hasEverHadData && fews1Connected && (
+                    <div className="wl-legend-row">
+                      <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#22c55e" }} />Safe</span>
+                      <span className="wl-legend">
+                        <span className="wl-legend-dot" style={{ background: "#f59e0b" }} />
+                        <span className="wl-full">Warning</span><span className="wl-abbr">Warn</span>
+                      </span>
+                      <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#ef4444" }} />Danger</span>
+                    </div>
+                  )}
+
                     <span className="card-tag">
                       {hasEverHadData
-                        ? (fews1Connected ? "Last 5 hrs" : "Last known data")
+                        ? (fews1Connected
+                            ? <><span className="wl-full">Last 5 hrs</span><span className="wl-abbr">5 hrs</span></>
+                            : "Last known data")
                         : fews1Connected ? "Loading…" : "Waiting for data"}
                     </span>
                 </div>
