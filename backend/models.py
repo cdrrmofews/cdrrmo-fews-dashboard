@@ -63,6 +63,9 @@ class UpdateNotifPrefsRequest(BaseModel):
     banner_enabled: Optional[bool] = None
     ticker_enabled: Optional[bool] = None
 
+class UpdateDisplayPrefsRequest(BaseModel):
+    unit_preference: Literal["cm", "m", "ft", "in"]
+
 class UpdateManualUnitRequest(BaseModel):
     latitude:       Optional[float] = None
     longitude:      Optional[float] = None

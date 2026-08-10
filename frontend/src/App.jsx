@@ -190,6 +190,7 @@ function normalizeUser(parsed) {
       name: "", role: "Operator", department: "", email: "", phone: "", photo: null,
       sms_enabled: false,
       push_enabled: true, audio_enabled: true, banner_enabled: true, ticker_enabled: true,
+      unit_preference: "cm",
       initials: "?",
     };
   }
@@ -199,16 +200,17 @@ function normalizeUser(parsed) {
     "?";
   return {
     name,
-    role:           parsed.role           || "Operator",
-    department:     parsed.department     || "",
-    email:          parsed.email          || "",
-    phone:          parsed.phone          || "",
-    photo:          parsed.photo          || null,
-    sms_enabled:    parsed.sms_enabled    ?? false,
-    push_enabled:   parsed.push_enabled   ?? true,
-    audio_enabled:  parsed.audio_enabled  ?? true,
-    banner_enabled: parsed.banner_enabled ?? true,
-    ticker_enabled: parsed.ticker_enabled ?? true,
+    role:             parsed.role             || "Operator",
+    department:       parsed.department       || "",
+    email:            parsed.email            || "",
+    phone:            parsed.phone            || "",
+    photo:            parsed.photo            || null,
+    sms_enabled:      parsed.sms_enabled      ?? false,
+    push_enabled:     parsed.push_enabled     ?? true,
+    audio_enabled:    parsed.audio_enabled    ?? true,
+    banner_enabled:   parsed.banner_enabled   ?? true,
+    ticker_enabled:   parsed.ticker_enabled   ?? true,
+    unit_preference:  parsed.unit_preference  || "cm",
     initials,
   };
 }
@@ -233,6 +235,22 @@ const STATUS_CONFIG = {
   WARNING:  { color: "#f59e0b", bg: "rgba(245,158,11,0.12)", label: "WARNING"  },
   CRITICAL: { color: "#ef4444", bg: "rgba(239,68,68,0.12)",  label: "CRITICAL" },
 };
+
+const CM_PER_UNIT = { cm: 1, m: 100, ft: 30.48, in: 2.54 };
+const UNIT_DECIMALS = { cm: 0, m: 2, ft: 1, in: 1 };
+
+function convertCm(cm, unit = "cm") {
+  if (cm == null || Number.isNaN(cm)) return null;
+  const factor = CM_PER_UNIT[unit] || 1;
+  return cm / factor;
+}
+
+function formatWaterLevel(cm, unit = "cm") {
+  const converted = convertCm(cm, unit);
+  if (converted == null) return "—";
+  const decimals = UNIT_DECIMALS[unit] ?? 0;
+  return `${converted.toFixed(decimals)}${unit}`;
+}
 
 function fmtCoord(n) {
   return Number(n).toFixed(4);
@@ -1579,7 +1597,7 @@ function ManualFewsCard({ m, canControl, token, manualEditing, setManualEditing,
   );
 }
 
-function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userName, addLog, token, onThresholdSaved, onManualUnitSaved }) {
+function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userName, unitPreference, addLog, token, onThresholdSaved, onManualUnitSaved }) {
   const liveFewsOnly = allFews.filter(f => f.isLive);
   const manualFewsOnly = manualFews;
 
@@ -1790,7 +1808,7 @@ function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userNa
                 <div className="uc-stat">
                   <span className="uc-stat-label">Water Level</span>
                   <span className="uc-stat-val" style={{ color: isActuallyLive ? cfg.color : "var(--text-3)" }}>
-                    {isActuallyLive ? `${f.waterLevel} cm` : "—"}
+                    {isActuallyLive ? formatWaterLevel(f.waterLevel, unitPreference) : "—"}
                   </span>
                 </div>
                 <div className="uc-stat">
@@ -2115,6 +2133,8 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
   const [confirmRemove, setConfirmRemove]   = useState(null);
   const [confirmNotif, setConfirmNotif]               = useState(null);
   const [confirmNotifLoading, setConfirmNotifLoading] = useState(false);
+  const [confirmUnit, setConfirmUnit]                 = useState(null);
+  const [confirmUnitLoading, setConfirmUnitLoading]   = useState(false);
 
   const isAdmin = userRole === "Admin";
 
@@ -2154,6 +2174,26 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
     }
     setConfirmNotifLoading(false);
     setConfirmNotif(null);
+  };
+
+  const handleUnitChange = async (newUnit) => {
+    setConfirmUnitLoading(true);
+    try {
+      const res = await authFetch(`${API_BASE}/users/me/display`, {
+        method:  "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ unit_preference: newUnit }),
+      });
+      if (res.ok) {
+        onUserUpdate(normalizeUser({ ...user, unit_preference: newUnit }));
+      } else {
+        setActionError("Failed to update measurement unit. Try again.");
+      }
+    } catch (err) {
+      if (err?.message !== "Unauthorized") setActionError("Failed to update measurement unit. Try again.");
+    }
+    setConfirmUnitLoading(false);
+    setConfirmUnit(null);
   };
   
   useEffect(() => {
@@ -2290,6 +2330,15 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
         confirmLoading={confirmNotifLoading}
         onConfirm={() => handleNotifToggle(confirmNotif.key, confirmNotif.newVal)}
         onCancel={() => { if (!confirmNotifLoading) setConfirmNotif(null); }} />}
+      {confirmUnit && <ConfirmModal
+        icon="📏"
+        iconColor="var(--blue)"
+        title={`Switch display unit to ${confirmUnit}?`}
+        message="This changes how water levels appear across the dashboard for your account only."
+        confirmLabel="Yes, Switch"
+        confirmLoading={confirmUnitLoading}
+        onConfirm={() => handleUnitChange(confirmUnit)}
+        onCancel={() => { if (!confirmUnitLoading) setConfirmUnit(null); }} />}
       {confirmSave   && <ConfirmModal icon="👤" iconColor="var(--blue)" title={`Save Changes for ${confirmSave.name}?`} message={`Role → ${getDraft(confirmSave).role} · Department → ${getDraft(confirmSave).department}`} confirmLabel="Yes, Save" confirmLoading={confirmSaveLoading} onConfirm={doSave} onCancel={() => { if (!confirmSaveLoading) setConfirmSave(null); }} />}
       {confirmRemove && <ConfirmModal icon="🗑" iconColor="var(--red)" title={`Remove ${confirmRemove.name}?`} message={`This will permanently remove ${confirmRemove.name} from the system.`} confirmLabel="Yes, Remove" confirmColor="var(--red)" onConfirm={doRemove} onCancel={() => setConfirmRemove(null)} />}
       <div className="page-body">
@@ -2390,6 +2439,27 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
                 </button>
               </div>
             ))}
+          </div>
+        </div>
+
+        <div className="page-card">
+          <div className="page-card-title">Display Preferences</div>
+          <div className="page-card-sub">How water levels are shown across the dashboard.</div>
+          <div className="settings-toggle-table">
+            <div className="settings-toggle-row">
+              <div className="settings-toggle-info">
+                <div className="settings-toggle-label">📏 Measurement Unit</div>
+                <div className="settings-toggle-sub">Applies to charts, map, and station panels</div>
+              </div>
+              <MuDropdown
+                value={user.unit_preference || "cm"}
+                options={["cm", "m", "ft", "in"]}
+                onChange={val => setConfirmUnit(val)}
+              />
+            </div>
+          </div>
+          <div style={{ fontSize: 10, color: "var(--text-3)", fontFamily: "var(--mono)", marginTop: 4 }}>
+            Thresholds and logs always stay in centimeters.
           </div>
         </div>
 
@@ -3320,7 +3390,7 @@ const waterChartOptions = useMemo(() => ({
           label: (ctx) => {
             const v = ctx.parsed.y;
             const status = v > thresholds.danger ? "CRITICAL" : v > thresholds.warning ? "WARNING" : "SAFE";
-            return ` ${v} cm  [${status}]`;
+            return ` ${formatWaterLevel(v, user.unit_preference)}  [${status}]`;
           },
           labelColor: (ctx) => {
             const v = ctx.parsed.y;
@@ -3331,7 +3401,8 @@ const waterChartOptions = useMemo(() => ({
       },
       annotation: {
         annotations: {
-          zoneSafe:    { type: "box", yMin: 0,                    yMax: thresholds.warning, backgroundColor: "rgba(34,197,94,0.60)",  borderWidth: 0 },
+          zoneLow:     { type: "box", yMin: 0,                    yMax: Math.min(100, thresholds.warning), backgroundColor: "rgba(255,255,255,0.60)", borderWidth: 0 },
+          zoneSafe:    { type: "box", yMin: Math.min(100, thresholds.warning), yMax: thresholds.warning, backgroundColor: "rgba(34,197,94,0.60)",  borderWidth: 0 },
           zoneWarning: { type: "box", yMin: thresholds.warning,   yMax: thresholds.danger,  backgroundColor: "rgba(245,158,11,0.60)", borderWidth: 0 },
           zoneCritical:{ type: "box", yMin: thresholds.danger,    yMax: 700,                backgroundColor: "rgba(239,68,68,0.60)",  borderWidth: 0 },
           lineWarning: { type: "line", yMin: thresholds.warning, yMax: thresholds.warning, borderColor: "rgba(245,158,11,0.80)", borderWidth: 2, borderDash: [4, 4], label: { display: false } },
@@ -3351,7 +3422,7 @@ const waterChartOptions = useMemo(() => ({
             return "#22c55e";
           },
           font: { size: 10 },
-          callback: (v) => `${v}cm`,
+          callback: (v) => formatWaterLevel(v, user.unit_preference),
           stepSize: 100,
         },
       },
@@ -3383,7 +3454,7 @@ const waterChartOptions = useMemo(() => ({
         },
       },
     },
-  }), [chartWinStart, chartWinEnd, historyData.exactLabels, thresholds]);
+  }), [chartWinStart, chartWinEnd, historyData.exactLabels, thresholds, user.unit_preference]);
 
   const alertCount = (isHardwareOnline && fews1DataRecent)
     ? allFews.filter(f => f.status === "danger").length
@@ -3617,7 +3688,7 @@ const waterChartOptions = useMemo(() => ({
                         <span className="ticker-card-name" style={{ fontWeight: 700, color: "#e2e8f0" }}>FEWS 1</span>
                         <span className="ticker-badge" style={{ color, background: `${color}26`, border: `1px solid ${color}59`, borderRadius: 4, padding: "2px 9px", fontFamily: "var(--mono)", fontWeight: 700 }}>{statusKey}</span>
                       </div>
-                      <div className="ticker-card-level" style={{ color, fontFamily: "var(--mono)", lineHeight: 1, marginBottom: 10 }}>{d.value} cm</div>
+                      <div className="ticker-card-level" style={{ color, fontFamily: "var(--mono)", lineHeight: 1, marginBottom: 10 }}>{formatWaterLevel(d.value, user.unit_preference)}</div>
                       <div className="ticker-card-meta" style={{ color: "#e2e8f0" }}>Bridge of Progress · {d.label} · {fmtDate(d.ms)}</div>
                     </div>
                   );
@@ -3699,10 +3770,10 @@ const waterChartOptions = useMemo(() => ({
                                   </div>
                                   <div style={{ display:"flex", alignItems:"baseline", gap:4, marginBottom:3 }}>
                                     <span style={{ fontSize:"clamp(22px, 1.8vw, 28px)", fontWeight:800, lineHeight:1, color: isHardwareOnline ? markerColor : "#94a3b8" }}>
-                                      {isHardwareOnline ? f.waterLevel : "—"}
+                                      {isHardwareOnline ? convertCm(f.waterLevel, user.unit_preference)?.toFixed(UNIT_DECIMALS[user.unit_preference] ?? 0) : "—"}
                                     </span>
                                     {isHardwareOnline && (
-                                      <span style={{ fontSize:"clamp(11px, 0.9vw, 13px)", fontWeight:600, color: markerColor }}>cm</span>
+                                      <span style={{ fontSize:"clamp(11px, 0.9vw, 13px)", fontWeight:600, color: markerColor }}>{user.unit_preference}</span>
                                     )}
                                   </div>
                                 </>
@@ -3751,6 +3822,7 @@ const waterChartOptions = useMemo(() => ({
 
                   {hasEverHadData && fews1Connected && (
                     <div className="wl-legend-row">
+                      <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#ffffff", border: "1px solid rgba(255,255,255,0.4)" }} />Low</span>
                       <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#22c55e" }} />Safe</span>
                       <span className="wl-legend">
                         <span className="wl-legend-dot" style={{ background: "#f59e0b" }} />
@@ -4045,7 +4117,7 @@ const waterChartOptions = useMemo(() => ({
                         {isActuallyLive ? "● LIVE" : "◌ WAITING"}
                       </span>
                     </div>
-                    <div className="rsb-stat"><span>Water Level</span><strong style={{ color: isActuallyLive ? cfg.color : "var(--text-3)" }}>{isActuallyLive ? `${f.waterLevel} cm` : "—"}</strong></div>
+                    <div className="rsb-stat"><span>Water Level</span><strong style={{ color: isActuallyLive ? cfg.color : "var(--text-3)" }}>{isActuallyLive ? formatWaterLevel(f.waterLevel, user.unit_preference) : "—"}</strong></div>
                     <div className="rsb-stat"><span>Status</span><strong style={{ color: isActuallyLive ? cfg.color : "var(--text-3)" }}>{isActuallyLive ? cfg.label : "WAITING"}</strong></div>
                     <div className="rsb-stat">
                       <span>Last sync</span>
@@ -4055,11 +4127,11 @@ const waterChartOptions = useMemo(() => ({
                     </div>
                     <div className="rsb-stat">
                       <span>Today's highest</span>
-                      <strong>{todayStats[`fews_${f.id}`]?.high != null ? `${todayStats[`fews_${f.id}`].high} cm` : "—"}</strong>
+                      <strong>{todayStats[`fews_${f.id}`]?.high != null ? formatWaterLevel(todayStats[`fews_${f.id}`].high, user.unit_preference) : "—"}</strong>
                     </div>
                     <div className="rsb-stat">
                       <span>Today's lowest</span>
-                      <strong>{todayStats[`fews_${f.id}`]?.low != null ? `${todayStats[`fews_${f.id}`].low} cm` : "—"}</strong>
+                      <strong>{todayStats[`fews_${f.id}`]?.low != null ? formatWaterLevel(todayStats[`fews_${f.id}`].low, user.unit_preference) : "—"}</strong>
                     </div>
                     <div className="rsb-stat">
                       <span>Warning at</span>
@@ -4150,7 +4222,7 @@ const waterChartOptions = useMemo(() => ({
                                 <strong style={{ color:"#1e293b" }}>{f.location}</strong>
                                 {" · "}
                                 {f.isLive
-                                  ? <span>Water: {isHardwareOnline ? `${f.waterLevel} cm` : "—"}</span>
+                                  ? <span>Water: {isHardwareOnline ? formatWaterLevel(f.waterLevel, user.unit_preference) : "—"}</span>
                                   : <span>{isManualServiceable ? "SERVICEABLE" : "UNSERVICEABLE"}</span>
                                 }
                               </div>
@@ -4207,9 +4279,9 @@ const waterChartOptions = useMemo(() => ({
                       </div>
                       <div className="map-fs-water">
                         <span className="map-fs-water-val" style={{ color: isActuallyLive ? cfg.color : "#94a3b8" }}>
-                          {isActuallyLive ? f.waterLevel : "—"}
+                          {isActuallyLive ? convertCm(f.waterLevel, user.unit_preference)?.toFixed(UNIT_DECIMALS[user.unit_preference] ?? 0) : "—"}
                         </span>
-                        {isActuallyLive && <span className="map-fs-water-unit">cm</span>}
+                        {isActuallyLive && <span className="map-fs-water-unit">{user.unit_preference}</span>}
                       </div>
                       <span className="map-fs-status" style={{ background: isActuallyLive ? `${cfg.color}18` : "rgba(0,0,0,0.06)", color: isActuallyLive ? cfg.color : "#94a3b8", border: `1px solid ${isActuallyLive ? cfg.color + "35" : "rgba(0,0,0,0.08)"}` }}>
                         {isActuallyLive ? cfg.label : "OFFLINE"}
@@ -4255,7 +4327,7 @@ const waterChartOptions = useMemo(() => ({
             </div>
           )}
 
-        {activeNav === "UnitControl" && <UnitControlPage allFews={allFews} manualFews={manualFews} fews1Connected={isHardwareOnline} userRole={user.role} userName={user.name} addLog={addLog} token={token} onThresholdSaved={(t) => setThresholds(t)} onManualUnitSaved={(updated) => setManualFews(prev => prev.map(m => m.device_id === updated.device_id ? updated : m))} />}
+        {activeNav === "UnitControl" && <UnitControlPage allFews={allFews} manualFews={manualFews} fews1Connected={isHardwareOnline} userRole={user.role} userName={user.name} unitPreference={user.unit_preference} addLog={addLog} token={token} onThresholdSaved={(t) => setThresholds(t)} onManualUnitSaved={(updated) => setManualFews(prev => prev.map(m => m.device_id === updated.device_id ? updated : m))} />}
         {activeNav === "Logs"        && <LogsPage token={token} userRole={user.role} showToast={showToast} />}
         {activeNav === "Settings"    && <SettingsPage
           userRole={user.role}

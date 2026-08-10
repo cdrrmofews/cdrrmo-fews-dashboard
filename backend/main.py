@@ -25,6 +25,7 @@ from models import (
     ChangePhoneRequest, SmsEnabledRequest, CreateLogRequest,
     SirenRequest, UpdateUnitRequest, PushSubscribeRequest,
     UpdateNotifPrefsRequest, UpdateManualUnitRequest,
+    UpdateDisplayPrefsRequest,
 )
 
 DEPLOY_TIME          = datetime.utcnow().isoformat()
@@ -142,10 +143,11 @@ def startup():
             """)
             cur.execute("""
                 ALTER TABLE users
-                  ADD COLUMN IF NOT EXISTS notif_push_enabled   BOOLEAN DEFAULT TRUE,
-                  ADD COLUMN IF NOT EXISTS notif_audio_enabled  BOOLEAN DEFAULT TRUE,
-                  ADD COLUMN IF NOT EXISTS notif_banner_enabled BOOLEAN DEFAULT TRUE,
-                  ADD COLUMN IF NOT EXISTS notif_ticker_enabled BOOLEAN DEFAULT TRUE
+                ADD COLUMN IF NOT EXISTS notif_push_enabled   BOOLEAN DEFAULT TRUE,
+                ADD COLUMN IF NOT EXISTS notif_audio_enabled  BOOLEAN DEFAULT TRUE,
+                ADD COLUMN IF NOT EXISTS notif_banner_enabled BOOLEAN DEFAULT TRUE,
+                ADD COLUMN IF NOT EXISTS notif_ticker_enabled BOOLEAN DEFAULT TRUE,
+                ADD COLUMN IF NOT EXISTS unit_preference       TEXT DEFAULT 'cm'
             """)
             cur.execute("""
                 ALTER TABLE push_subscriptions
@@ -246,6 +248,7 @@ def login(request: Request, req: LoginRequest):
             "notif_audio_enabled":  user.get("notif_audio_enabled", True),
             "notif_banner_enabled": user.get("notif_banner_enabled", True),
             "notif_ticker_enabled": user.get("notif_ticker_enabled", True),
+            "unit_preference":      user.get("unit_preference", "cm"),
         }
     finally:
         cur.close()
@@ -423,6 +426,27 @@ def update_notif_prefs(req: UpdateNotifPrefsRequest, user=Depends(get_current_us
             f"""UPDATE users SET {', '.join(fields)} WHERE id = %s
                 RETURNING id, notif_push_enabled, notif_audio_enabled, notif_banner_enabled, notif_ticker_enabled""",
             values
+        )
+        conn.commit()
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="User not found")
+        return row
+    finally:
+        cur.close()
+        release_db(conn)
+
+@app.put("/users/me/display")
+def update_display_prefs(req: UpdateDisplayPrefsRequest, user=Depends(get_current_user)):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        user_id = int(user["sub"])
+        if req.unit_preference not in ("cm", "m", "ft", "in"):
+            raise HTTPException(status_code=400, detail="Invalid unit preference.")
+        cur.execute(
+            "UPDATE users SET unit_preference = %s WHERE id = %s RETURNING id, unit_preference",
+            (req.unit_preference, user_id)
         )
         conn.commit()
         row = cur.fetchone()
@@ -693,7 +717,8 @@ def list_users(user=Depends(get_current_user)):
     try:
         cur.execute("""
             SELECT id, name, email, role, department, photo, phone, sms_enabled, created_at,
-                   notif_push_enabled, notif_audio_enabled, notif_banner_enabled, notif_ticker_enabled
+                   notif_push_enabled, notif_audio_enabled, notif_banner_enabled, notif_ticker_enabled,
+                   unit_preference
             FROM users ORDER BY id
         """)
         return cur.fetchall()
