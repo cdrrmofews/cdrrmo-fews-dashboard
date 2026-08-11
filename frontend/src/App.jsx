@@ -1736,7 +1736,7 @@ function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userNa
                 <div className="modal-title">Update Alert Thresholds?</div>
               </div>
               <div className="modal-msg">
-                Warning will be set to <strong style={{ color: "var(--amber)" }}>{formatWaterLevel(confirmThr?.warning, "cm")}</strong> and Danger to <strong style={{ color: "var(--red)" }}>{formatWaterLevel(confirmThr?.danger, "cm")}</strong>. This will also update the Arduino device.
+                Warning will be set to <strong style={{ color: "var(--amber)" }}>{formatWaterLevel(confirmThr?.warning, unitPreference)}</strong> and Danger to <strong style={{ color: "var(--red)" }}>{formatWaterLevel(confirmThr?.danger, unitPreference)}</strong>. This will also update the Arduino device.
               </div>
               <div className="modal-actions">
                 <button className="modal-btn modal-cancel"
@@ -1864,17 +1864,35 @@ function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userNa
                   <div className="uc-thr-row">
                     <div className="uc-thr-field">
                       <label className="uc-thr-field-label">⚠ Warning ({unitPreference})</label>
-                      <input className="settings-input" type="number" step="100" min="100" max="300"
-                        value={thr.warning}
-                        disabled={!isActuallyLive}
-                        onChange={e => setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], warning: parseInt(e.target.value) } }))} />
+                      <div className="uc-thr-stepper">
+                        <button type="button" className="uc-thr-step-btn"
+                          disabled={!isActuallyLive || thr.warning <= 100}
+                          onClick={() => setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], warning: prev[f.id].warning - 100 } }))}>
+                          −
+                        </button>
+                        <span className="uc-thr-step-val">{formatWaterLevel(thr.warning, unitPreference)}</span>
+                        <button type="button" className="uc-thr-step-btn"
+                          disabled={!isActuallyLive || thr.warning >= 300}
+                          onClick={() => setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], warning: prev[f.id].warning + 100 } }))}>
+                          +
+                        </button>
+                      </div>
                     </div>
                     <div className="uc-thr-field">
                       <label className="uc-thr-field-label">🔴 Danger ({unitPreference})</label>
-                      <input className="settings-input" type="number" step="100" min="200" max="600"
-                        value={thr.danger}
-                        disabled={!isActuallyLive}
-                        onChange={e => setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], danger: parseInt(e.target.value) } }))} />
+                      <div className="uc-thr-stepper">
+                        <button type="button" className="uc-thr-step-btn"
+                          disabled={!isActuallyLive || thr.danger <= 200}
+                          onClick={() => setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], danger: prev[f.id].danger - 100 } }))}>
+                          −
+                        </button>
+                        <span className="uc-thr-step-val">{formatWaterLevel(thr.danger, unitPreference)}</span>
+                        <button type="button" className="uc-thr-step-btn"
+                          disabled={!isActuallyLive || thr.danger >= 600}
+                          onClick={() => setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], danger: prev[f.id].danger + 100 } }))}>
+                          +
+                        </button>
+                      </div>
                     </div>
                     <button className="uc-thr-save" disabled={!isActuallyLive} onClick={() => {
                       const thr = thresholds[f.id];
@@ -2835,7 +2853,7 @@ export default function App() {
       }
     };
 
-    timeoutId = setTimeout(pollProfile, 60000);
+    pollProfile();
     return () => { if (timeoutId) clearTimeout(timeoutId); };
   }, [token, user.email]);
 
@@ -4140,11 +4158,11 @@ const waterChartOptions = useMemo(() => ({
                     </div>
                     <div className="rsb-stat">
                       <span>Warning at</span>
-                      <strong style={{ color: "var(--amber)" }}>{formatWaterLevel(thresholds.warning, "cm")}</strong>
+                      <strong style={{ color: "var(--amber)" }}>{formatWaterLevel(thresholds.warning, user.unit_preference)}</strong>
                     </div>
                     <div className="rsb-stat">
                       <span>Danger at</span>
-                      <strong style={{ color: "var(--red)" }}>{formatWaterLevel(thresholds.danger, "cm")}</strong>
+                      <strong style={{ color: "var(--red)" }}>{formatWaterLevel(thresholds.danger, user.unit_preference)}</strong>
                     </div>
                     <div className="rsb-stat">
                       <span>Coordinates</span>
@@ -4302,11 +4320,11 @@ const waterChartOptions = useMemo(() => ({
                       </div>
                       <div className="map-fs-row">
                         <span className="map-fs-row-label">Warning</span>
-                        <span className="map-fs-row-val" style={{ color: "#f59e0b" }}>{formatWaterLevel(thresholds.warning, "cm")}</span>
+                        <span className="map-fs-row-val" style={{ color: "#f59e0b" }}>{formatWaterLevel(thresholds.danger, user.unit_preference)}</span>
                       </div>
                       <div className="map-fs-row">
                         <span className="map-fs-row-label">Danger</span>
-                        <span className="map-fs-row-val" style={{ color: "#ef4444" }}>{formatWaterLevel(thresholds.danger, "cm")}</span>
+                        <span className="map-fs-row-val" style={{ color: "#ef4444" }}>{formatWaterLevel(thresholds.danger, user.unit_preference)}</span>
                       </div>
                     </div>
                   );
