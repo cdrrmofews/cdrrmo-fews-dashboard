@@ -1736,7 +1736,7 @@ function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userNa
                 <div className="modal-title">Update Alert Thresholds?</div>
               </div>
               <div className="modal-msg">
-                Warning will be set to <strong style={{ color: "var(--amber)" }}>{confirmThr?.warning} cm</strong> and Danger to <strong style={{ color: "var(--red)" }}>{confirmThr?.danger} cm</strong>. This will also update the Arduino device.
+                Warning will be set to <strong style={{ color: "var(--amber)" }}>{formatWaterLevel(confirmThr?.warning, "cm")}</strong> and Danger to <strong style={{ color: "var(--red)" }}>{formatWaterLevel(confirmThr?.danger, "cm")}</strong>. This will also update the Arduino device.
               </div>
               <div className="modal-actions">
                 <button className="modal-btn modal-cancel"
@@ -1863,14 +1863,14 @@ function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userNa
                   <div className="uc-thr-label">Alert Thresholds</div>
                   <div className="uc-thr-row">
                     <div className="uc-thr-field">
-                      <label className="uc-thr-field-label">⚠ Warning (cm)</label>
+                      <label className="uc-thr-field-label">⚠ Warning ({unitPreference})</label>
                       <input className="settings-input" type="number" step="100" min="100" max="300"
                         value={thr.warning}
                         disabled={!isActuallyLive}
                         onChange={e => setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], warning: parseInt(e.target.value) } }))} />
                     </div>
                     <div className="uc-thr-field">
-                      <label className="uc-thr-field-label">🔴 Danger (cm)</label>
+                      <label className="uc-thr-field-label">🔴 Danger ({unitPreference})</label>
                       <input className="settings-input" type="number" step="100" min="200" max="600"
                         value={thr.danger}
                         disabled={!isActuallyLive}
@@ -2070,6 +2070,13 @@ function MuDropdown({ value, options, onChange }) {
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleScroll = () => setOpen(false);
+    window.addEventListener("scroll", handleScroll, true);
+    return () => window.removeEventListener("scroll", handleScroll, true);
+  }, [open]);
 
   const toggleOpen = () => {
     if (!open && triggerRef.current) {
@@ -2417,6 +2424,24 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
         )}
 
         <div className="page-card">
+          <div className="page-card-title">Display Preferences</div>
+          <div className="page-card-sub">How water levels are shown across the dashboard.</div>
+          <div className="settings-toggle-table">
+            <div className="settings-toggle-row">
+              <div className="settings-toggle-info">
+                <div className="settings-toggle-label">📏 Measurement Unit</div>
+                <div className="settings-toggle-sub">Thresholds and logs always stay in centimeters.</div>
+              </div>
+              <MuDropdown
+                value={user.unit_preference || "cm"}
+                options={["cm", "m", "ft", "in"]}
+                onChange={val => setConfirmUnit(val)}
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="page-card">
           <div className="page-card-title">Alert Preferences</div>
           <div className="page-card-sub">Control how you receive alerts from FEWS.</div>
           <div className="settings-toggle-table">
@@ -2439,27 +2464,6 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
                 </button>
               </div>
             ))}
-          </div>
-        </div>
-
-        <div className="page-card">
-          <div className="page-card-title">Display Preferences</div>
-          <div className="page-card-sub">How water levels are shown across the dashboard.</div>
-          <div className="settings-toggle-table">
-            <div className="settings-toggle-row">
-              <div className="settings-toggle-info">
-                <div className="settings-toggle-label">📏 Measurement Unit</div>
-                <div className="settings-toggle-sub">Applies to charts, map, and station panels</div>
-              </div>
-              <MuDropdown
-                value={user.unit_preference || "cm"}
-                options={["cm", "m", "ft", "in"]}
-                onChange={val => setConfirmUnit(val)}
-              />
-            </div>
-          </div>
-          <div style={{ fontSize: 10, color: "var(--text-3)", fontFamily: "var(--mono)", marginTop: 4 }}>
-            Thresholds and logs always stay in centimeters.
           </div>
         </div>
 
@@ -2813,10 +2817,11 @@ export default function App() {
             setUser(prev => {
               const merged = normalizeUser({
                 ...prev,
-                push_enabled:   me.notif_push_enabled,
-                audio_enabled:  me.notif_audio_enabled,
-                banner_enabled: me.notif_banner_enabled,
-                ticker_enabled: me.notif_ticker_enabled,
+                push_enabled:     me.notif_push_enabled,
+                audio_enabled:    me.notif_audio_enabled,
+                banner_enabled:   me.notif_banner_enabled,
+                ticker_enabled:   me.notif_ticker_enabled,
+                unit_preference:  me.unit_preference,
               });
               getStorage().setItem("user", JSON.stringify(merged));
               return merged;
@@ -2826,11 +2831,11 @@ export default function App() {
       } catch {
         // silent — retries next tick
       } finally {
-        timeoutId = setTimeout(pollProfile, 180000);
+        timeoutId = setTimeout(pollProfile, 60000);
       }
     };
 
-    timeoutId = setTimeout(pollProfile, 180000);
+    timeoutId = setTimeout(pollProfile, 60000);
     return () => { if (timeoutId) clearTimeout(timeoutId); };
   }, [token, user.email]);
 
@@ -4135,11 +4140,11 @@ const waterChartOptions = useMemo(() => ({
                     </div>
                     <div className="rsb-stat">
                       <span>Warning at</span>
-                      <strong style={{ color: "var(--amber)" }}>{thresholds.warning} cm</strong>
+                      <strong style={{ color: "var(--amber)" }}>{formatWaterLevel(thresholds.warning, "cm")}</strong>
                     </div>
                     <div className="rsb-stat">
                       <span>Danger at</span>
-                      <strong style={{ color: "var(--red)" }}>{thresholds.danger} cm</strong>
+                      <strong style={{ color: "var(--red)" }}>{formatWaterLevel(thresholds.danger, "cm")}</strong>
                     </div>
                     <div className="rsb-stat">
                       <span>Coordinates</span>
@@ -4297,11 +4302,11 @@ const waterChartOptions = useMemo(() => ({
                       </div>
                       <div className="map-fs-row">
                         <span className="map-fs-row-label">Warning</span>
-                        <span className="map-fs-row-val" style={{ color: "#f59e0b" }}>{thresholds.warning} cm</span>
+                        <span className="map-fs-row-val" style={{ color: "#f59e0b" }}>{formatWaterLevel(thresholds.warning, "cm")}</span>
                       </div>
                       <div className="map-fs-row">
                         <span className="map-fs-row-label">Danger</span>
-                        <span className="map-fs-row-val" style={{ color: "#ef4444" }}>{thresholds.danger} cm</span>
+                        <span className="map-fs-row-val" style={{ color: "#ef4444" }}>{formatWaterLevel(thresholds.danger, "cm")}</span>
                       </div>
                     </div>
                   );
