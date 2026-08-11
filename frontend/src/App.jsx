@@ -2633,13 +2633,23 @@ export default function App() {
 
   const [token, setToken] = useState(() => getStoredToken());
   const [sirens, setSirens] = useState({ 1: false });
-  const [manualFews, setManualFews] = useState([]);
+  const [manualFews, setManualFews] = useState(() => {
+    try {
+      const cached = sessionStorage.getItem("manualFews");
+      return cached ? JSON.parse(cached) : [];
+    } catch { return []; }
+  });
 
   const fetchManualUnits = useCallback(() => {
     if (!token) return;
     authFetch(`${API_BASE}/manual-units`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => r.ok ? r.json() : [])
-      .then(rows => { if (Array.isArray(rows)) setManualFews(rows); })
+      .then(rows => {
+        if (Array.isArray(rows)) {
+          setManualFews(rows);
+          try { sessionStorage.setItem("manualFews", JSON.stringify(rows)); } catch {}
+        }
+      })
       .catch(() => {});
   }, [token]);
 
@@ -2965,6 +2975,7 @@ export default function App() {
     sessionStorage.removeItem("fews1_initial_logged");
     sessionStorage.removeItem("fews1_had_data");
     sessionStorage.removeItem("activeNav");
+    sessionStorage.removeItem("manualFews");
     setIsLoggedIn(false);
     setUser(normalizeUser({}));
     setToken("");
@@ -3070,15 +3081,11 @@ export default function App() {
     let timeoutId = null;
 
     const poll = async () => {
-      if (activeNavRef.current !== "Dashboard") {
-        timeoutId = setTimeout(poll, 15000);
-        return;
-      }
       try {
         const res = await fetch(`${API_BASE}/data/latest`);
         if (!res.ok) throw new Error("non-200");
         const data = await res.json();
-        if (data.fews_1) {
+    if (data.fews_1) {
           const rawTs  = data.fews_1.timestamp;
           const utcStr = typeof rawTs === "string"
             ? rawTs.replace(" ", "T").replace(/Z?$/, "Z")
@@ -3126,10 +3133,6 @@ export default function App() {
     let statusFailCount = 0;
 
     const pollStatus = async () => {
-      if (activeNavRef.current !== "Dashboard") {
-        statusTimeoutId = setTimeout(pollStatus, 15000);
-        return;
-      }
       try {
         const res = await fetch(`${API_BASE}/status/fews1`);
         if (!res.ok) throw new Error("non-200");
@@ -3845,7 +3848,7 @@ const waterChartOptions = useMemo(() => ({
 
                   {hasEverHadData && fews1Connected && (
                     <div className="wl-legend-row">
-                      <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#ffffff", border: "1px solid rgba(255,255,255,0.4)" }} />Low</span>
+                      <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#ffffff", border: "1px solid rgba(255,255,255,0.4)" }} />Baseline</span>
                       <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#22c55e" }} />Safe</span>
                       <span className="wl-legend">
                         <span className="wl-legend-dot" style={{ background: "#f59e0b" }} />
