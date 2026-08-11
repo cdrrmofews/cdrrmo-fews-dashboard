@@ -2424,24 +2424,6 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
         )}
 
         <div className="page-card">
-          <div className="page-card-title">Display Preferences</div>
-          <div className="page-card-sub">How water levels are shown across the dashboard.</div>
-          <div className="settings-toggle-table">
-            <div className="settings-toggle-row">
-              <div className="settings-toggle-info">
-                <div className="settings-toggle-label">📏 Measurement Unit</div>
-                <div className="settings-toggle-sub">Thresholds and logs always stay in centimeters.</div>
-              </div>
-              <MuDropdown
-                value={user.unit_preference || "cm"}
-                options={["cm", "m", "ft", "in"]}
-                onChange={val => setConfirmUnit(val)}
-              />
-            </div>
-          </div>
-        </div>
-
-        <div className="page-card">
           <div className="page-card-title">Alert Preferences</div>
           <div className="page-card-sub">Control how you receive alerts from FEWS.</div>
           <div className="settings-toggle-table">
@@ -2464,6 +2446,24 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
                 </button>
               </div>
             ))}
+          </div>
+        </div>        
+
+        <div className="page-card">
+          <div className="page-card-title">Display Preferences</div>
+          <div className="page-card-sub">How water levels are shown across the dashboard.</div>
+          <div className="settings-toggle-table">
+            <div className="settings-toggle-row">
+              <div className="settings-toggle-info">
+                <div className="settings-toggle-label">📏 Measurement Unit</div>
+                <div className="settings-toggle-sub">Thresholds and logs always stay in centimeters.</div>
+              </div>
+              <MuDropdown
+                value={user.unit_preference || "cm"}
+                options={["cm", "m", "ft", "in"]}
+                onChange={val => setConfirmUnit(val)}
+              />
+            </div>
           </div>
         </div>
 
