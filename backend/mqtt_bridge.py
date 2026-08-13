@@ -121,7 +121,7 @@ def water_level_to_status_label(water_level_cm, threshold_warning=200, threshold
         return "CRITICAL"
     if water_level_cm > threshold_warning:
         return "WARNING"
-    return "SAFE"
+    return "NORMAL"
 
 def on_connect(client, userdata, flags, rc):
     if rc == 0:
@@ -202,7 +202,7 @@ def on_message(client, userdata, msg):
                                 """, (
                                     station_name,
                                     "system",
-                                    f"{station_name} siren has been automatically silenced by the device — water level returned to safe",
+                                    f"{station_name} siren has been automatically silenced by the device — water level returned to normal",
                                     "System",
                                 ))
                                 conn.commit()
@@ -354,7 +354,7 @@ def on_message(client, userdata, msg):
                         target=send_push_notifications,
                         args=(
                             "✅ CDRRMO FEWS UPDATE",
-                            f"{station_name} ({station_location}) — Water level has returned to SAFE at {water_level_cm} cm. {safe_msg}",
+                            f"{station_name} ({station_location}) — Water level has returned to NORMAL at {water_level_cm} cm. {safe_msg}",
                         ),
                         daemon=True,
                     ).start()

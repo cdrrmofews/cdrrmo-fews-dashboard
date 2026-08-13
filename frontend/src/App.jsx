@@ -228,7 +228,7 @@ const FEWS1_BASE = {
 };
 
 const STATUS_CONFIG = {
-  safe:     { color: "#eab308", bg: "rgba(234,179,8,0.12)",  label: "SAFE"     },
+  safe:     { color: "#eab308", bg: "rgba(234,179,8,0.12)",  label: "NORMAL"   },
   warning:  { color: "#f97316", bg: "rgba(249,115,22,0.12)", label: "WARNING"  },
   danger:   { color: "#ef4444", bg: "rgba(239,68,68,0.12)",  label: "DANGER"   },
   NORMAL:   { color: "#eab308", bg: "rgba(234,179,8,0.12)",  label: "NORMAL"   },
@@ -3383,14 +3383,14 @@ export default function App() {
         if (v == null) return "transparent";
         if (v > thresholds.danger)  return "#ef4444";
         if (v > thresholds.warning) return "#f59e0b";
-        return "#22c55e";
+        return "#eab308";
       },
       pointBorderColor: (ctx) => {
         const v = ctx.parsed?.y;
         if (v == null) return "transparent";
         if (v > thresholds.danger)  return "#ef4444";
         if (v > thresholds.warning) return "#f59e0b";
-        return "#22c55e";
+        return "#eab308";
       },
     }],
   }), [chartPoints, thresholds]);
@@ -3415,12 +3415,12 @@ const waterChartOptions = useMemo(() => ({
           },
           label: (ctx) => {
             const v = ctx.parsed.y;
-            const status = v > thresholds.danger ? "CRITICAL" : v > thresholds.warning ? "WARNING" : "SAFE";
+            const status = v > thresholds.danger ? "CRITICAL" : v > thresholds.warning ? "WARNING" : "NORMAL";
             return ` ${formatWaterLevel(v, user.unit_preference)}  [${status}]`;
           },
           labelColor: (ctx) => {
             const v = ctx.parsed.y;
-            const color = v > thresholds.danger ? "#ef4444" : v > thresholds.warning ? "#f59e0b" : "#22c55e";
+            const color = v > thresholds.danger ? "#ef4444" : v > thresholds.warning ? "#f59e0b" : "#eab308";
             return { borderColor: color, backgroundColor: color };
           },
         },
@@ -3702,9 +3702,9 @@ const waterChartOptions = useMemo(() => ({
                 width: "max-content",
               }}>
                 {doubled.map((d, i) => {
-                  const statusKey = d.value > thresholds.danger ? "CRITICAL" : d.value > thresholds.warning ? "WARNING" : "SAFE";
-                  const color = statusKey === "CRITICAL" ? "#ef4444" : statusKey === "WARNING" ? "#f59e0b" : "#22c55e";
-                  const borderColor = statusKey === "CRITICAL" ? "rgba(239,68,68,0.2)" : statusKey === "WARNING" ? "rgba(245,158,11,0.2)" : "rgba(34,197,94,0.2)";
+                  const statusKey = d.value > thresholds.danger ? "CRITICAL" : d.value > thresholds.warning ? "WARNING" : "NORMAL";
+                  const color = statusKey === "CRITICAL" ? "#ef4444" : statusKey === "WARNING" ? "#f59e0b" : "#eab308";
+                  const borderColor = statusKey === "CRITICAL" ? "rgba(239,68,68,0.2)" : statusKey === "WARNING" ? "rgba(245,158,11,0.2)" : "rgba(234,179,8,0.2)";
                   return (
                     <div key={i} className="ticker-card" style={{
                         background: `${color}0d`, border: `1px solid ${borderColor}`,
@@ -3849,7 +3849,7 @@ const waterChartOptions = useMemo(() => ({
                   {hasEverHadData && fews1Connected && (
                     <div className="wl-legend-row">
                       <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#ffffff", border: "1px solid rgba(255,255,255,0.4)" }} />Baseline</span>
-                      <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#eab308" }} />Safe</span>
+                      <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#eab308" }} />Normal</span>
                       <span className="wl-legend">
                         <span className="wl-legend-dot" style={{ background: "#f97316" }} />
                         <span className="wl-full">Warning</span><span className="wl-abbr">Warn</span>
@@ -3972,7 +3972,7 @@ const waterChartOptions = useMemo(() => ({
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          fontSize: worstStatus === "danger" ? "clamp(14px, 1.4vw, 28px)" : "clamp(17px, 1.7vw, 32px)",
+                          fontSize: worstStatus === "danger" ? "clamp(14px, 1.8vw, 40px)" : "clamp(17px, 2.1vw, 44px)",
                           fontWeight: 900,
                           fontFamily: cfg.iconFont || "var(--mono)",
                           lineHeight: 1,
@@ -3986,7 +3986,7 @@ const waterChartOptions = useMemo(() => ({
 
                       {/* Label */}
                       <div className="alarm-label" style={{
-                        fontSize: "clamp(14px, 1.5vw, 26px)",
+                        fontSize: "clamp(14px, 2vw, 38px)",
                         fontWeight: 800,
                         color: cfg.color,
                         fontFamily: "var(--mono)",
@@ -3998,7 +3998,7 @@ const waterChartOptions = useMemo(() => ({
 
                       {/* Dynamic sub message */}
                       <div className="alarm-sub" style={{
-                        fontSize: "clamp(10px, 0.95vw, 15px)",
+                        fontSize: "clamp(10px, 1.2vw, 20px)",
                         color: cfg.color,
                         textAlign: "center",
                         lineHeight: 1.5,
@@ -4336,7 +4336,7 @@ const waterChartOptions = useMemo(() => ({
                   {/* Legend — top center pill */}
                   <div className="map-fs-legend">
                     {[
-                      { color: "#22c55e", label: "Safe"    },
+                      { color: "#eab308", label: "Normal"  },
                       { color: "#f59e0b", label: "Warning" },
                       { color: "#ef4444", label: "Critical"},
                       { color: "#64748b", label: "Offline" },

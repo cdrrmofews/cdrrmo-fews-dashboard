@@ -2552,8 +2552,8 @@ select.settings-input {
 
   .card-map, .card-water, .card-battery { grid-column: auto; grid-row: auto; }
   .card-map     { height: 230px; }
-  .card-water   { height: 200px; }
-  .card-battery { height: 170px; }
+  .card-water   { height: 245px; }
+  .card-battery { height: 190px; }
   .card         { padding: 10px 12px; }
   .card-header  { margin-bottom: 5px; }
 
@@ -2570,7 +2570,7 @@ select.settings-input {
   .rsb-detail    { margin-top: 10px; }
 
   /* ── Charts & Map ── */
-  .chart-wrap { min-height: 130px; }
+  .chart-wrap { min-height: 150px; }
   .map-wrap   { min-height: 190px; }
 
   /* ── Page body ── */
