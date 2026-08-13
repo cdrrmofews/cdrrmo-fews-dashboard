@@ -230,7 +230,7 @@ const FEWS1_BASE = {
 const STATUS_CONFIG = {
   safe:     { color: "#eab308", bg: "rgba(234,179,8,0.12)",  label: "NORMAL"   },
   warning:  { color: "#f97316", bg: "rgba(249,115,22,0.12)", label: "WARNING"  },
-  danger:   { color: "#ef4444", bg: "rgba(239,68,68,0.12)",  label: "DANGER"   },
+  danger:   { color: "#ef4444", bg: "rgba(239,68,68,0.12)",  label: "CRITICAL" },
   NORMAL:   { color: "#eab308", bg: "rgba(234,179,8,0.12)",  label: "NORMAL"   },
   WARNING:  { color: "#f97316", bg: "rgba(249,115,22,0.12)", label: "WARNING"  },
   CRITICAL: { color: "#ef4444", bg: "rgba(239,68,68,0.12)",  label: "CRITICAL" },
@@ -327,9 +327,9 @@ function parseLog(row) {
 }
 
 const LOG_TYPE_CFG = {
-  info:    { label: "INFO",     color: "#94a3b8", bg: "rgba(148,163,184,0.10)" },
+  info:    { label: "NORMAL",   color: "#94a3b8", bg: "rgba(148,163,184,0.10)" },
   warning: { label: "WARNING",  color: "#f59e0b", bg: "rgba(245,158,11,0.12)" },
-  danger:  { label: "DANGER",   color: "#ef4444", bg: "rgba(239,68,68,0.12)"  },
+  danger:  { label: "CRITICAL", color: "#ef4444", bg: "rgba(239,68,68,0.12)"  },
   system:  { label: "ACTIVITY", color: "#38bdf8", bg: "rgba(56,189,248,0.12)" },
 };
 
@@ -495,7 +495,7 @@ function LogsPage({ token, userRole, showToast }) {
 
   const typeOptions = [
     { value: "All", label: "All Types" },
-    ...allowedTypes.map(t => ({ value: t, label: t.charAt(0).toUpperCase() + t.slice(1) })),
+    ...allowedTypes.map(t => ({ value: t, label: LOG_TYPE_CFG[t]?.label || t })),
   ];
 
   const hasFilters = debouncedSearch || filterStation !== "All" || filterType !== "All" || filterDateRange.from || filterDateRange.to;
@@ -1879,7 +1879,7 @@ function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userNa
                       </div>
                     </div>
                     <div className="uc-thr-field">
-                      <label className="uc-thr-field-label">🔴 Danger ({unitPreference})</label>
+                      <label className="uc-thr-field-label">🔴 Critical ({unitPreference})</label>
                       <div className="uc-thr-stepper">
                         <button type="button" className="uc-thr-step-btn"
                           disabled={!isActuallyLive || thr.danger <= 200}
@@ -3850,10 +3850,7 @@ const waterChartOptions = useMemo(() => ({
                     <div className="wl-legend-row">
                       <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#ffffff", border: "1px solid rgba(255,255,255,0.4)" }} />Baseline</span>
                       <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#eab308" }} />Normal</span>
-                      <span className="wl-legend">
-                        <span className="wl-legend-dot" style={{ background: "#f97316" }} />
-                        <span className="wl-full">Warning</span><span className="wl-abbr">Warn</span>
-                      </span>
+                      <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#f97316" }} />Warning</span>
                       <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#ef4444" }} />Danger</span>
                     </div>
                   )}
@@ -4164,7 +4161,7 @@ const waterChartOptions = useMemo(() => ({
                       <strong style={{ color: "var(--amber)" }}>{formatWaterLevel(thresholds.warning, user.unit_preference)}</strong>
                     </div>
                     <div className="rsb-stat">
-                      <span>Danger at</span>
+                      <span>Critical at</span>
                       <strong style={{ color: "var(--red)" }}>{formatWaterLevel(thresholds.danger, user.unit_preference)}</strong>
                     </div>
                     <div className="rsb-stat">
@@ -4325,10 +4322,10 @@ const waterChartOptions = useMemo(() => ({
                         <span className="map-fs-row-label">Warning</span>
                         <span className="map-fs-row-val" style={{ color: "#f59e0b" }}>{formatWaterLevel(thresholds.danger, user.unit_preference)}</span>
                       </div>
-                      <div className="map-fs-row">
-                        <span className="map-fs-row-label">Danger</span>
-                        <span className="map-fs-row-val" style={{ color: "#ef4444" }}>{formatWaterLevel(thresholds.danger, user.unit_preference)}</span>
-                      </div>
+                     <div className="map-fs-row">
+                      <span className="map-fs-row-label">Critical</span>
+                      <span className="map-fs-row-val" style={{ color: "#ef4444" }}>{formatWaterLevel(thresholds.danger, user.unit_preference)}</span>
+                    </div>
                     </div>
                   );
                 })()}
