@@ -228,11 +228,11 @@ const FEWS1_BASE = {
 };
 
 const STATUS_CONFIG = {
-  safe:     { color: "#22c55e", bg: "rgba(34,197,94,0.12)",  label: "SAFE"     },
-  warning:  { color: "#f59e0b", bg: "rgba(245,158,11,0.12)", label: "WARNING"  },
+  safe:     { color: "#eab308", bg: "rgba(234,179,8,0.12)",  label: "SAFE"     },
+  warning:  { color: "#f97316", bg: "rgba(249,115,22,0.12)", label: "WARNING"  },
   danger:   { color: "#ef4444", bg: "rgba(239,68,68,0.12)",  label: "DANGER"   },
-  NORMAL:   { color: "#22c55e", bg: "rgba(34,197,94,0.12)",  label: "NORMAL"   },
-  WARNING:  { color: "#f59e0b", bg: "rgba(245,158,11,0.12)", label: "WARNING"  },
+  NORMAL:   { color: "#eab308", bg: "rgba(234,179,8,0.12)",  label: "NORMAL"   },
+  WARNING:  { color: "#f97316", bg: "rgba(249,115,22,0.12)", label: "WARNING"  },
   CRITICAL: { color: "#ef4444", bg: "rgba(239,68,68,0.12)",  label: "CRITICAL" },
 };
 
@@ -3428,10 +3428,10 @@ const waterChartOptions = useMemo(() => ({
       annotation: {
         annotations: {
           zoneLow:     { type: "box", yMin: 0,                    yMax: Math.min(100, thresholds.warning), backgroundColor: "rgba(255,255,255,0.60)", borderWidth: 0 },
-          zoneSafe:    { type: "box", yMin: Math.min(100, thresholds.warning), yMax: thresholds.warning, backgroundColor: "rgba(34,197,94,0.60)",  borderWidth: 0 },
-          zoneWarning: { type: "box", yMin: thresholds.warning,   yMax: thresholds.danger,  backgroundColor: "rgba(245,158,11,0.60)", borderWidth: 0 },
+          zoneSafe:    { type: "box", yMin: Math.min(100, thresholds.warning), yMax: thresholds.warning, backgroundColor: "rgba(234,179,8,0.60)",  borderWidth: 0 },
+          zoneWarning: { type: "box", yMin: thresholds.warning,   yMax: thresholds.danger,  backgroundColor: "rgba(249,115,22,0.60)", borderWidth: 0 },
           zoneCritical:{ type: "box", yMin: thresholds.danger,    yMax: 700,                backgroundColor: "rgba(239,68,68,0.60)",  borderWidth: 0 },
-          lineWarning: { type: "line", yMin: thresholds.warning, yMax: thresholds.warning, borderColor: "rgba(245,158,11,0.80)", borderWidth: 2, borderDash: [4, 4], label: { display: false } },
+          lineWarning: { type: "line", yMin: thresholds.warning, yMax: thresholds.warning, borderColor: "rgba(249,115,22,0.80)", borderWidth: 2, borderDash: [4, 4], label: { display: false } },
           lineCritical:{ type: "line", yMin: thresholds.danger,  yMax: thresholds.danger,  borderColor: "rgba(239,68,68,0.80)",  borderWidth: 2, borderDash: [4, 4], label: { display: false } },
         },
       },
@@ -3444,12 +3444,12 @@ const waterChartOptions = useMemo(() => ({
           color: (ctx) => {
             const v = ctx.tick.value;
             if (v > thresholds.danger)  return "#ef4444";
-            if (v > thresholds.warning) return "#f59e0b";
-            return "#22c55e";
+            if (v > thresholds.warning) return "#f97316";
+            return "#eab308";
           },
           font: { size: 10 },
           callback: (v) => formatWaterLevel(v, user.unit_preference),
-          stepSize: 100,
+          stepSize: 50,
         },
       },
       x: {
@@ -3849,9 +3849,9 @@ const waterChartOptions = useMemo(() => ({
                   {hasEverHadData && fews1Connected && (
                     <div className="wl-legend-row">
                       <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#ffffff", border: "1px solid rgba(255,255,255,0.4)" }} />Baseline</span>
-                      <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#22c55e" }} />Safe</span>
+                      <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#eab308" }} />Safe</span>
                       <span className="wl-legend">
-                        <span className="wl-legend-dot" style={{ background: "#f59e0b" }} />
+                        <span className="wl-legend-dot" style={{ background: "#f97316" }} />
                         <span className="wl-full">Warning</span><span className="wl-abbr">Warn</span>
                       </span>
                       <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#ef4444" }} />Danger</span>
@@ -3885,21 +3885,21 @@ const waterChartOptions = useMemo(() => ({
               {(() => {
                 const ALARM_CFG = {
                   safe: {
-                    color:  "#34d399",
-                    bg:     "rgba(34,197,94,0.60)",
-                    border: "rgba(34,197,94,0.70)",
-                    sqBg:   "rgba(34,197,94,0.65)",
-                    sqBor:  "rgba(34,197,94,0.80)",
+                    color:  "#facc15",
+                    bg:     "rgba(234,179,8,0.60)",
+                    border: "rgba(234,179,8,0.70)",
+                    sqBg:   "rgba(234,179,8,0.65)",
+                    sqBor:  "rgba(234,179,8,0.80)",
                     label:  "ALL CLEAR",
                     icon:   "✓",
                     anim:   false,
                   },
                   warning: {
-                    color:  "#fcd34d",
-                    bg:     "rgba(245,158,11,0.60)",
-                    border: "rgba(245,158,11,0.70)",
-                    sqBg:   "rgba(245,158,11,0.65)",
-                    sqBor:  "rgba(245,158,11,0.80)",
+                    color:  "#fb923c",
+                    bg:     "rgba(249,115,22,0.60)",
+                    border: "rgba(249,115,22,0.70)",
+                    sqBg:   "rgba(249,115,22,0.65)",
+                    sqBor:  "rgba(249,115,22,0.80)",
                     label:  "WARNING",
                     icon:   "!",
                     anim:   true,
