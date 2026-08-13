@@ -3851,7 +3851,7 @@ const waterChartOptions = useMemo(() => ({
                       <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#ffffff", border: "1px solid rgba(255,255,255,0.4)" }} />Baseline</span>
                       <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#eab308" }} />Normal</span>
                       <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#f97316" }} />Warning</span>
-                      <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#ef4444" }} />Danger</span>
+                      <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#ef4444" }} />Critical</span>
                     </div>
                   )}
 

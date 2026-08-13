@@ -2552,7 +2552,7 @@ select.settings-input {
 
   .card-map, .card-water, .card-battery { grid-column: auto; grid-row: auto; }
   .card-map     { height: 230px; }
-  .card-water   { height: 310px; }
+  .card-water   { height: 300px; }
   .card-battery { height: 215px; }
   .card         { padding: 10px 12px; }
   .card-header  { margin-bottom: 5px; }
