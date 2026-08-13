@@ -3972,7 +3972,7 @@ const waterChartOptions = useMemo(() => ({
                           display: "flex",
                           alignItems: "center",
                           justifyContent: "center",
-                          fontSize: worstStatus === "danger" ? "clamp(14px, 1.8vw, 40px)" : "clamp(17px, 2.1vw, 44px)",
+                          fontSize: worstStatus === "danger" ? "clamp(14px, 1.4vw, 28px)" : "clamp(17px, 1.7vw, 32px)",
                           fontWeight: 900,
                           fontFamily: cfg.iconFont || "var(--mono)",
                           lineHeight: 1,
@@ -3986,7 +3986,7 @@ const waterChartOptions = useMemo(() => ({
 
                       {/* Label */}
                       <div className="alarm-label" style={{
-                        fontSize: "clamp(14px, 2vw, 38px)",
+                        fontSize: "clamp(14px, 1.5vw, 26px)",
                         fontWeight: 800,
                         color: cfg.color,
                         fontFamily: "var(--mono)",
@@ -3998,7 +3998,7 @@ const waterChartOptions = useMemo(() => ({
 
                       {/* Dynamic sub message */}
                       <div className="alarm-sub" style={{
-                        fontSize: "clamp(10px, 1.2vw, 20px)",
+                        fontSize: "clamp(10px, 0.95vw, 15px)",
                         color: cfg.color,
                         textAlign: "center",
                         lineHeight: 1.5,
