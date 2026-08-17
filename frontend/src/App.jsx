@@ -228,13 +228,28 @@ const FEWS1_BASE = {
 };
 
 const STATUS_CONFIG = {
-  safe:     { color: "#eab308", bg: "rgba(234,179,8,0.12)",  label: "NORMAL"   },
+  base:     { color: "#e2e8f0", bg: "rgba(226,232,240,0.12)", label: "BASE"     },
+  safe:     { color: "#fde047", bg: "rgba(253,224,71,0.12)",  label: "NORMAL"   },
   warning:  { color: "#f97316", bg: "rgba(249,115,22,0.12)", label: "WARNING"  },
   danger:   { color: "#ef4444", bg: "rgba(239,68,68,0.12)",  label: "CRITICAL" },
-  NORMAL:   { color: "#eab308", bg: "rgba(234,179,8,0.12)",  label: "NORMAL"   },
+  NORMAL:   { color: "#fde047", bg: "rgba(253,224,71,0.12)",  label: "NORMAL"   },
   WARNING:  { color: "#f97316", bg: "rgba(249,115,22,0.12)", label: "WARNING"  },
   CRITICAL: { color: "#ef4444", bg: "rgba(239,68,68,0.12)",  label: "CRITICAL" },
 };
+
+const BASELINE_CM = 100;
+
+function getBaselineCutoff(thresholds) {
+  return Math.min(BASELINE_CM, thresholds.warning);
+}
+
+// Only downgrades a live, "safe" reading into "base" when it's below the
+// baseline cutoff. Warning/danger/offline pass through unchanged.
+function getDisplayStatus(status, waterLevel, isActuallyLive, thresholds) {
+  if (!isActuallyLive) return status;
+  if (status === "safe" && waterLevel < getBaselineCutoff(thresholds)) return "base";
+  return status;
+}
 
 const CM_PER_UNIT = { cm: 1, m: 100, ft: 30.48, in: 2.54 };
 const UNIT_DECIMALS = { cm: 0, m: 2, ft: 1, in: 1 };
@@ -1770,10 +1785,11 @@ function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userNa
 
         {!initialLoad && liveFewsOnly.map(f => {
           const localData = fewsData.find(x => x.id === f.id) || f;
-          const cfg = STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"];
           const thr = thresholds[f.id];
-          const ed  = editing[f.id];
           const isActuallyLive = f.isLive && fews1Connected;
+          const displayStatus = getDisplayStatus(f.status, f.waterLevel, isActuallyLive, thr);
+          const cfg = STATUS_CONFIG[displayStatus] || STATUS_CONFIG["safe"];
+          const ed  = editing[f.id];
           return (
             <div key={f.id} className={`uc-card ${!isActuallyLive ? "uc-card-offline" : ""}`} style={{ "--status-color": cfg.color }}>
               <div className="uc-card-header">
@@ -3383,14 +3399,16 @@ export default function App() {
         if (v == null) return "transparent";
         if (v > thresholds.danger)  return "#ef4444";
         if (v > thresholds.warning) return "#f59e0b";
-        return "#eab308";
+        if (v < getBaselineCutoff(thresholds)) return "#e2e8f0";
+        return "#fde047";
       },
       pointBorderColor: (ctx) => {
         const v = ctx.parsed?.y;
         if (v == null) return "transparent";
         if (v > thresholds.danger)  return "#ef4444";
         if (v > thresholds.warning) return "#f59e0b";
-        return "#eab308";
+        if (v < getBaselineCutoff(thresholds)) return "#e2e8f0";
+        return "#fde047";
       },
     }],
   }), [chartPoints, thresholds]);
@@ -3415,12 +3433,12 @@ const waterChartOptions = useMemo(() => ({
           },
           label: (ctx) => {
             const v = ctx.parsed.y;
-            const status = v > thresholds.danger ? "CRITICAL" : v > thresholds.warning ? "WARNING" : "NORMAL";
+            const status = v > thresholds.danger ? "CRITICAL" : v > thresholds.warning ? "WARNING" : v < getBaselineCutoff(thresholds) ? "BASE" : "NORMAL";
             return ` ${formatWaterLevel(v, user.unit_preference)}  [${status}]`;
           },
           labelColor: (ctx) => {
             const v = ctx.parsed.y;
-            const color = v > thresholds.danger ? "#ef4444" : v > thresholds.warning ? "#f59e0b" : "#eab308";
+            const color = v > thresholds.danger ? "#ef4444" : v > thresholds.warning ? "#f59e0b" : v < getBaselineCutoff(thresholds) ? "#e2e8f0" : "#fde047";
             return { borderColor: color, backgroundColor: color };
           },
         },
@@ -3428,7 +3446,7 @@ const waterChartOptions = useMemo(() => ({
       annotation: {
         annotations: {
           zoneLow:     { type: "box", yMin: 0,                    yMax: Math.min(100, thresholds.warning), backgroundColor: "rgba(255,255,255,0.60)", borderWidth: 0 },
-          zoneSafe:    { type: "box", yMin: Math.min(100, thresholds.warning), yMax: thresholds.warning, backgroundColor: "rgba(234,179,8,0.60)",  borderWidth: 0 },
+          zoneSafe:    { type: "box", yMin: Math.min(100, thresholds.warning), yMax: thresholds.warning, backgroundColor: "rgba(253,224,71,0.60)",  borderWidth: 0 },
           zoneWarning: { type: "box", yMin: thresholds.warning,   yMax: thresholds.danger,  backgroundColor: "rgba(249,115,22,0.60)", borderWidth: 0 },
           zoneCritical:{ type: "box", yMin: thresholds.danger,    yMax: 700,                backgroundColor: "rgba(239,68,68,0.60)",  borderWidth: 0 },
           lineWarning: { type: "line", yMin: thresholds.warning, yMax: thresholds.warning, borderColor: "rgba(249,115,22,0.80)", borderWidth: 2, borderDash: [4, 4], label: { display: false } },
@@ -3445,7 +3463,8 @@ const waterChartOptions = useMemo(() => ({
             const v = ctx.tick.value;
             if (v > thresholds.danger)  return "#ef4444";
             if (v > thresholds.warning) return "#f97316";
-            return "#eab308";
+            if (v < getBaselineCutoff(thresholds)) return "#e2e8f0";
+            return "#fde047";
           },
           font: { size: 10 },
           callback: (v) => formatWaterLevel(v, user.unit_preference),
@@ -3702,9 +3721,9 @@ const waterChartOptions = useMemo(() => ({
                 width: "max-content",
               }}>
                 {doubled.map((d, i) => {
-                  const statusKey = d.value > thresholds.danger ? "CRITICAL" : d.value > thresholds.warning ? "WARNING" : "NORMAL";
-                  const color = statusKey === "CRITICAL" ? "#ef4444" : statusKey === "WARNING" ? "#f59e0b" : "#eab308";
-                  const borderColor = statusKey === "CRITICAL" ? "rgba(239,68,68,0.2)" : statusKey === "WARNING" ? "rgba(245,158,11,0.2)" : "rgba(234,179,8,0.2)";
+                  const statusKey = d.value > thresholds.danger ? "CRITICAL" : d.value > thresholds.warning ? "WARNING" : d.value < getBaselineCutoff(thresholds) ? "BASE" : "NORMAL";
+                  const color = statusKey === "CRITICAL" ? "#ef4444" : statusKey === "WARNING" ? "#f59e0b" : statusKey === "BASE" ? "#e2e8f0" : "#fde047";
+                  const borderColor = statusKey === "CRITICAL" ? "rgba(239,68,68,0.2)" : statusKey === "WARNING" ? "rgba(245,158,11,0.2)" : statusKey === "BASE" ? "rgba(226,232,240,0.2)" : "rgba(253,224,71,0.2)";
                   return (
                     <div key={i} className="ticker-card" style={{
                         background: `${color}0d`, border: `1px solid ${borderColor}`,
@@ -3761,17 +3780,21 @@ const waterChartOptions = useMemo(() => ({
                     <OpenPopup fews={selectedStation} markerRefs={markerRefs} />
                     {allFews.map(f => {
                       const isManualServiceable = !f.isLive && f.manualStatus === "serviceable";
-                      const cfg            = STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"];
-                      const isSel          = selectedFEWS === f.id;
                       const isActuallyLive = f.isLive && isHardwareOnline;
+                      const displayStatus  = f.isLive ? getDisplayStatus(f.status, f.waterLevel, isActuallyLive, thresholds) : f.status;
+                      const cfg            = STATUS_CONFIG[displayStatus] || STATUS_CONFIG["safe"];
+                      const isSel          = selectedFEWS === f.id;
                       const markerColor    = f.isLive
                         ? (isActuallyLive ? cfg.color : "#64748b")
                         : (isManualServiceable ? "#38bdf8" : "#64748b");
+                      const isBaseLive = isActuallyLive && displayStatus === "base";
+                      const popupTextColor = isBaseLive ? "#1e293b" : markerColor;
+                      const markerBorderColor = isBaseLive ? "#94a3b8" : "white";
                       const showPulse = isActuallyLive || isManualServiceable;
                       const icon = L.divIcon({
                         className: "",
                         html: `<div style="position:relative;width:${isSel?"18px":"14px"};height:${isSel?"18px":"14px"}">
-                          <div style="position:absolute;inset:0;border-radius:50%;background:${markerColor};border:2px solid white;box-shadow:0 0 ${isSel?"12px":"8px"} ${markerColor};z-index:2"></div>
+                          <div style="position:absolute;inset:0;border-radius:50%;background:${markerColor};border:2px solid ${markerBorderColor};box-shadow:0 0 ${isSel?"12px":"8px"} ${markerColor};z-index:2"></div>
                           ${showPulse ? `<div class="radar-pulse" style="width:${isSel?"18px":"14px"};height:${isSel?"18px":"14px"};background:${markerColor};top:0;left:0;"></div>` : ""}
                         </div>`,
                         iconSize: [isSel?18:14, isSel?18:14],
@@ -3795,11 +3818,11 @@ const waterChartOptions = useMemo(() => ({
                                     {f.location}
                                   </div>
                                   <div style={{ display:"flex", alignItems:"baseline", gap:4, marginBottom:3 }}>
-                                    <span style={{ fontSize:"clamp(22px, 1.8vw, 28px)", fontWeight:800, lineHeight:1, color: isHardwareOnline ? markerColor : "#94a3b8" }}>
+                                    <span style={{ fontSize:"clamp(22px, 1.8vw, 28px)", fontWeight:800, lineHeight:1, color: isHardwareOnline ? popupTextColor : "#94a3b8" }}>
                                       {isHardwareOnline ? convertCm(f.waterLevel, user.unit_preference)?.toFixed(UNIT_DECIMALS[user.unit_preference] ?? 0) : "—"}
                                     </span>
                                     {isHardwareOnline && (
-                                      <span style={{ fontSize:"clamp(11px, 0.9vw, 13px)", fontWeight:600, color: markerColor }}>{user.unit_preference}</span>
+                                      <span style={{ fontSize:"clamp(11px, 0.9vw, 13px)", fontWeight:600, color: popupTextColor }}>{user.unit_preference}</span>
                                     )}
                                   </div>
                                 </>
@@ -3829,7 +3852,7 @@ const waterChartOptions = useMemo(() => ({
                                   setCopiedId(null);
                                   copiedTimerRef.current = null;
                                 }, 1500);
-                              }} style={{ marginTop:"4px", padding:"3px 8px", background: markerColor, color:"#ffffff", border:"none", outline:"none", boxShadow:"none", borderRadius:"4px", cursor:"pointer", fontWeight:"700", fontSize:"clamp(10px, 0.85vw, 12px)", width:"100%", transition:"background 0.2s" }}>
+                              }} style={{ marginTop:"4px", padding:"3px 8px", background: markerColor, color: isBaseLive ? "#1e293b" : "#ffffff", border:"none", outline:"none", boxShadow:"none", borderRadius:"4px", cursor:"pointer", fontWeight:"700", fontSize:"clamp(10px, 0.85vw, 12px)", width:"100%", transition:"background 0.2s" }}>
                                 {copiedId===f.id ? "Copied!" : "Copy Coordinates"}
                               </button>
                             </div>
@@ -3849,7 +3872,7 @@ const waterChartOptions = useMemo(() => ({
                   {hasEverHadData && fews1Connected && (
                     <div className="wl-legend-row">
                       <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#ffffff", border: "1px solid rgba(255,255,255,0.4)" }} />Baseline</span>
-                      <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#eab308" }} />Normal</span>
+                      <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#fde047" }} />Normal</span>
                       <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#f97316" }} />Warning</span>
                       <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#ef4444" }} />Critical</span>
                     </div>
@@ -3881,12 +3904,22 @@ const waterChartOptions = useMemo(() => ({
              {/* ─── ALARM STATUS ─── */}
               {(() => {
                 const ALARM_CFG = {
+                  base: {
+                    color:  "#e2e8f0",
+                    bg:     "rgba(226,232,240,0.60)",
+                    border: "rgba(226,232,240,0.70)",
+                    sqBg:   "rgba(226,232,240,0.65)",
+                    sqBor:  "rgba(226,232,240,0.80)",
+                    label:  "BASE",
+                    icon:   "✓",
+                    anim:   false,
+                  },
                   safe: {
-                    color:  "#facc15",
-                    bg:     "rgba(234,179,8,0.60)",
-                    border: "rgba(234,179,8,0.70)",
-                    sqBg:   "rgba(234,179,8,0.65)",
-                    sqBor:  "rgba(234,179,8,0.80)",
+                    color:  "#fde047",
+                    bg:     "rgba(253,224,71,0.60)",
+                    border: "rgba(253,224,71,0.70)",
+                    sqBg:   "rgba(253,224,71,0.65)",
+                    sqBor:  "rgba(253,224,71,0.80)",
                     label:  "ALL CLEAR",
                     icon:   "✓",
                     anim:   false,
@@ -3925,8 +3958,9 @@ const waterChartOptions = useMemo(() => ({
                 };
 
                 const fews1 = allFews.find(f => f.id === 1);
-                const worstStatus = fews1 && fews1.isLive && isHardwareOnline
-                  ? fews1.status
+                const isFews1ActuallyLive = fews1 && fews1.isLive && isHardwareOnline;
+                const worstStatus = isFews1ActuallyLive
+                  ? getDisplayStatus(fews1.status, fews1.waterLevel, isFews1ActuallyLive, thresholds)
                   : "offline";
 
                 const cfg = ALARM_CFG[worstStatus];
@@ -3934,6 +3968,7 @@ const waterChartOptions = useMemo(() => ({
                 // Build dynamic sub message based on affected stations
                 const buildSub = () => {
                   if (worstStatus === "offline") return "FEWS 1 is offline.";
+                  if (worstStatus === "base")    return "Water level is at baseline, well below normal levels.";
                   if (worstStatus === "safe")    return "No critical advisories at this time.";
                   if (worstStatus === "warning") return "Water level is rising for FEWS 1.";
                   return "Immediate action required for FEWS 1.";
@@ -4021,9 +4056,10 @@ const waterChartOptions = useMemo(() => ({
                   const manualFews = allFews.filter(f => !f.isLive);
 
                   const renderItem = (f) => {
-                    const cfg   = STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"];
                     const isSel = selectedFEWS === f.id;
                     const isActuallyLive = f.isLive && isHardwareOnline;
+                    const displayStatus = f.isLive ? getDisplayStatus(f.status, f.waterLevel, isActuallyLive, thresholds) : f.status;
+                    const cfg   = STATUS_CONFIG[displayStatus] || STATUS_CONFIG["safe"];
                     return (
                       <button key={f.id} className={`rsb-item ${isSel ? "selected" : ""}`}
                         onClick={() => {
@@ -4127,9 +4163,10 @@ const waterChartOptions = useMemo(() => ({
                   );
                 }
 
-                const cfg     = STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"];
                 const sirenOn = sirens[f.id];
                 const isActuallyLive = f.isLive && isHardwareOnline;
+                const displayStatus = getDisplayStatus(f.status, f.waterLevel, isActuallyLive, thresholds);
+                const cfg     = STATUS_CONFIG[displayStatus] || STATUS_CONFIG["safe"];
                 const canSiren = can(user.role, "sirenControl");
                 return (
                   <div className="rsb-detail" style={{ "--status-color": isActuallyLive ? cfg.color : "var(--text-3)" }}>
@@ -4214,16 +4251,18 @@ const waterChartOptions = useMemo(() => ({
                     <OpenAllPopups fewsList={allFews} markerRefs={fsMarkerRefs} active={fullscreenMap} />
                     {allFews.map(f => {
                       const isManualServiceable = !f.isLive && f.manualStatus === "serviceable";
-                      const cfg = STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"];
                       const isActuallyLive = f.isLive && isHardwareOnline;
+                      const displayStatus = f.isLive ? getDisplayStatus(f.status, f.waterLevel, isActuallyLive, thresholds) : f.status;
+                      const cfg = STATUS_CONFIG[displayStatus] || STATUS_CONFIG["safe"];
                       const markerColor = f.isLive
                         ? (isActuallyLive ? cfg.color : "#64748b")
                         : (isManualServiceable ? "#38bdf8" : "#64748b");
+                      const markerBorderColor = (isActuallyLive && displayStatus === "base") ? "#94a3b8" : "white";
                       const showPulse = isActuallyLive || isManualServiceable;
                       const icon = L.divIcon({
                         className: "",
                         html: `<div style="position:relative;width:14px;height:14px">
-                          <div style="position:absolute;inset:0;border-radius:50%;background:${markerColor};border:2px solid white;box-shadow:0 0 8px ${markerColor};z-index:2"></div>
+                          <div style="position:absolute;inset:0;border-radius:50%;background:${markerColor};border:2px solid ${markerBorderColor};box-shadow:0 0 8px ${markerColor};z-index:2"></div>
                           ${showPulse ? `<div class="radar-pulse" style="width:14px;height:14px;background:${markerColor};top:0;left:0;"></div>` : ""}
                         </div>`,
                         iconSize: [14, 14],
@@ -4289,24 +4328,27 @@ const waterChartOptions = useMemo(() => ({
                     );
                   }
 
-                  const cfg = STATUS_CONFIG[f.status] || STATUS_CONFIG["safe"];
                   const isActuallyLive = f.isLive && isHardwareOnline;
+                  const displayStatus = getDisplayStatus(f.status, f.waterLevel, isActuallyLive, thresholds);
+                  const cfg = STATUS_CONFIG[displayStatus] || STATUS_CONFIG["safe"];
+                  const isBaseLive = isActuallyLive && displayStatus === "base";
+                  const fsTextColor = isBaseLive ? "#1e293b" : cfg.color;
                   return (
                     <div className="map-fs-station">
                       <div className="map-fs-station-name">
-                        <div style={{ width:9, height:9, borderRadius:"50%", background: isActuallyLive ? cfg.color : "#94a3b8", flexShrink:0 }} />
+                        <div style={{ width:9, height:9, borderRadius:"50%", background: isActuallyLive ? cfg.color : "#94a3b8", border: isBaseLive ? "1px solid #94a3b8" : "none", flexShrink:0 }} />
                         {f.name}
-                        <span className="map-fs-live" style={{ background: isActuallyLive ? `${cfg.color}22` : "rgba(0,0,0,0.06)", color: isActuallyLive ? cfg.color : "#94a3b8" }}>
+                        <span className="map-fs-live" style={{ background: isActuallyLive ? `${cfg.color}22` : "rgba(0,0,0,0.06)", color: isActuallyLive ? fsTextColor : "#94a3b8" }}>
                           {isActuallyLive ? "● LIVE" : "◌ WAITING"}
                         </span>
                       </div>
                       <div className="map-fs-water">
-                        <span className="map-fs-water-val" style={{ color: isActuallyLive ? cfg.color : "#94a3b8" }}>
+                        <span className="map-fs-water-val" style={{ color: isActuallyLive ? fsTextColor : "#94a3b8" }}>
                           {isActuallyLive ? convertCm(f.waterLevel, user.unit_preference)?.toFixed(UNIT_DECIMALS[user.unit_preference] ?? 0) : "—"}
                         </span>
                         {isActuallyLive && <span className="map-fs-water-unit">{user.unit_preference}</span>}
                       </div>
-                      <span className="map-fs-status" style={{ background: isActuallyLive ? `${cfg.color}18` : "rgba(0,0,0,0.06)", color: isActuallyLive ? cfg.color : "#94a3b8", border: `1px solid ${isActuallyLive ? cfg.color + "35" : "rgba(0,0,0,0.08)"}` }}>
+                      <span className="map-fs-status" style={{ background: isActuallyLive ? `${cfg.color}18` : "rgba(0,0,0,0.06)", color: isActuallyLive ? fsTextColor : "#94a3b8", border: `1px solid ${isActuallyLive ? cfg.color + "35" : "rgba(0,0,0,0.08)"}` }}>
                         {isActuallyLive ? cfg.label : "OFFLINE"}
                       </span>
                       <div className="map-fs-divider" />
@@ -4320,7 +4362,7 @@ const waterChartOptions = useMemo(() => ({
                       </div>
                       <div className="map-fs-row">
                         <span className="map-fs-row-label">Warning</span>
-                        <span className="map-fs-row-val" style={{ color: "#f59e0b" }}>{formatWaterLevel(thresholds.danger, user.unit_preference)}</span>
+                        <span className="map-fs-row-val" style={{ color: "#f59e0b" }}>{formatWaterLevel(thresholds.warning, user.unit_preference)}</span>
                       </div>
                      <div className="map-fs-row">
                       <span className="map-fs-row-label">Critical</span>
@@ -4333,10 +4375,11 @@ const waterChartOptions = useMemo(() => ({
                   {/* Legend — top center pill */}
                   <div className="map-fs-legend">
                     {[
-                      { color: "#eab308", label: "Normal"  },
-                      { color: "#f59e0b", label: "Warning" },
-                      { color: "#ef4444", label: "Critical"},
-                      { color: "#64748b", label: "Offline" },
+                      { color: "#e2e8f0", label: "Base"     },
+                      { color: "#fde047", label: "Normal"   },
+                      { color: "#f59e0b", label: "Warning"  },
+                      { color: "#ef4444", label: "Critical" },
+                      { color: "#64748b", label: "Offline"  },
                     ].map(({ color, label }) => (
                       <div key={label} className="map-fs-legend-item">
                         <div className="map-fs-legend-dot" style={{ background: color }} />
