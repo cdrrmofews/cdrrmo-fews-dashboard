@@ -547,6 +547,70 @@ def fews1_status():
         "online":    age < 180,
         "last_seen": last,
     }
+
+# --- STATISTICS ---
+
+def _pick_bucket(date_from: str, date_to: str) -> str:
+    """Auto-select bucket size based on range length."""
+    d_from = datetime.strptime(date_from, "%Y-%m-%d")
+    d_to   = datetime.strptime(date_to,   "%Y-%m-%d")
+    days   = (d_to - d_from).days
+    if days <= 60:
+        return "day"
+    if days <= 180:
+        return "week"
+    return "month"
+
+@app.get("/stats/water-level")
+def water_level_stats(
+    date_from: str,
+    date_to:   str,
+    bucket:    str = "auto",
+    user=Depends(get_current_user)
+):
+    if bucket not in ("auto", "day", "week", "month"):
+        raise HTTPException(status_code=400, detail="bucket must be one of: auto, day, week, month")
+    try:
+        datetime.strptime(date_from, "%Y-%m-%d")
+        datetime.strptime(date_to,   "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="date_from and date_to must be YYYY-MM-DD")
+
+    resolved_bucket = _pick_bucket(date_from, date_to) if bucket == "auto" else bucket
+
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT
+                date_trunc(%s, timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila') as period,
+                MIN(water_level_cm) as low,
+                MAX(water_level_cm) as high,
+                AVG(water_level_cm) as avg
+            FROM sensor_readings
+            WHERE device_id = 'fews_1'
+              AND (timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date >= %s::date
+              AND (timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date <= %s::date
+            GROUP BY period
+            ORDER BY period
+        """, (resolved_bucket, date_from, date_to))
+        rows = cur.fetchall()
+        return {
+            "bucket": resolved_bucket,
+            "rows": [
+                {
+                    "period": r["period"].isoformat(),
+                    "low":    round(r["low"], 1)  if r["low"]  is not None else None,
+                    "high":   round(r["high"], 1) if r["high"] is not None else None,
+                    "avg":    round(r["avg"], 1)  if r["avg"]  is not None else None,
+                }
+                for r in rows
+            ],
+        }
+    finally:
+        cur.close()
+        release_db(conn)
+
 # --- SYSTEM LOGS ---
 
 @app.post("/logs")
@@ -1032,3 +1096,285 @@ def control_siren(device_id: str, req: SirenRequest, user=Depends(get_current_us
         cur.close()
         release_db(conn)
     return {"ok": True}
+
+# --- STATUS BREAKDOWN STATS ---
+
+OFFLINE_GAP_THRESHOLD_SECONDS = 150  # matches OFFLINE_TIMEOUT in mqtt_bridge.py
+
+@app.get("/stats/status-breakdown")
+def status_breakdown_stats(
+    date_from: str,
+    date_to:   str,
+    bucket:    str = "week",
+    user=Depends(get_current_user)
+):
+    if bucket not in ("day", "week", "month"):
+        raise HTTPException(status_code=400, detail="bucket must be one of: day, week, month")
+    try:
+        datetime.strptime(date_from, "%Y-%m-%d")
+        datetime.strptime(date_to,   "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="date_from and date_to must be YYYY-MM-DD")
+
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT
+                date_trunc(%s, timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila') as period,
+                type,
+                COUNT(*) as count
+            FROM system_logs
+            WHERE station = 'FEWS 1'
+              AND type IN ('info', 'warning', 'danger')
+              AND (timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date >= %s::date
+              AND (timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date <= %s::date
+            GROUP BY period, type
+            ORDER BY period
+        """, (bucket, date_from, date_to))
+        rows = cur.fetchall()
+
+        periods = {}
+        for r in rows:
+            key = r["period"].isoformat()
+            if key not in periods:
+                periods[key] = {"period": key, "normal": 0, "warning": 0, "critical": 0}
+            if r["type"] == "info":
+                periods[key]["normal"] = r["count"]
+            elif r["type"] == "warning":
+                periods[key]["warning"] = r["count"]
+            elif r["type"] == "danger":
+                periods[key]["critical"] = r["count"]
+
+        result_rows = []
+        for key in sorted(periods.keys()):
+            p = periods[key]
+            total = p["normal"] + p["warning"] + p["critical"]
+            if total == 0:
+                continue
+            result_rows.append({
+                "period":         p["period"],
+                "normal_pct":     round(p["normal"]   / total * 100, 1),
+                "warning_pct":    round(p["warning"]  / total * 100, 1),
+                "critical_pct":   round(p["critical"] / total * 100, 1),
+            })
+
+        return {"bucket": bucket, "rows": result_rows}
+    finally:
+        cur.close()
+        release_db(conn)
+
+# --- STATISTICS ---
+
+MAX_STATS_RANGE_DAYS = 366
+OFFLINE_GAP_THRESHOLD_SECONDS = 150  # matches OFFLINE_TIMEOUT in mqtt_bridge.py
+
+def _validate_date_range(date_from: str, date_to: str):
+    try:
+        d_from = datetime.strptime(date_from, "%Y-%m-%d")
+        d_to   = datetime.strptime(date_to,   "%Y-%m-%d")
+    except ValueError:
+        raise HTTPException(status_code=400, detail="date_from and date_to must be YYYY-MM-DD")
+    if d_to < d_from:
+        raise HTTPException(status_code=400, detail="date_to must be on or after date_from.")
+    if (d_to - d_from).days > MAX_STATS_RANGE_DAYS:
+        raise HTTPException(status_code=400, detail=f"Range too large — max {MAX_STATS_RANGE_DAYS} days.")
+    return d_from, d_to
+
+def _pick_bucket(date_from: str, date_to: str) -> str:
+    d_from = datetime.strptime(date_from, "%Y-%m-%d")
+    d_to   = datetime.strptime(date_to,   "%Y-%m-%d")
+    days   = (d_to - d_from).days
+    if days <= 60:
+        return "day"
+    if days <= 180:
+        return "week"
+    return "month"
+
+@app.get("/stats/water-level")
+def water_level_stats(
+    date_from: str,
+    date_to:   str,
+    bucket:    str = "auto",
+    user=Depends(get_current_user)
+):
+    if bucket not in ("auto", "day", "week", "month"):
+        raise HTTPException(status_code=400, detail="bucket must be one of: auto, day, week, month")
+    _validate_date_range(date_from, date_to)
+
+    resolved_bucket = _pick_bucket(date_from, date_to) if bucket == "auto" else bucket
+
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT
+                date_trunc(%s, timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila') as period,
+                MIN(water_level_cm) as low,
+                MAX(water_level_cm) as high,
+                AVG(water_level_cm) as avg
+            FROM sensor_readings
+            WHERE device_id = 'fews_1'
+              AND (timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date >= %s::date
+              AND (timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date <= %s::date
+            GROUP BY period
+            ORDER BY period
+        """, (resolved_bucket, date_from, date_to))
+        rows = cur.fetchall()
+        return {
+            "bucket": resolved_bucket,
+            "rows": [
+                {
+                    "period": r["period"].isoformat(),
+                    "low":    round(r["low"], 1)  if r["low"]  is not None else None,
+                    "high":   round(r["high"], 1) if r["high"] is not None else None,
+                    "avg":    round(r["avg"], 1)  if r["avg"]  is not None else None,
+                }
+                for r in rows
+            ],
+        }
+    finally:
+        cur.close()
+        release_db(conn)
+
+@app.get("/stats/status-breakdown")
+def status_breakdown_stats(
+    date_from: str,
+    date_to:   str,
+    bucket:    str = "week",
+    user=Depends(get_current_user)
+):
+    if bucket not in ("day", "week", "month"):
+        raise HTTPException(status_code=400, detail="bucket must be one of: day, week, month")
+    _validate_date_range(date_from, date_to)
+
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT
+                date_trunc(%s, timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila') as period,
+                type,
+                COUNT(*) as count
+            FROM system_logs
+            WHERE station = 'FEWS 1'
+              AND type IN ('info', 'warning', 'danger')
+              AND (timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date >= %s::date
+              AND (timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date <= %s::date
+            GROUP BY period, type
+            ORDER BY period
+        """, (bucket, date_from, date_to))
+        rows = cur.fetchall()
+
+        periods = {}
+        for r in rows:
+            key = r["period"].isoformat()
+            if key not in periods:
+                periods[key] = {"period": key, "normal": 0, "warning": 0, "critical": 0}
+            if r["type"] == "info":
+                periods[key]["normal"] = r["count"]
+            elif r["type"] == "warning":
+                periods[key]["warning"] = r["count"]
+            elif r["type"] == "danger":
+                periods[key]["critical"] = r["count"]
+
+        result_rows = []
+        for key in sorted(periods.keys()):
+            p = periods[key]
+            total = p["normal"] + p["warning"] + p["critical"]
+            if total == 0:
+                continue
+            result_rows.append({
+                "period":       p["period"],
+                "normal_pct":   round(p["normal"]   / total * 100, 1),
+                "warning_pct":  round(p["warning"]  / total * 100, 1),
+                "critical_pct": round(p["critical"] / total * 100, 1),
+            })
+
+        return {"bucket": bucket, "rows": result_rows}
+    finally:
+        cur.close()
+        release_db(conn)
+
+@app.get("/stats/uptime")
+def uptime_stats(
+    date_from: str,
+    date_to:   str,
+    user=Depends(get_current_user)
+):
+    _validate_date_range(date_from, date_to)
+
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        cur.execute("""
+            WITH gaps AS (
+                SELECT
+                    timestamp,
+                    LAG(timestamp) OVER (ORDER BY timestamp) as prev_ts
+                FROM sensor_readings
+                WHERE device_id = 'fews_1'
+                  AND (timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date >= %s::date
+                  AND (timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date <= %s::date
+            ),
+            gap_durations AS (
+                SELECT
+                    prev_ts,
+                    timestamp,
+                    EXTRACT(EPOCH FROM (timestamp - prev_ts)) as gap_seconds
+                FROM gaps
+                WHERE prev_ts IS NOT NULL
+            )
+            SELECT
+                MIN(prev_ts) as range_start,
+                MAX(timestamp) as range_end,
+                COALESCE(SUM(gap_seconds) FILTER (WHERE gap_seconds > %s), 0) as total_offline_seconds
+            FROM gap_durations
+        """, (date_from, date_to, OFFLINE_GAP_THRESHOLD_SECONDS))
+        summary = cur.fetchone()
+
+        if not summary or summary["range_start"] is None:
+            return {"uptime_pct": None, "incidents": []}
+
+        cur.execute("""
+            WITH gaps AS (
+                SELECT
+                    timestamp,
+                    LAG(timestamp) OVER (ORDER BY timestamp) as prev_ts
+                FROM sensor_readings
+                WHERE device_id = 'fews_1'
+                  AND (timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date >= %s::date
+                  AND (timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date <= %s::date
+            )
+            SELECT
+                prev_ts as start,
+                timestamp as end,
+                EXTRACT(EPOCH FROM (timestamp - prev_ts)) as gap_seconds
+            FROM gaps
+            WHERE prev_ts IS NOT NULL
+              AND EXTRACT(EPOCH FROM (timestamp - prev_ts)) > %s
+            ORDER BY gap_seconds DESC
+            LIMIT 10
+        """, (date_from, date_to, OFFLINE_GAP_THRESHOLD_SECONDS))
+        incident_rows = cur.fetchall()
+
+        total_seconds = (summary["range_end"] - summary["range_start"]).total_seconds()
+        uptime_pct = (
+            round((1 - (summary["total_offline_seconds"] / total_seconds)) * 100, 1)
+            if total_seconds > 0 else 100.0
+        )
+
+        return {
+            "uptime_pct": uptime_pct,
+            "incidents": [
+                {
+                    "start":         r["start"].isoformat(),
+                    "end":           r["end"].isoformat(),
+                    "duration_mins": round(r["gap_seconds"] / 60, 1),
+                }
+                for r in incident_rows
+            ],
+        }
+    finally:
+        cur.close()
+        release_db(conn)
