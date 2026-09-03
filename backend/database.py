@@ -20,8 +20,8 @@ def get_pool():
     if _pool is not None:
         return _pool
     _pool = psycopg2.pool.ThreadedConnectionPool(
-        minconn=1,
-        maxconn=5,
+        minconn=2,
+        maxconn=20,
         dsn=DATABASE_URL + "?connect_timeout=30",
         cursor_factory=psycopg2.extras.RealDictCursor
     )
