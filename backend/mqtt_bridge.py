@@ -254,11 +254,11 @@ def on_message(client, userdata, msg):
         safe_after_critical = data.get("safe_after_critical", False)
 
         # ── TEMP OFFSET — remove once sensor is physically recalibrated ──
-        # Sensor is currently reading ~50cm low. Per supervisor's instruction,
-        # add a flat 50cm offset to every reading until the physical
+        # Sensor is currently reading ~40cm low. Per supervisor's instruction,
+        # add a flat 40cm offset to every reading until the physical
         # recalibration is done. Added 2026-08-07.
         if water_level_cm is not None:  # TEMP OFFSET
-            water_level_cm += 50
+            water_level_cm += 40
 
         conn = get_db()
         cur  = conn.cursor()
