@@ -2576,28 +2576,6 @@ select.settings-input {
   /* ── Page body ── */
   .page-body       { padding: 10px; gap: 10px; overflow-y: visible; }
   .logs-page-body  { overflow: visible; }
-  .stats-metrics-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
-    gap: 12px;
-  }
-
-  .stats-two-col {
-    display: grid;
-    grid-template-columns: 1.3fr 1fr;
-    gap: 12px;
-  }
-
-  .stats-side-stack {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    min-width: 0;
-  }
-
-  @media (max-width: 768px) {
-    .stats-two-col { grid-template-columns: 1fr; }
-  }
   .page-card       { padding: 12px; gap: 10px; }
   .page-card-title { font-size: 13px; }
   .page-card-sub   { font-size: 11px; }

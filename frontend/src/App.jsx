@@ -1,6 +1,6 @@
 import "./App.css";
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
-import { Line, Bar, Doughnut } from "react-chartjs-2";
+import { Line } from "react-chartjs-2";
 import { createPortal } from "react-dom";
 import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
@@ -11,18 +11,15 @@ import {
   LinearScale,
   PointElement,
   LineElement,
-  BarElement,
-  ArcElement,
   Title,
   Tooltip,
-  Legend,
 } from "chart.js";
 import annotationPlugin from "chartjs-plugin-annotation";
 import Login from "./Login";
 
 ChartJS.register(
   CategoryScale, LinearScale, PointElement,
-  LineElement, BarElement, ArcElement, Title, Tooltip, Legend,
+  LineElement, Title, Tooltip,
   annotationPlugin
 );
 
@@ -171,8 +168,8 @@ async function authFetch(url, options = {}) {
 
 // ─── RBAC HELPERS ────────────────────────────────────────────────────────────
 const ROLE_ACCESS = {
-  Admin:    ["Dashboard", "Statistics", "UnitControl", "Logs", "Settings"],
-  Operator: ["Dashboard", "Statistics", "UnitControl", "Logs", "Settings"],
+  Admin:    ["Dashboard", "UnitControl", "Logs", "Settings"],
+  Operator: ["Dashboard", "UnitControl", "Logs", "Settings"],
 };
 
 function can(role, feature) {
@@ -286,7 +283,6 @@ function backendStatusToKey(status) {
 
 const ALL_NAV_ITEMS = [
   { key: "Dashboard",   icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>, label: "Dashboard"    },
-  { key: "Statistics",  icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg>, label: "Statistics"   },
   { key: "UnitControl", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a10 10 0 1 0 10 10"/><polyline points="12 6 12 12 16 14"/><path d="M16 2l4 4-4 4"/></svg>, label: "Unit Control" },
   { key: "Logs",        icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>, label: "Logs"         },
   { key: "Settings",    icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>, label: "Settings"     },
@@ -294,7 +290,6 @@ const ALL_NAV_ITEMS = [
 
 const PAGE_TITLES = {
   Dashboard:   { title: "Flood Monitoring Dashboard", sub: "Live overview" },
-  Statistics:  { title: "Statistics",                 sub: "Trends and system health" },
   UnitControl: { title: "Unit Control",               sub: "Manage FEWS units" },
   Logs:        { title: "Logs",                       sub: "System activity log" },
   Settings:    { title: "Settings",                   sub: "System configuration" },
@@ -652,254 +647,6 @@ function LogsPage({ token, userRole, showToast }) {
               )}
             <button className="logs-page-btn" disabled={safePage === totalPages} onClick={() => setPage(p => p + 1)}>›</button>
             <button className="logs-page-btn" disabled={safePage === totalPages} onClick={() => setPage(totalPages)}>»</button>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-// ─── STATISTICS PAGE ──────────────────────────────────────────────────────────
-function StatisticsPage({ token, unitPreference, manualFews }) {
-  const fmtDate = (d) => d.toISOString().slice(0, 10);
-
-  const [preset, setPreset]       = useState("30d");
-  const [dateRange, setDateRange] = useState(() => {
-    const to = new Date(); const from = new Date();
-    from.setDate(from.getDate() - 30);
-    return { from: fmtDate(from), to: fmtDate(to) };
-  });
-
-  const [waterStats, setWaterStats] = useState(null);
-  const [breakdown, setBreakdown]   = useState(null);
-  const [uptime, setUptime]         = useState(null);
-  const [loading, setLoading]       = useState(true);
-  const [fetchError, setFetchError] = useState(false);
-
-  const applyPreset = (key) => {
-    setPreset(key);
-    const to = new Date(); const from = new Date();
-    if (key === "30d") from.setDate(from.getDate() - 30);
-    else if (key === "90d") from.setDate(from.getDate() - 90);
-    else if (key === "12m") from.setFullYear(from.getFullYear() - 1);
-    setDateRange({ from: fmtDate(from), to: fmtDate(to) });
-  };
-
-  useEffect(() => {
-    if (!token || !dateRange.from || !dateRange.to) return;
-    let cancelled = false;
-    setLoading(true);
-    setFetchError(false);
-    const params = `date_from=${dateRange.from}&date_to=${dateRange.to}`;
-
-    Promise.all([
-      authFetch(`${API_BASE}/stats/water-level?${params}`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.ok ? r.json() : Promise.reject()),
-      authFetch(`${API_BASE}/stats/status-breakdown?${params}&bucket=week`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.ok ? r.json() : Promise.reject()),
-      authFetch(`${API_BASE}/stats/uptime?${params}`, { headers: { Authorization: `Bearer ${token}` } }).then(r => r.ok ? r.json() : Promise.reject()),
-    ])
-      .then(([water, breakdownData, uptimeData]) => {
-        if (cancelled) return;
-        setWaterStats(water); setBreakdown(breakdownData); setUptime(uptimeData);
-      })
-      .catch((e) => { if (!cancelled && e?.message !== "Unauthorized") setFetchError(true); })
-      .finally(() => { if (!cancelled) setLoading(false); });
-
-    return () => { cancelled = true; };
-  }, [token, dateRange]);
-
-  const summary = useMemo(() => {
-    if (!waterStats?.rows?.length) return null;
-    const highs = waterStats.rows.map(r => r.high).filter(v => v != null);
-    const avgs  = waterStats.rows.map(r => r.avg).filter(v => v != null);
-    if (!highs.length) return null;
-    return { peak: Math.max(...highs), avg: avgs.reduce((a, b) => a + b, 0) / avgs.length };
-  }, [waterStats]);
-
-  const alertWeeks = useMemo(() => {
-    if (!breakdown?.rows?.length) return null;
-    return breakdown.rows.filter(r => r.warning_pct > 0 || r.critical_pct > 0).length;
-  }, [breakdown]);
-
-  const stationHealth = useMemo(() => {
-    const serviceable   = manualFews.filter(m => m.status === "serviceable").length;
-    const unserviceable = manualFews.length - serviceable;
-    return { serviceable, unserviceable, total: manualFews.length };
-  }, [manualFews]);
-
-  const trendLabels = (waterStats?.rows ?? []).map(r => {
-    const d = new Date(r.period);
-    return waterStats.bucket === "month"
-      ? d.toLocaleDateString("en-PH", { month: "short", year: "2-digit" })
-      : d.toLocaleDateString("en-PH", { month: "short", day: "numeric" });
-  });
-
-  const trendChartData = {
-    labels: trendLabels,
-    datasets: [
-      { label: "High",    data: (waterStats?.rows ?? []).map(r => r.high), borderColor: "#ef4444", backgroundColor: "transparent", borderWidth: 2, pointRadius: 0, tension: 0.25 },
-      { label: "Average", data: (waterStats?.rows ?? []).map(r => r.avg),  borderColor: "#38bdf8", backgroundColor: "rgba(56,189,248,0.08)", borderWidth: 2, pointRadius: 0, tension: 0.25, fill: true },
-      { label: "Low",     data: (waterStats?.rows ?? []).map(r => r.low),  borderColor: "#4a607e", backgroundColor: "transparent", borderWidth: 1.5, borderDash: [4, 4], pointRadius: 0, tension: 0.25 },
-    ],
-  };
-
-  const trendChartOptions = {
-    responsive: true, maintainAspectRatio: false,
-    plugins: {
-      legend: { display: true, position: "top", align: "end", labels: { color: "#7e92b4", boxWidth: 10, font: { size: 10 } } },
-      tooltip: {
-        backgroundColor: "#1e293b", titleColor: "#fff", bodyColor: "#94a3b8", borderColor: "#334155", borderWidth: 1,
-        callbacks: { label: (ctx) => ` ${ctx.dataset.label}: ${formatWaterLevel(ctx.parsed.y, unitPreference)}` },
-      },
-    },
-    scales: {
-      y: { ticks: { color: "#64748b", font: { size: 10 }, callback: v => formatWaterLevel(v, unitPreference) }, grid: { color: "rgba(255,255,255,0.05)" } },
-      x: { ticks: { color: "#64748b", font: { size: 9 }, maxRotation: 0 }, grid: { display: false } },
-    },
-  };
-
-  const breakdownLabels = (breakdown?.rows ?? []).map(r => {
-    const d = new Date(r.period);
-    return d.toLocaleDateString("en-PH", { month: "short", day: "numeric" });
-  });
-
-  const breakdownChartData = {
-    labels: breakdownLabels,
-    datasets: [
-      { label: "Normal",   data: (breakdown?.rows ?? []).map(r => r.normal_pct),   backgroundColor: "#fde047" },
-      { label: "Warning",  data: (breakdown?.rows ?? []).map(r => r.warning_pct),  backgroundColor: "#f97316" },
-      { label: "Critical", data: (breakdown?.rows ?? []).map(r => r.critical_pct), backgroundColor: "#ef4444" },
-    ],
-  };
-
-  const breakdownChartOptions = {
-    responsive: true, maintainAspectRatio: false,
-    plugins: {
-      legend: { display: true, position: "top", align: "end", labels: { color: "#7e92b4", boxWidth: 10, font: { size: 10 } } },
-      tooltip: {
-        backgroundColor: "#1e293b", titleColor: "#fff", bodyColor: "#94a3b8", borderColor: "#334155", borderWidth: 1,
-        callbacks: { label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y}%` },
-      },
-    },
-    scales: {
-      x: { stacked: true, ticks: { color: "#64748b", font: { size: 9 }, maxRotation: 0 }, grid: { display: false } },
-      y: { stacked: true, min: 0, max: 100, ticks: { color: "#64748b", font: { size: 10 }, callback: v => `${v}%` }, grid: { color: "rgba(255,255,255,0.05)" } },
-    },
-  };
-
-  const donutData = {
-    labels: ["Serviceable", "Unserviceable"],
-    datasets: [{
-      data: [stationHealth.serviceable, stationHealth.unserviceable],
-      backgroundColor: ["#38bdf8", "#334155"],
-      borderWidth: 0,
-    }],
-  };
-
-  const donutOptions = {
-    responsive: true, maintainAspectRatio: false,
-    cutout: "72%",
-    plugins: {
-      legend: { display: false },
-      tooltip: {
-        backgroundColor: "#1e293b", titleColor: "#fff", bodyColor: "#94a3b8", borderColor: "#334155", borderWidth: 1,
-        callbacks: { label: (ctx) => ` ${ctx.label}: ${ctx.parsed}` },
-      },
-    },
-  };
-
-  return (
-    <div className="page-body">
-      <div className="page-card" style={{ gap: 12 }}>
-        <div className="logs-filters-row">
-          <button className={`fdd-trigger ${preset === "30d" ? "fdd-trigger-active" : ""}`} onClick={() => applyPreset("30d")}>Last 30 days</button>
-          <button className={`fdd-trigger ${preset === "90d" ? "fdd-trigger-active" : ""}`} onClick={() => applyPreset("90d")}>Last 90 days</button>
-          <button className={`fdd-trigger ${preset === "12m" ? "fdd-trigger-active" : ""}`} onClick={() => applyPreset("12m")}>Last 12 months</button>
-          <DateRangeFilter
-            from={dateRange.from}
-            to={dateRange.to}
-            onChange={(v) => { if (v.from && v.to) { setPreset("custom"); setDateRange(v); } }}
-          />
-        </div>
-      </div>
-
-      {fetchError && (
-        <div style={{ background:"rgba(239,68,68,0.08)", border:"1px solid rgba(239,68,68,0.2)", borderRadius:10, padding:"12px 16px", color:"var(--red)", fontSize:12, fontWeight:600 }}>
-          ⚠️ Failed to load statistics — check your connection and try refreshing.
-        </div>
-      )}
-
-      <div className="stats-metrics-grid">
-        <div className="page-card" style={{ gap: 4 }}>
-          <span className="page-card-sub" style={{ marginBottom: 0 }}>Average water level</span>
-          <span style={{ fontSize: 22, fontWeight: 700, color: "var(--text-1)", fontFamily: "var(--mono)" }}>{summary ? formatWaterLevel(summary.avg, unitPreference) : "—"}</span>
-        </div>
-        <div className="page-card" style={{ gap: 4 }}>
-          <span className="page-card-sub" style={{ marginBottom: 0 }}>Peak reading</span>
-          <span style={{ fontSize: 22, fontWeight: 700, color: "var(--red)", fontFamily: "var(--mono)" }}>{summary ? formatWaterLevel(summary.peak, unitPreference) : "—"}</span>
-        </div>
-        <div className="page-card" style={{ gap: 4 }}>
-          <span className="page-card-sub" style={{ marginBottom: 0 }}>Weeks with alerts</span>
-          <span style={{ fontSize: 22, fontWeight: 700, color: "var(--text-1)", fontFamily: "var(--mono)" }}>{alertWeeks != null ? alertWeeks : "—"}</span>
-        </div>
-        <div className="page-card" style={{ gap: 4 }}>
-          <span className="page-card-sub" style={{ marginBottom: 0 }}>FEWS 1 uptime</span>
-          <span style={{ fontSize: 22, fontWeight: 700, color: "var(--green)", fontFamily: "var(--mono)" }}>{uptime?.uptime_pct != null ? `${uptime.uptime_pct}%` : "—"}</span>
-        </div>
-      </div>
-
-      <div className="page-card" style={{ gap: 6 }}>
-        <div className="card-header" style={{ marginBottom: 4 }}>
-          <h2>Water level trend</h2>
-          <span className="card-tag">{waterStats?.bucket ? `${waterStats.bucket} view` : ""}</span>
-        </div>
-        <div style={{ height: 220, position: "relative" }}>
-          {loading ? <div className="chart-wrap skeleton" /> : <Line data={trendChartData} options={trendChartOptions} />}
-        </div>
-      </div>
-
-      <div className="stats-two-col">
-        <div className="page-card" style={{ gap: 6 }}>
-          <div className="card-header" style={{ marginBottom: 4 }}>
-            <h2>Status breakdown by week</h2>
-            <span className="card-tag">% of readings</span>
-          </div>
-          <div style={{ height: 200, position: "relative" }}>
-            {loading ? <div className="chart-wrap skeleton" /> : <Bar data={breakdownChartData} options={breakdownChartOptions} />}
-          </div>
-        </div>
-
-        <div className="stats-side-stack">
-          <div className="page-card" style={{ gap: 8 }}>
-            <div className="card-header" style={{ marginBottom: 0 }}>
-              <h2>Manual station health</h2>
-              <span className="card-tag">{stationHealth.total} stations</span>
-            </div>
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: 16 }}>
-              <div style={{ width: 88, height: 88, position: "relative" }}>
-                <Doughnut data={donutData} options={donutOptions} />
-              </div>
-              <div>
-                <p style={{ fontSize: 13, margin: "0 0 4px", color: "var(--text-2)" }}><span style={{ color: "#38bdf8", fontWeight: 700 }}>{stationHealth.serviceable}</span> serviceable</p>
-                <p style={{ fontSize: 13, margin: 0, color: "var(--text-2)" }}><span style={{ color: "var(--text-3)", fontWeight: 700 }}>{stationHealth.unserviceable}</span> unserviceable</p>
-              </div>
-            </div>
-          </div>
-
-          <div className="page-card" style={{ gap: 10 }}>
-            <div className="card-header" style={{ marginBottom: 0 }}>
-              <h2>Offline incidents</h2>
-              <span className="card-tag">Top 10</span>
-            </div>
-            <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 160, overflowY: "auto" }}>
-              {(!uptime?.incidents?.length) ? (
-                <div style={{ color: "var(--text-3)", fontSize: 12, padding: "8px 0" }}>No offline incidents in this range.</div>
-              ) : uptime.incidents.map((inc, i) => (
-                <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 11, borderBottom: "1px solid var(--border)", paddingBottom: 6 }}>
-                  <span style={{ color: "var(--text-2)" }}>{new Date(inc.start).toLocaleDateString("en-PH", { month: "short", day: "numeric" })}</span>
-                  <span style={{ color: "var(--text-1)", fontFamily: "var(--mono)" }}>{inc.duration_mins} min</span>
-                </div>
-              ))}
-            </div>
           </div>
         </div>
       </div>
@@ -4646,7 +4393,6 @@ const waterChartOptions = useMemo(() => ({
             </div>
           )}
 
-        {activeNav === "Statistics"  && <StatisticsPage token={token} unitPreference={user.unit_preference} manualFews={manualFews} />}
         {activeNav === "UnitControl" && <UnitControlPage allFews={allFews} manualFews={manualFews} fews1Connected={isHardwareOnline} userRole={user.role} userName={user.name} unitPreference={user.unit_preference} addLog={addLog} token={token} onThresholdSaved={(t) => setThresholds(t)} onManualUnitSaved={(updated) => setManualFews(prev => prev.map(m => m.device_id === updated.device_id ? updated : m))} />}
         {activeNav === "Logs"        && <LogsPage token={token} userRole={user.role} showToast={showToast} />}
         {activeNav === "Settings"    && <SettingsPage
