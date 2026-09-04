@@ -702,7 +702,7 @@ function exportToXLSX(rows, filterSummary = "", showToast = () => {}) {
     [`Total Records: ${rows.length}`],
     [],
   ];
-  const data = [...meta, header, ...rows.map(r => [r.date, r.time, r.station, r.type.toUpperCase(), r.msg])];
+  const data = [...meta, header, ...rows.map(r => [r.date, r.time, r.station, LOG_TYPE_CFG[r.type]?.label || r.type.toUpperCase(), r.msg])];
   const doIt = () => {
     const wb = window.XLSX.utils.book_new();
     const ws = window.XLSX.utils.aoa_to_sheet(data);
@@ -748,7 +748,13 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
         tableLineColor: [255, 255, 255],
         tableLineWidth: 0,
         head: [["Date", "Time", "Station", "Type", "Message"]],
-        body: rows.map(r => [r.date, r.time, r.station, r.type.toUpperCase(), r.msg]),
+        body: rows.map(r => {
+          const cfg = LOG_TYPE_CFG[r.type];
+          const typeLabel = r.type === "connectivity"
+            ? (cfg?.mobileLabel || r.type.toUpperCase())   // stays "CONN"
+            : (cfg?.label || r.type.toUpperCase());        // full label, e.g. "BASELINE"
+          return [r.date, r.time, r.station, typeLabel, r.msg];
+        }),
         styles: { fontSize: 8, cellPadding: 5 },
         headStyles: { fillColor: [17, 29, 53], textColor: [226, 232, 240], fontStyle: "bold" },
         alternateRowStyles: { fillColor: [245, 248, 252] },
@@ -767,7 +773,7 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
           if (pg > 1 && logo3) {
             const margin = 30;
             const imgW2 = pageW - margin * 2;
-            doc.addImage(logo3, "PNG", margin, 20, imgW2, 110);
+            doc.addImage(logo3, "PNG", margin, 20, imgW2, 110, "cdrrmoLogo");
           }
           // Footer — just page number
           doc.setFontSize(7);
@@ -797,7 +803,7 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
       let y = margin;
 
       if (logo3) {
-        doc.addImage(logo3, "PNG", margin, y, imgW, imgH);
+        doc.addImage(logo3, "PNG", margin, y, imgW, imgH, "cdrrmoLogo");
         y += imgH - 10;
       }
 

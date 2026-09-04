@@ -2049,7 +2049,7 @@ select.settings-input {
 
 .logs-table-head {
   display: grid;
-  grid-template-columns: 130px 90px 110px 1fr;
+  grid-template-columns: 110px 90px 110px 1fr;
   gap: 14px;
   padding: 9px 18px;
   background: var(--bg-raised);
@@ -2093,7 +2093,7 @@ select.settings-input {
 
 .logs-row {
   display: grid;
-  grid-template-columns: 130px 90px 110px 1fr;
+  grid-template-columns: 110px 90px 110px 1fr;
   gap: 14px;
   padding: 10px 18px;
   border-bottom: 1px solid rgba(255,255,255,0.03);
