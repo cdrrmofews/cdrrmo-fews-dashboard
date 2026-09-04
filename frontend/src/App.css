@@ -559,6 +559,7 @@ body {
 
 .wl-abbr { display: none; }
 .stat-label-abbr { display: none; }
+.type-badge-abbr { display: none; }
 
 .chart-wrap { flex: 1; min-height: 0; position: relative; display: block; }
 
@@ -2048,8 +2049,8 @@ select.settings-input {
 
 .logs-table-head {
   display: grid;
-  grid-template-columns: 160px 100px 90px 1fr;
-  gap: 0;
+  grid-template-columns: 130px 90px 110px 1fr;
+  gap: 14px;
   padding: 9px 18px;
   background: var(--bg-raised);
   border-bottom: 1px solid var(--border);
@@ -2080,7 +2081,6 @@ select.settings-input {
 
 .logs-table-head .logs-col-msg {
   justify-content: flex-start;
-  padding-left: 4px;
 }
 
 .logs-table-body {
@@ -2093,8 +2093,8 @@ select.settings-input {
 
 .logs-row {
   display: grid;
-  grid-template-columns: 160px 100px 90px 1fr;
-  gap: 0;
+  grid-template-columns: 130px 90px 110px 1fr;
+  gap: 14px;
   padding: 10px 18px;
   border-bottom: 1px solid rgba(255,255,255,0.03);
   align-items: center;
@@ -2126,7 +2126,7 @@ select.settings-input {
   padding: 3px 8px; border-radius: 5px; font-family: var(--mono); white-space: nowrap;
 }
 
-.logs-col-msg { font-size: 11px; line-height: 1.45; padding-left: 4px; }
+.logs-col-msg { font-size: 11px; line-height: 1.45; }
 
 .logs-empty {
   display: flex; flex-direction: column; align-items: center; justify-content: center;
@@ -2565,6 +2565,8 @@ select.settings-input {
   .wl-abbr        { display: inline; }
   .stat-label-full { display: none; }
   .stat-label-abbr { display: inline; }
+  .type-badge-full { display: none; }
+  .type-badge-abbr { display: inline; }
 
   .right-sidebar { width: 100%; min-width: 100%; height: auto; }
   .rsb-list      { flex-direction: column; gap: 6px; max-height: none; overflow-y: visible; margin-right: 0; padding-right: 0; }

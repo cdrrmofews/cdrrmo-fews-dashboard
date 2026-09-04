@@ -654,7 +654,8 @@ function LogsPage({ token, userRole, showToast }) {
                 </span>
                 <span className="logs-col-type">
                   <span className="logs-type-badge" style={{ color:cfg.color, background:cfg.bg, border:`1px solid ${cfg.color}30` }}>
-                    {cfg.label}
+                    <span className="type-badge-full">{cfg.label}</span>
+                    <span className="type-badge-abbr">{cfg.mobileLabel}</span>
                   </span>
                 </span>
                 <span className="logs-col-msg" style={{ color: READING_TYPES.includes(l.type) || isFlaggedActivity ? cfg.color : "var(--text-2)" }}>
