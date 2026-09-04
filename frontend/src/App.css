@@ -2983,6 +2983,15 @@ select.settings-input {
     z-index: 400;
   }
 
+  /* Leaflet's own base CSS adds margin-top/margin-left: 10px to controls,
+     which pushes the zoom buttons lower than the fullscreen expand button
+     even though both containers are set to top: 8px. Zero it out so they
+     align on the same horizontal line. */
+  .leaflet-top.leaflet-left .leaflet-control-zoom {
+    margin-top: 0 !important;
+    margin-left: 0 !important;
+  }
+
   .leaflet-container .leaflet-top,
   .leaflet-container .leaflet-bottom {
     z-index: 400 !important;

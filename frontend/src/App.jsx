@@ -1414,17 +1414,20 @@ function ProfileDropdown({ user, token, onSave, onClose, addLog }) {
   const [saving, setSaving]   = useState(false);
   const [error, setError]     = useState("");
 
+  const onCloseRef = useRef(onClose);
+  onCloseRef.current = onClose; // always call the latest one, no stale closure
+
   useEffect(() => {
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onCloseRef.current(); };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
   useEffect(() => {
-    const handleScroll = () => onClose();
+    const handleScroll = () => onCloseRef.current();
     window.addEventListener("scroll", handleScroll, true);
     return () => window.removeEventListener("scroll", handleScroll, true);
-  }, [onClose]);
+  }, []); // ← attach once, never torn down while mounted
 
   const handlePhoto = (e) => {
     const file = e.target.files[0];
@@ -2612,7 +2615,12 @@ function useToast() {
 
   const showToast = useCallback((msg, persistent = false) => {
     const id = Date.now() + Math.random();
-    setToasts(prev => [...prev, { id, msg, leaving: false, persistent }]);
+    setToasts(prev => {
+      // Persistent toasts (the "update available" banner) shouldn't stack —
+      // replace any existing persistent toast instead of adding another one.
+      const base = persistent ? prev.filter(t => !t.persistent) : prev;
+      return [...base, { id, msg, leaving: false, persistent }];
+    });
     if (!persistent) {
       setTimeout(() => {
         setToasts(prev => prev.map(t => t.id === id ? { ...t, leaving: true } : t));
@@ -2723,17 +2731,24 @@ export default function App() {
     } catch { return []; }
   });
 
-  const fetchManualUnits = useCallback(() => {
+  const fetchManualUnits = useCallback((retriesLeft = 1) => {
     if (!token) return;
     authFetch(`${API_BASE}/manual-units`, { headers: { Authorization: `Bearer ${token}` } })
-      .then(r => r.ok ? r.json() : [])
+      .then(r => (r.ok ? r.json() : null)) // null = failed request, not "no manual units"
       .then(rows => {
         if (Array.isArray(rows)) {
           setManualFews(rows);
           try { sessionStorage.setItem("manualFews", JSON.stringify(rows)); } catch {}
+        } else if (retriesLeft > 0) {
+          // Bad response (likely a cold backend right after redeploy) — retry once shortly after
+          setTimeout(() => fetchManualUnits(retriesLeft - 1), 4000);
         }
+        // if retries are exhausted, keep whatever's already in state/sessionStorage
+        // rather than clobbering it with an empty list
       })
-      .catch(() => {});
+      .catch(() => {
+        if (retriesLeft > 0) setTimeout(() => fetchManualUnits(retriesLeft - 1), 4000);
+      });
   }, [token]);
 
   useEffect(() => {
