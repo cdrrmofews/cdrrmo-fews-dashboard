@@ -342,16 +342,33 @@ function parseLog(row) {
 }
 
 const LOG_TYPE_CFG = {
-  info:    { label: "NORMAL",   color: "#94a3b8", bg: "rgba(148,163,184,0.10)" },
-  warning: { label: "WARNING",  color: "#f59e0b", bg: "rgba(245,158,11,0.12)" },
-  danger:  { label: "CRITICAL", color: "#ef4444", bg: "rgba(239,68,68,0.12)"  },
-  system:  { label: "ACTIVITY", color: "#38bdf8", bg: "rgba(56,189,248,0.12)" },
+  baseline:     { label: "BASELINE",     mobileLabel: "BASE",     color: "#e2e8f0", bg: "rgba(226,232,240,0.10)" },
+  info:         { label: "NORMAL",       mobileLabel: "NORMAL",   color: "#94a3b8", bg: "rgba(148,163,184,0.10)" },
+  warning:      { label: "WARNING",      mobileLabel: "WARNING",  color: "#f59e0b", bg: "rgba(245,158,11,0.12)" },
+  danger:       { label: "CRITICAL",     mobileLabel: "CRITICAL", color: "#ef4444", bg: "rgba(239,68,68,0.12)"  },
+  connectivity: { label: "CONNECTIVITY", mobileLabel: "CONN",     color: "#a78bfa", bg: "rgba(167,139,250,0.12)" },
+  system:       { label: "ACTIVITY",     mobileLabel: "ACTIVITY", color: "#38bdf8", bg: "rgba(56,189,248,0.12)" },
 };
 
+// Some ACTIVITY-type events (auto-siren) are more urgent than a routine
+// activity entry (login, threshold edit, etc). This layers a visual
+// override on top of the base type config, without introducing a new type.
+function getLogRowCfg(l) {
+  const cfg = LOG_TYPE_CFG[l.type] || LOG_TYPE_CFG["system"];
+  if (l.type === "system" && l.msg.includes("automatically activated due to sustained CRITICAL")) {
+    return { ...cfg, color: "#ef4444", bg: "rgba(239,68,68,0.12)" };
+  }
+  return cfg;
+}
+
 const LOG_TYPES_BY_ROLE = {
-  Admin:    ["info", "warning", "danger", "system"],
-  Operator: ["info", "warning", "danger"],
+  Admin:    ["baseline", "info", "warning", "danger", "connectivity", "system"],
+  Operator: ["baseline", "info", "warning", "danger", "connectivity"],
 };
+
+// Only water-level severity types get a dedicated count box in the stat bar —
+// Activity and Connectivity stay fully filterable/exportable, just not in this row.
+const READING_TYPES = ["baseline", "info", "warning", "danger"];
 
 const ROWS_PER_PAGE = 30;
 
@@ -563,12 +580,15 @@ function LogsPage({ token, userRole, showToast }) {
           />
         </div>
         <div className="logs-stat-bar">
-          {allowedTypes.map(t => {
+          {allowedTypes.filter(t => READING_TYPES.includes(t)).map(t => {
             const cfg = LOG_TYPE_CFG[t];
             return (
               <div key={t} className="logs-stat-item">
                 <span className="logs-stat-count" style={{ color: cfg.color }}>{counts[t] ?? 0}</span>
-                <span className="logs-stat-label">{cfg.label}</span>
+                <span className="logs-stat-label">
+                  <span className="stat-label-full">{cfg.label}</span>
+                  <span className="stat-label-abbr">{cfg.mobileLabel}</span>
+                </span>
               </div>
             );
           })}
@@ -605,7 +625,8 @@ function LogsPage({ token, userRole, showToast }) {
               <div style={{ color:"var(--text-2)", fontWeight:600 }}>No logs match your filters</div>
             </div>
           ) : rows.map((l, i) => {
-            const cfg = LOG_TYPE_CFG[l.type] || LOG_TYPE_CFG["system"];
+            const cfg = getLogRowCfg(l);
+            const isFlaggedActivity = l.type === "system" && cfg.color === "#ef4444";
             return (
               <div key={l.id} className={`logs-row ${i % 2 === 1 ? "logs-row-alt" : ""}`}>
                 <span className="logs-col-date">
@@ -620,7 +641,7 @@ function LogsPage({ token, userRole, showToast }) {
                     {cfg.label}
                   </span>
                 </span>
-                <span className="logs-col-msg" style={{ color: l.type==="danger"?"var(--red)":l.type==="warning"?"var(--amber)":"var(--text-2)" }}>
+                <span className="logs-col-msg" style={{ color: l.type==="danger" || isFlaggedActivity ? "var(--red)" : l.type==="warning" ? "var(--amber)" : "var(--text-2)" }}>
                   {l.msg}
                 </span>
               </div>
@@ -1691,8 +1712,8 @@ function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userNa
         body:    JSON.stringify({ threshold_warning: thr.warning, threshold_danger: thr.danger }),
       });
       if (!res.ok) { setThrError(p => ({ ...p, [id]: "Failed to save thresholds." })); return; }
-      if (thr.warning !== prev.warning) addLog({ station: f.name, type: "info", message: `${f.name} (${f.location}) warning threshold updated from ${prev.warning} cm to ${thr.warning} cm by ${userName}` });
-      if (thr.danger  !== prev.danger)  addLog({ station: f.name, type: "info", message: `${f.name} (${f.location}) danger threshold updated from ${prev.danger} cm to ${thr.danger} cm by ${userName}` });
+      if (thr.warning !== prev.warning) addLog({ station: f.name, type: "system", message: `${f.name} (${f.location}) warning threshold updated from ${prev.warning} cm to ${thr.warning} cm by ${userName}` });
+      if (thr.danger  !== prev.danger)  addLog({ station: f.name, type: "system", message: `${f.name} (${f.location}) danger threshold updated from ${prev.danger} cm to ${thr.danger} cm by ${userName}` });
       setPrevThr(p => ({ ...p, [id]: { ...thr } }));
       // Notify App to update chart thresholds
       if (onThresholdSaved) onThresholdSaved({ warning: thr.warning, danger: thr.danger });
@@ -1727,7 +1748,7 @@ function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userNa
       });
       if (!res.ok) { setInfoError(prev => ({ ...prev, [id]: "Failed to save. Try again." })); return; }
       setFewsData(prev => prev.map(x => x.id === id ? { ...x, ...snapshot } : x));
-      addLog({ station: f.name, type: "info", message: `${f.name} (${f.location}) station information updated by ${userName}` });
+      addLog({ station: f.name, type: "system", message: `${f.name} (${f.location}) station information updated by ${userName}` });
       setEditing(prev => { const n = {...prev}; delete n[id]; return n; });
     } catch (err) {
       if (err?.message !== "Unauthorized") setInfoError(prev => ({ ...prev, [id]: "Network error. Try again." }));

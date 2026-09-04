@@ -62,8 +62,8 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 VALID_ROLES = {"Admin", "Operator"}
 LOG_TYPES_BY_ROLE = {
-    "Admin":    ["info", "warning", "danger", "system"],
-    "Operator": ["info", "warning", "danger"],
+    "Admin":    ["info", "baseline", "warning", "danger", "connectivity", "system"],
+    "Operator": ["info", "baseline", "warning", "danger", "connectivity"],
 }
 
 @app.on_event("startup")
@@ -669,11 +669,13 @@ def get_logs(
         return {
             "rows":   [dict(r) for r in rows],
             "counts": {
-                "info":    type_counts.get("info",    0),
-                "warning": type_counts.get("warning", 0),
-                "danger":  type_counts.get("danger",  0),
-                "system":  type_counts.get("system",  0),
-                "total":   sum(type_counts.values()),
+                "info":         type_counts.get("info",         0),
+                "baseline":     type_counts.get("baseline",     0),
+                "warning":      type_counts.get("warning",      0),
+                "danger":       type_counts.get("danger",       0),
+                "connectivity": type_counts.get("connectivity", 0),
+                "system":       type_counts.get("system",       0),
+                "total":        sum(type_counts.values()),
             }
         }
     finally:

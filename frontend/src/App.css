@@ -558,6 +558,7 @@ body {
 .wl-legend-dot { width: 8px; height: 8px; border-radius: 2px; flex-shrink: 0; }
 
 .wl-abbr { display: none; }
+.stat-label-abbr { display: none; }
 
 .chart-wrap { flex: 1; min-height: 0; position: relative; display: block; }
 
@@ -2562,6 +2563,8 @@ select.settings-input {
   .wl-legend-dot  { width: 6px; height: 6px; }
   .wl-full        { display: none; }
   .wl-abbr        { display: inline; }
+  .stat-label-full { display: none; }
+  .stat-label-abbr { display: inline; }
 
   .right-sidebar { width: 100%; min-width: 100%; height: auto; }
   .rsb-list      { flex-direction: column; gap: 6px; max-height: none; overflow-y: visible; margin-right: 0; padding-right: 0; }

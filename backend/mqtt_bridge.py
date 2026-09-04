@@ -55,7 +55,7 @@ def start_offline_watcher():
                                 VALUES (%s, %s, %s, %s)
                             """, (
                                 station_name,
-                                "warning",
+                                "connectivity",
                                 f"{station_name} went offline — no heartbeat received for 2.5 minutes",
                                 "System",
                             ))
@@ -105,6 +105,9 @@ def invalidate_threshold_cache(device_id="fews_1"):
     if device_id in _threshold_cache:
         del _threshold_cache[device_id]
 
+def get_baseline_cutoff(threshold_warning):
+    return min(100, threshold_warning)
+
 def water_level_to_type(water_level_cm, threshold_warning=200, threshold_danger=300):
     if water_level_cm is None:
         return "info"
@@ -112,6 +115,8 @@ def water_level_to_type(water_level_cm, threshold_warning=200, threshold_danger=
         return "danger"
     if water_level_cm > threshold_warning:
         return "warning"
+    if water_level_cm < get_baseline_cutoff(threshold_warning):
+        return "baseline"
     return "info"
 
 def water_level_to_status_label(water_level_cm, threshold_warning=200, threshold_danger=300):
@@ -121,6 +126,8 @@ def water_level_to_status_label(water_level_cm, threshold_warning=200, threshold
         return "CRITICAL"
     if water_level_cm > threshold_warning:
         return "WARNING"
+    if water_level_cm < get_baseline_cutoff(threshold_warning):
+        return "BASE"
     return "NORMAL"
 
 def on_connect(client, userdata, flags, rc):
@@ -159,7 +166,7 @@ def on_message(client, userdata, msg):
                                 VALUES (%s, %s, %s, %s)
                             """, (
                                 station_name,
-                                "system",
+                                "connectivity",
                                 f"{station_name} is back online and transmitting data after signal loss",
                                 "System",
                             ))
@@ -234,7 +241,7 @@ def on_message(client, userdata, msg):
                             VALUES (%s, %s, %s, %s)
                         """, (
                             station_name,
-                            "system",
+                            "connectivity",
                             f"{station_name} is online and transmitting data",
                             "System",
                         ))
@@ -343,7 +350,7 @@ def on_message(client, userdata, msg):
                             daemon=True,
                         ).start()
 
-            elif log_type == "info":
+            elif log_type in ("info", "baseline"):
                 if prev_status in ("danger", "warning") and not _prev_status.get(station_id + "_safe_notified", False):
                     _prev_status[station_id + "_safe_notified"] = True
                     safe_msg = (
@@ -394,7 +401,7 @@ def on_message(client, userdata, msg):
                             VALUES (%s, %s, %s, %s)
                         """, (
                             station_name,
-                            "warning",
+                            "system",
                             f"{station_name} siren has been automatically activated due to sustained CRITICAL water level",
                             "System",
                         ))
