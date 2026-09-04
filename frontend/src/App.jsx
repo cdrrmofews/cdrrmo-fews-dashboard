@@ -343,8 +343,8 @@ function parseLog(row) {
 
 const LOG_TYPE_CFG = {
   baseline:     { label: "BASELINE",     mobileLabel: "BASE",     color: "#e2e8f0", bg: "rgba(226,232,240,0.10)" },
-  info:         { label: "NORMAL",       mobileLabel: "NORMAL",   color: "#94a3b8", bg: "rgba(148,163,184,0.10)" },
-  warning:      { label: "WARNING",      mobileLabel: "WARNING",  color: "#f59e0b", bg: "rgba(245,158,11,0.12)" },
+  info:         { label: "NORMAL",       mobileLabel: "NORMAL",   color: "#fde047", bg: "rgba(253,224,71,0.10)" },
+  warning:      { label: "WARNING",      mobileLabel: "WARNING",  color: "#f97316", bg: "rgba(249,115,22,0.12)" },
   danger:       { label: "CRITICAL",     mobileLabel: "CRITICAL", color: "#ef4444", bg: "rgba(239,68,68,0.12)"  },
   connectivity: { label: "CONNECTIVITY", mobileLabel: "CONN",     color: "#a78bfa", bg: "rgba(167,139,250,0.12)" },
   system:       { label: "ACTIVITY",     mobileLabel: "ACTIVITY", color: "#38bdf8", bg: "rgba(56,189,248,0.12)" },
@@ -641,7 +641,7 @@ function LogsPage({ token, userRole, showToast }) {
                     {cfg.label}
                   </span>
                 </span>
-                <span className="logs-col-msg" style={{ color: l.type==="danger" || isFlaggedActivity ? "var(--red)" : l.type==="warning" ? "var(--amber)" : "var(--text-2)" }}>
+                <span className="logs-col-msg" style={{ color: READING_TYPES.includes(l.type) || isFlaggedActivity ? cfg.color : "var(--text-2)" }}>
                   {l.msg}
                 </span>
               </div>
