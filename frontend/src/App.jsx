@@ -854,10 +854,18 @@ function CustomDatePicker({ value, onChange }) {
   })() : null;
 
   useEffect(() => {
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) { setOpen(false); setView("day"); } };
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  // Close on scroll — same behavior as the Settings page dropdowns (MuDropdown)
+  useEffect(() => {
+    if (saving) return;
+    const handleScroll = () => onClose();
+    window.addEventListener("scroll", handleScroll, true);
+    return () => window.removeEventListener("scroll", handleScroll, true);
+  }, [saving, onClose]);
 
   const getDaysInMonth     = (y, m) => new Date(y, m + 1, 0).getDate();
   const getFirstDayOfMonth = (y, m) => new Date(y, m, 1).getDay();
@@ -1066,8 +1074,15 @@ function OpenAllPopups({ fewsList, markerRefs, active }) {
 
 // ─── MODALS ───────────────────────────────────────────────────────────────────
 function ConfirmModal({ icon, iconColor, title, message, confirmLabel, confirmColor, onConfirm, onCancel, confirmLoading }) {
+  useEffect(() => {
+    if (confirmLoading) return;
+    const handleScroll = () => onCancel();
+    window.addEventListener("scroll", handleScroll, true);
+    return () => window.removeEventListener("scroll", handleScroll, true);
+  }, [confirmLoading, onCancel]);
+
   return (
-    <div className="modal-overlay">
+    <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget && !confirmLoading) onCancel(); }}>
       <div className="modal-box">
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           {icon && <div className="modal-icon" style={{ color: iconColor, marginBottom: 0 }}>{icon}</div>}
@@ -1091,6 +1106,13 @@ function ChangeEmailModal({ onClose, token, user, onEmailChanged, addLog }) {
   const [confirm, setConfirm] = useState("");
   const [error, setError]     = useState("");
   const [saving, setSaving] = useState(false);
+
+  useEffect(() => {
+    if (saving) return;
+    const handleScroll = () => onClose();
+    window.addEventListener("scroll", handleScroll, true);
+    return () => window.removeEventListener("scroll", handleScroll, true);
+  }, [saving, onClose]);
 
   const handle = async () => {
     if (!email.trim())        { setError("New email is required."); return; }
@@ -1117,7 +1139,7 @@ function ChangeEmailModal({ onClose, token, user, onEmailChanged, addLog }) {
   };
 
   return (
-    <div className="modal-overlay">
+    <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget && !saving) onClose(); }}>
       <div className="modal-box" style={{ alignItems: "stretch", gap: 14 }}>
         <div className="modal-title" style={{ textAlign: "left" }}>Change Email</div>
         <div className="modal-msg" style={{ textAlign: "left", marginBottom: 0 }}>
@@ -1150,6 +1172,13 @@ function ChangePasswordModal({ onClose, token, user, addLog }) {
   const [error, setError]   = useState("");
   const [saving, setSaving] = useState(false);
 
+  useEffect(() => {
+    if (saving) return;
+    const handleScroll = () => onClose();
+    window.addEventListener("scroll", handleScroll, true);
+    return () => window.removeEventListener("scroll", handleScroll, true);
+  }, [saving, onClose]);
+
   const handle = async () => {
     if (!pw.current)             { setError("Current password is required."); return; }
     if (!pw.next)                { setError("New password is required."); return; }
@@ -1176,7 +1205,7 @@ function ChangePasswordModal({ onClose, token, user, addLog }) {
   };
 
   return (
-    <div className="modal-overlay">
+    <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget && !saving) onClose(); }}>
       <div className="modal-box" style={{ alignItems: "stretch", gap: 14 }}>
         <div className="modal-title" style={{ textAlign: "left" }}>Change Password</div>
         <div className="modal-msg" style={{ textAlign: "left", marginBottom: 0 }}>Update your login credentials.</div>
@@ -1213,6 +1242,13 @@ function ChangePhoneModal({ onClose, token, user, onPhoneChanged, addLog }) {
   const [error, setError]           = useState("");
   const [saving, setSaving] = useState(false);
 
+  useEffect(() => {
+    if (saving) return;
+    const handleScroll = () => onClose();
+    window.addEventListener("scroll", handleScroll, true);
+    return () => window.removeEventListener("scroll", handleScroll, true);
+  }, [saving, onClose]);
+
   const handle = async () => {
     const cleaned = phone.trim().replace(/\s+/g, "");
     const cleanedC = phoneConfirm.trim().replace(/\s+/g, "");
@@ -1240,7 +1276,7 @@ function ChangePhoneModal({ onClose, token, user, onPhoneChanged, addLog }) {
   };
 
   return (
-    <div className="modal-overlay">
+    <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget && !saving) onClose(); }}>
       <div className="modal-box" style={{ alignItems: "stretch", gap: 14 }}>
         <div className="modal-title" style={{ textAlign: "left" }}>Change Phone Number</div>
         <div className="modal-msg" style={{ textAlign: "left", marginBottom: 0 }}>
@@ -1278,6 +1314,13 @@ function AddUserModal({ onAdd, onClose, token, addLog }) {
   const [error, setError]   = useState("");
   const [saving, setSaving] = useState(false);
 
+  useEffect(() => {
+    if (saving) return;
+    const handleScroll = () => onClose();
+    window.addEventListener("scroll", handleScroll, true);
+    return () => window.removeEventListener("scroll", handleScroll, true);
+  }, [saving, onClose]);
+
   const set = (key, val) => { setForm(f => ({ ...f, [key]: val })); setError(""); };
 
   const handle = async () => {
@@ -1311,7 +1354,7 @@ function AddUserModal({ onAdd, onClose, token, addLog }) {
   };
 
   return (
-    <div className="modal-overlay">
+    <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget && !saving) onClose(); }}>
       <div className="modal-box aum-box" style={{ alignItems: "stretch", gap: 16, maxWidth: 420 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
           <div className="modal-icon" style={{ color: "var(--blue)", marginBottom: 0, fontSize: 22 }}>👤</div>
@@ -1988,6 +2031,13 @@ function FilterDropdown({ label, options, value, onChange }) {
     return () => document.removeEventListener("mousedown", h);
   }, []);
 
+  useEffect(() => {
+    if (!open) return;
+    const handleScroll = () => setOpen(false);
+    window.addEventListener("scroll", handleScroll, true);
+    return () => window.removeEventListener("scroll", handleScroll, true);
+  }, [open]);
+
   const selected     = options.find(o => o.value === value);
   const displayLabel = selected ? selected.label : label;
   const isFiltered   = value !== options[0]?.value;
@@ -2032,6 +2082,13 @@ function DateRangeFilter({ from, to, onChange }) {
     document.addEventListener("mousedown", h);
     return () => document.removeEventListener("mousedown", h);
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const handleScroll = () => setOpen(false);
+    window.addEventListener("scroll", handleScroll, true);
+    return () => window.removeEventListener("scroll", handleScroll, true);
+  }, [open]);
 
   const prevMonth = () => { if (viewMonth === 0) { setViewMonth(11); setViewYear(y => y - 1); } else setViewMonth(m => m - 1); };
   const nextMonth = () => { if (viewMonth === 11) { setViewMonth(0); setViewYear(y => y + 1); } else setViewMonth(m => m + 1); };
