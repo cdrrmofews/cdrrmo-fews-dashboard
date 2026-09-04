@@ -166,6 +166,22 @@ async function authFetch(url, options = {}) {
   return res;
 }
 
+// Locks page scroll behind a modal while it's mounted, restores on close.
+function useLockBodyScroll() {
+  useEffect(() => {
+    const original = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = original; };
+  }, []);
+}
+
+// autoFocus on open is fine on desktop, but on mobile it forces the
+// keyboard up mid-animation before the modal has settled — this lets
+// each modal skip autoFocus below the 768px breakpoint.
+function isMobileViewport() {
+  return typeof window !== "undefined" && window.innerWidth <= 768;
+}
+
 // ─── RBAC HELPERS ────────────────────────────────────────────────────────────
 const ROLE_ACCESS = {
   Admin:    ["Dashboard", "UnitControl", "Logs", "Settings"],
@@ -854,18 +870,10 @@ function CustomDatePicker({ value, onChange }) {
   })() : null;
 
   useEffect(() => {
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) onClose(); };
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
-
-  // Close on scroll — same behavior as the Settings page dropdowns (MuDropdown)
-  useEffect(() => {
-    if (saving) return;
-    const handleScroll = () => onClose();
-    window.addEventListener("scroll", handleScroll, true);
-    return () => window.removeEventListener("scroll", handleScroll, true);
-  }, [saving, onClose]);
 
   const getDaysInMonth     = (y, m) => new Date(y, m + 1, 0).getDate();
   const getFirstDayOfMonth = (y, m) => new Date(y, m, 1).getDay();
@@ -1074,12 +1082,7 @@ function OpenAllPopups({ fewsList, markerRefs, active }) {
 
 // ─── MODALS ───────────────────────────────────────────────────────────────────
 function ConfirmModal({ icon, iconColor, title, message, confirmLabel, confirmColor, onConfirm, onCancel, confirmLoading }) {
-  useEffect(() => {
-    if (confirmLoading) return;
-    const handleScroll = () => onCancel();
-    window.addEventListener("scroll", handleScroll, true);
-    return () => window.removeEventListener("scroll", handleScroll, true);
-  }, [confirmLoading, onCancel]);
+  useLockBodyScroll();
 
   return (
     <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget && !confirmLoading) onCancel(); }}>
@@ -1107,12 +1110,7 @@ function ChangeEmailModal({ onClose, token, user, onEmailChanged, addLog }) {
   const [error, setError]     = useState("");
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (saving) return;
-    const handleScroll = () => onClose();
-    window.addEventListener("scroll", handleScroll, true);
-    return () => window.removeEventListener("scroll", handleScroll, true);
-  }, [saving, onClose]);
+  useLockBodyScroll();
 
   const handle = async () => {
     if (!email.trim())        { setError("New email is required."); return; }
@@ -1148,7 +1146,7 @@ function ChangeEmailModal({ onClose, token, user, onEmailChanged, addLog }) {
         <div className="settings-field">
           <label className="settings-label">New Email</label>
           <input className="settings-input" type="email" placeholder="you@cdrrmo.gov.ph"
-            value={email} onChange={e => { setEmail(e.target.value); setError(""); }} autoFocus />
+            value={email} onChange={e => { setEmail(e.target.value); setError(""); }} autoFocus={!isMobileViewport()} />
         </div>
         <div className="settings-field">
           <label className="settings-label">Confirm New Email</label>
@@ -1172,12 +1170,7 @@ function ChangePasswordModal({ onClose, token, user, addLog }) {
   const [error, setError]   = useState("");
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (saving) return;
-    const handleScroll = () => onClose();
-    window.addEventListener("scroll", handleScroll, true);
-    return () => window.removeEventListener("scroll", handleScroll, true);
-  }, [saving, onClose]);
+  useLockBodyScroll();
 
   const handle = async () => {
     if (!pw.current)             { setError("Current password is required."); return; }
@@ -1212,7 +1205,7 @@ function ChangePasswordModal({ onClose, token, user, addLog }) {
         <div className="settings-field">
           <label className="settings-label">Current Password</label>
           <input className="settings-input" type="password" placeholder="••••••••"
-            value={pw.current} onChange={e => { setPw(p => ({...p, current: e.target.value})); setError(""); }} autoFocus />
+            value={pw.current} onChange={e => { setPw(p => ({...p, current: e.target.value})); setError(""); }} autoFocus={!isMobileViewport()} />
         </div>
         <div className="settings-field">
           <label className="settings-label">New Password</label>
@@ -1242,12 +1235,7 @@ function ChangePhoneModal({ onClose, token, user, onPhoneChanged, addLog }) {
   const [error, setError]           = useState("");
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (saving) return;
-    const handleScroll = () => onClose();
-    window.addEventListener("scroll", handleScroll, true);
-    return () => window.removeEventListener("scroll", handleScroll, true);
-  }, [saving, onClose]);
+  useLockBodyScroll();
 
   const handle = async () => {
     const cleaned = phone.trim().replace(/\s+/g, "");
@@ -1287,7 +1275,7 @@ function ChangePhoneModal({ onClose, token, user, onPhoneChanged, addLog }) {
         <div className="settings-field">
           <label className="settings-label">New Phone Number</label>
           <input className="settings-input" type="tel" placeholder="+639XXXXXXXXX"
-            value={phone} onChange={e => { setPhone(e.target.value); setError(""); }} autoFocus />
+            value={phone} onChange={e => { setPhone(e.target.value); setError(""); }} autoFocus={!isMobileViewport()} />
         </div>
         <div className="settings-field">
           <label className="settings-label">Confirm Phone Number</label>
@@ -1314,12 +1302,7 @@ function AddUserModal({ onAdd, onClose, token, addLog }) {
   const [error, setError]   = useState("");
   const [saving, setSaving] = useState(false);
 
-  useEffect(() => {
-    if (saving) return;
-    const handleScroll = () => onClose();
-    window.addEventListener("scroll", handleScroll, true);
-    return () => window.removeEventListener("scroll", handleScroll, true);
-  }, [saving, onClose]);
+  useLockBodyScroll();
 
   const set = (key, val) => { setForm(f => ({ ...f, [key]: val })); setError(""); };
 
@@ -1368,7 +1351,7 @@ function AddUserModal({ onAdd, onClose, token, addLog }) {
           <div className="settings-field">
             <label className="settings-label">Full Name</label>
             <input className="settings-input" placeholder="e.g. Juan dela Cruz"
-              autoComplete="off" autoFocus
+              autoComplete="off" autoFocus={!isMobileViewport()}
               value={form.name} onChange={e => set("name", e.target.value)} />
           </div>
           <div className="settings-field">
@@ -1436,6 +1419,12 @@ function ProfileDropdown({ user, token, onSave, onClose, addLog }) {
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  useEffect(() => {
+    const handleScroll = () => onClose();
+    window.addEventListener("scroll", handleScroll, true);
+    return () => window.removeEventListener("scroll", handleScroll, true);
+  }, [onClose]);
 
   const handlePhoto = (e) => {
     const file = e.target.files[0];
