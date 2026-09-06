@@ -184,8 +184,8 @@ function isMobileViewport() {
 
 // ─── RBAC HELPERS ────────────────────────────────────────────────────────────
 const ROLE_ACCESS = {
-  Admin:    ["Dashboard", "UnitControl", "Logs", "Settings"],
-  Operator: ["Dashboard", "UnitControl", "Logs", "Settings"],
+  Admin:    ["Dashboard", "Statistics", "UnitControl", "Logs", "Settings"],
+  Operator: ["Dashboard", "Statistics", "UnitControl", "Logs", "Settings"],
 };
 
 function can(role, feature) {
@@ -299,6 +299,7 @@ function backendStatusToKey(status) {
 
 const ALL_NAV_ITEMS = [
   { key: "Dashboard",   icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/></svg>, label: "Dashboard"    },
+  { key: "Statistics",  icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="4" y1="20" x2="20" y2="20"/><rect x="6" y="12" width="3" height="8"/><rect x="13" y="7" width="3" height="13"/><rect x="17.5" y="4" width="0" height="0"/><rect x="9.5" y="15" width="3" height="5"/></svg>, label: "Statistics"    },
   { key: "UnitControl", icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2a10 10 0 1 0 10 10"/><polyline points="12 6 12 12 16 14"/><path d="M16 2l4 4-4 4"/></svg>, label: "Unit Control" },
   { key: "Logs",        icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>, label: "Logs"         },
   { key: "Settings",    icon: <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>, label: "Settings"     },
@@ -306,6 +307,7 @@ const ALL_NAV_ITEMS = [
 
 const PAGE_TITLES = {
   Dashboard:   { title: "Flood Monitoring Dashboard", sub: "Live overview" },
+  Statistics:  { title: "Statistics",                 sub: "Historical trends and reports" },
   UnitControl: { title: "Unit Control",               sub: "Manage FEWS units" },
   Logs:        { title: "Logs",                       sub: "System activity log" },
   Settings:    { title: "Settings",                   sub: "System configuration" },
@@ -452,6 +454,172 @@ function ExportMenu({ token, activeFilters, exporting, setExporting, showToast }
                 <span className="export-menu-item-label">{label}</span>
               </button>
           ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── STATISTICS PAGE ──────────────────────────────────────────────────────────
+function getPresetRange(preset) {
+  const to = new Date();
+  const from = new Date();
+  if (preset === "30d") from.setDate(from.getDate() - 30);
+  else if (preset === "90d") from.setDate(from.getDate() - 90);
+  else if (preset === "12m") from.setFullYear(from.getFullYear() - 1);
+  const toIso = (d) => d.toISOString().slice(0, 10);
+  return { from: toIso(from), to: toIso(to) };
+}
+
+function getShadowRange(from, to) {
+  const fromD = new Date(from + "T00:00:00");
+  const toD   = new Date(to + "T00:00:00");
+  const spanMs = toD - fromD;
+  const shadowTo   = new Date(fromD.getTime() - 86400000);
+  const shadowFrom = new Date(shadowTo.getTime() - spanMs);
+  const toIso = (d) => d.toISOString().slice(0, 10);
+  return { from: toIso(shadowFrom), to: toIso(shadowTo) };
+}
+
+function DeltaBadge({ current, previous, mode = "neutral", pointsMode = false, precision = 1 }) {
+  if (previous == null || current == null || previous === 0) return null;
+  const diff = pointsMode ? (current - previous) : ((current - previous) / Math.abs(previous)) * 100;
+  if (Math.abs(diff) < 0.05) return <div className="stats-delta stats-delta-flat">No change vs prior period</div>;
+  const isUp = diff > 0;
+  const arrow = isUp ? "▲" : "▼";
+  const label = `${arrow} ${Math.abs(diff).toFixed(precision)}${pointsMode ? "pp" : "%"} vs prior period`;
+  let cls = "stats-delta-neutral";
+  if (mode === "goodUp")   cls = isUp ? "stats-delta-good" : "stats-delta-bad";
+  if (mode === "goodDown") cls = isUp ? "stats-delta-bad"  : "stats-delta-good";
+  return <div className={`stats-delta ${cls}`}>{label}</div>;
+}
+
+function StatisticsPage({ userRole, token }) {
+  const [preset, setPreset]         = useState("30d");
+  const [customFrom, setCustomFrom] = useState("");
+  const [customTo, setCustomTo]     = useState("");
+  const [loading, setLoading]       = useState(true);
+  const [error, setError]           = useState(false);
+
+  const [waterLevel, setWaterLevel]           = useState(null);
+  const [statusBreakdown, setStatusBreakdown] = useState(null);
+  const [uptime, setUptime]                   = useState(null);
+  const [prevWaterLevel, setPrevWaterLevel]           = useState(null);
+  const [prevStatusBreakdown, setPrevStatusBreakdown] = useState(null);
+  const [prevUptime, setPrevUptime]                   = useState(null);
+
+  const range = preset === "custom" ? { from: customFrom, to: customTo } : getPresetRange(preset);
+  const hasValidRange = !!(range.from && range.to);
+  const shadow = hasValidRange ? getShadowRange(range.from, range.to) : null;
+
+  useEffect(() => {
+    if (!hasValidRange || !token) return;
+    let cancelled = false;
+    setLoading(true);
+    setError(false);
+
+    const qs  = `?date_from=${range.from}&date_to=${range.to}`;
+    const qsP = `?date_from=${shadow.from}&date_to=${shadow.to}`;
+    const headers = { Authorization: `Bearer ${token}` };
+
+    const fetchJson = (url) => authFetch(url, { headers }).then(r => {
+      if (!r.ok) throw new Error(`${url} → ${r.status}`);
+      return r.json();
+    });
+
+    Promise.all([
+      fetchJson(`${API_BASE}/stats/water-level${qs}`),
+      fetchJson(`${API_BASE}/stats/status-breakdown${qs}`),
+      fetchJson(`${API_BASE}/stats/uptime${qs}`),
+      fetchJson(`${API_BASE}/stats/water-level${qsP}`),
+      fetchJson(`${API_BASE}/stats/status-breakdown${qsP}`),
+      fetchJson(`${API_BASE}/stats/uptime${qsP}`),
+    ]).then(([wl, sb, up, pWl, pSb, pUp]) => {
+      if (cancelled) return;
+      const shapeOk = wl?.series && Array.isArray(sb) && up?.uptime_pct != null
+                   && pWl?.series && Array.isArray(pSb) && pUp?.uptime_pct != null;
+      if (!shapeOk) { setError(true); return; }
+      setWaterLevel(wl); setStatusBreakdown(sb); setUptime(up);
+      setPrevWaterLevel(pWl); setPrevStatusBreakdown(pSb); setPrevUptime(pUp);
+    }).catch((e) => {
+      if (e?.message !== "Unauthorized" && !cancelled) { console.error("[Statistics]", e); setError(true); }
+    }).finally(() => { if (!cancelled) setLoading(false); });
+
+    return () => { cancelled = true; };
+  }, [range.from, range.to, token]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const summarize = (wl, sb, up) => {
+    if (!wl || !Array.isArray(sb) || !up) return null;
+    const series = Array.isArray(wl.series) ? wl.series : [];
+    const highs  = series.map(s => s.high).filter(v => v != null);
+    const peak   = highs.length ? Math.max(...highs) : null;
+    const avgs   = series.map(s => s.avg).filter(v => v != null);
+    const avg    = avgs.length ? avgs.reduce((a, v) => a + v, 0) / avgs.length : null;
+    const weeksWithAlerts = sb.filter(w => w.warning_pct > 0 || w.critical_pct > 0).length;
+    return {
+      avg:  avg  != null ? Math.round(avg * 10) / 10 : null,
+      peak: peak != null ? Math.round(peak * 10) / 10 : null,
+      weeksWithAlerts,
+      totalWeeks: sb.length,
+      uptimePct: up.uptime_pct,
+    };
+  };
+
+  const current  = summarize(waterLevel, statusBreakdown, uptime);
+  const previous = summarize(prevWaterLevel, prevStatusBreakdown, prevUptime);
+
+  return (
+    <div className="page-body">
+      <div className="page-card stats-controls-card">
+        <div className="stats-date-controls">
+          <div className="stats-preset-group">
+            {[
+              { key: "30d", label: "Last 30 days" },
+              { key: "90d", label: "Last 90 days" },
+              { key: "12m", label: "Last 12 months" },
+            ].map(p => (
+              <button key={p.key} className={`stats-preset-btn ${preset === p.key ? "stats-preset-active" : ""}`} onClick={() => setPreset(p.key)}>
+                {p.label}
+              </button>
+            ))}
+            <button className={`stats-preset-btn ${preset === "custom" ? "stats-preset-active" : ""}`} onClick={() => setPreset("custom")}>
+              📅 Custom
+            </button>
+          </div>
+          {preset === "custom" && (
+            <DateRangeFilter from={customFrom} to={customTo} onChange={(v) => { setCustomFrom(v.from); setCustomTo(v.to); }} />
+          )}
+        </div>
+      </div>
+
+      {preset === "custom" && !hasValidRange ? (
+        <div className="page-card"><div className="page-card-sub" style={{ marginBottom: 0 }}>Pick a custom date range to view statistics.</div></div>
+      ) : loading ? (
+        <div className="page-card"><div className="page-card-sub" style={{ marginBottom: 0 }}>Loading statistics…</div></div>
+      ) : error ? (
+        <div className="page-card"><div className="settings-error">⚠️ Failed to load statistics — check your connection and try refreshing.</div></div>
+      ) : (
+        <div className="stats-summary-grid">
+          <div className="stats-card">
+            <div className="stats-card-label">Average Water Level</div>
+            <div className="stats-card-value">{current?.avg != null ? `${current.avg} cm` : "—"}</div>
+            <DeltaBadge current={current?.avg} previous={previous?.avg} mode="neutral" />
+          </div>
+          <div className="stats-card">
+            <div className="stats-card-label">Peak Reading</div>
+            <div className="stats-card-value">{current?.peak != null ? `${current.peak} cm` : "—"}</div>
+            <DeltaBadge current={current?.peak} previous={previous?.peak} mode="neutral" />
+          </div>
+          <div className="stats-card">
+            <div className="stats-card-label">Weeks With Alerts</div>
+            <div className="stats-card-value">{current ? `${current.weeksWithAlerts} of ${current.totalWeeks}` : "—"}</div>
+            <DeltaBadge current={current?.weeksWithAlerts} previous={previous?.weeksWithAlerts} mode="goodDown" />
+          </div>
+          <div className="stats-card">
+            <div className="stats-card-label">FEWS 1 Uptime</div>
+            <div className="stats-card-value">{current?.uptimePct != null ? `${current.uptimePct}%` : "—"}</div>
+            <DeltaBadge current={current?.uptimePct} previous={previous?.uptimePct} mode="goodUp" pointsMode precision={2} />
+          </div>
         </div>
       )}
     </div>
@@ -4482,6 +4650,7 @@ const waterChartOptions = useMemo(() => ({
             </div>
           )}
 
+        {activeNav === "Statistics"  && <StatisticsPage userRole={user.role} token={token} />}
         {activeNav === "UnitControl" && <UnitControlPage allFews={allFews} manualFews={manualFews} fews1Connected={isHardwareOnline} userRole={user.role} userName={user.name} unitPreference={user.unit_preference} addLog={addLog} token={token} onThresholdSaved={(t) => setThresholds(t)} onManualUnitSaved={(updated) => setManualFews(prev => prev.map(m => m.device_id === updated.device_id ? updated : m))} />}
         {activeNav === "Logs"        && <LogsPage token={token} userRole={user.role} showToast={showToast} />}
         {activeNav === "Settings"    && <SettingsPage

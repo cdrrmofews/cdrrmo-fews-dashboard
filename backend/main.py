@@ -710,6 +710,211 @@ def export_logs(
         cur.close()
         release_db(conn)
 
+# --- STATISTICS ---
+
+STATUS_TYPE_LABELS = {
+    "baseline": "BASE",
+    "info":     "NORMAL",
+    "warning":  "WARNING",
+    "danger":   "CRITICAL",
+}
+
+@app.get("/stats/status-breakdown")
+def stats_status_breakdown(
+    date_from: str = "",
+    date_to:   str = "",
+    user=Depends(get_current_user)
+):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        filters = ["type = ANY(%s)"]
+        params  = [list(STATUS_TYPE_LABELS.keys())]
+        if date_from:
+            filters.append("(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date >= %s::date")
+            params.append(date_from)
+        if date_to:
+            filters.append("(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date <= %s::date")
+            params.append(date_to)
+        where = "WHERE " + " AND ".join(filters)
+
+        cur.execute(f"""
+            SELECT
+                date_trunc('week', (timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila'))::date AS week_start,
+                type,
+                COUNT(*) AS count
+            FROM system_logs
+            {where}
+            GROUP BY week_start, type
+            ORDER BY week_start ASC
+        """, params)
+        rows = cur.fetchall()
+
+        weeks = {}
+        for row in rows:
+            wk = row["week_start"].isoformat()
+            if wk not in weeks:
+                weeks[wk] = {"BASE": 0, "NORMAL": 0, "WARNING": 0, "CRITICAL": 0, "total": 0}
+            label = STATUS_TYPE_LABELS.get(row["type"])
+            if label:
+                weeks[wk][label] += row["count"]
+                weeks[wk]["total"] += row["count"]
+
+        result = []
+        for wk in sorted(weeks.keys()):
+            w = weeks[wk]
+            total = w["total"] or 1  # avoid div-by-zero on an empty week
+            result.append({
+                "week_start":     wk,
+                "base_pct":       round(w["BASE"]     / total * 100, 1),
+                "normal_pct":     round(w["NORMAL"]   / total * 100, 1),
+                "warning_pct":    round(w["WARNING"]  / total * 100, 1),
+                "critical_pct":   round(w["CRITICAL"] / total * 100, 1),
+                "total_readings": w["total"],
+            })
+        return result
+    finally:
+        cur.close()
+        release_db(conn)
+
+@app.get("/stats/uptime")
+def stats_uptime(
+    date_from: str = "",
+    date_to:   str = "",
+    user=Depends(get_current_user)
+):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        filters = ["type = 'connectivity'"]
+        params  = []
+        if date_from:
+            filters.append("(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date >= %s::date")
+            params.append(date_from)
+        if date_to:
+            filters.append("(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date <= %s::date")
+            params.append(date_to)
+        where = "WHERE " + " AND ".join(filters)
+
+        cur.execute(f"""
+            SELECT message, timestamp
+            FROM system_logs
+            {where}
+            ORDER BY timestamp ASC
+        """, params)
+        rows = cur.fetchall()
+
+        if date_from:
+            range_start = datetime.fromisoformat(date_from)
+        else:
+            cur.execute("SELECT MIN(timestamp) AS earliest FROM sensor_readings")
+            earliest_row = cur.fetchone()
+            range_start = earliest_row["earliest"] if earliest_row and earliest_row["earliest"] else None
+
+        range_end = datetime.fromisoformat(date_to) if date_to else datetime.utcnow()
+
+        incidents      = []
+        offline_since  = None
+        for row in rows:
+            if "went offline" in row["message"]:
+                if offline_since is None:
+                    offline_since = row["timestamp"]
+            else:
+                if offline_since is not None:
+                    incidents.append({
+                        "start_ts":     offline_since.isoformat(),
+                        "duration_sec": (row["timestamp"] - offline_since).total_seconds(),
+                        "ongoing":      False,
+                    })
+                    offline_since = None
+
+        if offline_since is not None:
+            incidents.append({
+                "start_ts":     offline_since.isoformat(),
+                "duration_sec": (range_end - offline_since).total_seconds(),
+                "ongoing":      True,
+            })
+
+        total_seconds   = (range_end - range_start).total_seconds() if range_start else 0
+        downtime_seconds = sum(i["duration_sec"] for i in incidents)
+        uptime_pct = round((1 - downtime_seconds / total_seconds) * 100, 2) if total_seconds > 0 else 100.0
+
+        MIN_DISPLAY_SEC = 300  # 5 minutes — filters the LIST only, not the uptime % above
+        worst_incidents = sorted(
+            [i for i in incidents if i["duration_sec"] >= MIN_DISPLAY_SEC],
+            key=lambda i: i["duration_sec"],
+            reverse=True
+        )
+
+        return {
+            "uptime_pct":       uptime_pct,
+            "total_incidents":  len(incidents),
+            "worst_incidents":  worst_incidents,
+        }
+    finally:
+        cur.close()
+        release_db(conn)
+
+@app.get("/stats/water-level")
+def stats_water_level(
+    date_from: str = "",
+    date_to:   str = "",
+    user=Depends(get_current_user)
+):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        filters = ["device_id = 'fews_1'"]
+        params  = []
+        if date_from:
+            filters.append("(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date >= %s::date")
+            params.append(date_from)
+        if date_to:
+            filters.append("(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date <= %s::date")
+            params.append(date_to)
+        where = "WHERE " + " AND ".join(filters)
+
+        if date_from and date_to:
+            span_days = (datetime.fromisoformat(date_to) - datetime.fromisoformat(date_from)).days
+        else:
+            cur.execute(f"""
+                SELECT MIN(timestamp) AS earliest, MAX(timestamp) AS latest
+                FROM sensor_readings {where}
+            """, params)
+            row = cur.fetchone()
+            span_days = (row["latest"] - row["earliest"]).days if row and row["earliest"] and row["latest"] else 0
+
+        bucket = "day" if span_days <= 60 else "week" if span_days <= 180 else "month"
+
+        cur.execute(f"""
+            SELECT
+                date_trunc('{bucket}', (timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila'))::date AS bucket_start,
+                MAX(water_level_cm) AS high,
+                AVG(water_level_cm) AS avg,
+                MIN(water_level_cm) AS low
+            FROM sensor_readings
+            {where}
+            GROUP BY bucket_start
+            ORDER BY bucket_start ASC
+        """, params)
+        rows = cur.fetchall()
+
+        return {
+            "bucket": bucket,
+            "series": [
+                {
+                    "bucket_start": r["bucket_start"].isoformat(),
+                    "high": round(r["high"], 1) if r["high"] is not None else None,
+                    "avg":  round(r["avg"], 1)  if r["avg"]  is not None else None,
+                    "low":  round(r["low"], 1)  if r["low"]  is not None else None,
+                }
+                for r in rows
+            ],
+        }
+    finally:
+        cur.close()
+        release_db(conn)
+
 # --- USER MANAGEMENT (Admin only) ---
 
 @app.get("/users")
