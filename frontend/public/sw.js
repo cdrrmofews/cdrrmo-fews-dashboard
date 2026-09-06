@@ -64,10 +64,14 @@ self.addEventListener('activate', (event) => {
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
 
-  // Network-first for all API calls — never serve stale sensor data
+  // Network-first for all API calls — never serve stale sensor data.
+  // cache: 'no-store' is required here: without it, the browser's own
+  // HTTP cache can still serve a stale response even though the service
+  // worker is asking for network — this is what caused NORMAL to stick
+  // until a hard refresh.
   if (url.origin === 'https://cdrrmo-fews.onrender.com') {
     event.respondWith(
-      fetch(event.request).catch(() =>
+      fetch(event.request, { cache: 'no-store' }).catch(() =>
         new Response(
           JSON.stringify({ error: 'offline', message: 'No network connection.' }),
           { status: 503, headers: { 'Content-Type': 'application/json' } }
