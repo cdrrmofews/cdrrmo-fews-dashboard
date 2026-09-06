@@ -69,7 +69,7 @@ LOG_TYPES_BY_ROLE = {
 @app.on_event("startup")
 def startup():
     threading.Thread(target=cleanup_logs, daemon=True).start()
-    print("[CLEANUP] Log retention thread started (90 days)")
+    print("[CLEANUP] Log retention thread started (365 days)")
     try:
         init_db()
         conn = get_db()
@@ -566,7 +566,7 @@ def create_log(req: CreateLogRequest, user=Depends(get_current_user)):
         release_db(conn)
 
 def cleanup_logs():
-    """Delete logs older than 90 days. Runs on startup and every 24h."""
+    """Delete logs older than 365 days. Runs on startup and every 24h."""
     while True:
         conn = None
         try:
@@ -575,12 +575,12 @@ def cleanup_logs():
             try:
                 cur.execute("""
                     DELETE FROM system_logs
-                    WHERE timestamp < NOW() - INTERVAL '90 days'
+                    WHERE timestamp < NOW() - INTERVAL '365 days'
                 """)
                 deleted = cur.rowcount
                 conn.commit()
                 if deleted > 0:
-                    print(f"[CLEANUP] Deleted {deleted} logs older than 90 days")
+                    print(f"[CLEANUP] Deleted {deleted} logs older than 365 days")
             finally:
                 cur.close()
                 release_db(conn)
