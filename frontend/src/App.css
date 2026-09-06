@@ -2162,47 +2162,6 @@ select.settings-input {
 .logs-page-ellipsis { color: var(--text-3); font-size: 13px; padding: 0 4px; line-height: 30px; }
 
 /* ================================
-   STATISTICS PAGE
-================================ */
-.stats-controls-card { padding: 12px 14px; }
-.stats-date-controls { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
-.stats-preset-group  { display: flex; gap: 6px; flex-wrap: wrap; }
-
-.stats-preset-btn {
-  height: 34px; padding: 0 14px; border-radius: 14px;
-  border: 1px solid rgba(255,255,255,0.12); background: var(--bg-raised);
-  color: var(--text-2); font-family: var(--font); font-size: 12px; font-weight: 600;
-  cursor: pointer; transition: border-color 0.2s, background 0.2s, color 0.2s; white-space: nowrap;
-}
-.stats-preset-btn:hover { border-color: rgba(255,255,255,0.22); color: var(--text-1); }
-.stats-preset-active {
-  background: rgba(56,189,248,0.10); border-color: rgba(56,189,248,0.35) !important; color: var(--blue) !important;
-}
-
-.stats-summary-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 10px; }
-.stats-card {
-  background: var(--bg-card); border: 1px solid var(--border); border-radius: var(--radius);
-  padding: 14px 16px; display: flex; flex-direction: column; gap: 6px; min-width: 0;
-}
-.stats-card-label { font-size: 11px; font-weight: 700; color: var(--text-3); text-transform: uppercase; letter-spacing: 0.06em; }
-.stats-card-value { font-size: 22px; font-weight: 800; color: var(--text-1); font-family: var(--mono); line-height: 1.1; }
-.stats-delta         { font-size: 11px; font-weight: 600; font-family: var(--mono); }
-.stats-delta-good    { color: var(--green); }
-.stats-delta-bad     { color: var(--red); }
-.stats-delta-flat,
-.stats-delta-neutral { color: var(--text-3); }
-
-@media (max-width: 768px) {
-  .stats-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .stats-card         { padding: 12px 14px; }
-  .stats-card-value   { font-size: 18px; }
-  .stats-preset-btn   { height: 32px; padding: 0 12px; font-size: 11px; }
-}
-@media (max-width: 400px) {
-  .stats-summary-grid { grid-template-columns: 1fr; }
-}
-
-/* ================================
    CUSTOM FILTER DROPDOWN
 ================================ */
 .fdd-wrap { position: relative; flex-shrink: 0; }
