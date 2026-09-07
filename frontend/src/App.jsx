@@ -633,13 +633,12 @@ function StatisticsPage({ userRole, token, manualFews }) {
                 {p.label}
               </button>
             ))}
-            <button className={`stats-preset-btn ${preset === "custom" ? "stats-preset-active" : ""}`} onClick={() => setPreset("custom")}>
-              📅 Custom
-            </button>
           </div>
-          {preset === "custom" && (
-            <DateRangeFilter from={customFrom} to={customTo} onChange={(v) => { setCustomFrom(v.from); setCustomTo(v.to); }} />
-          )}
+          <DateRangeFilter
+            from={customFrom}
+            to={customTo}
+            onChange={(v) => { setCustomFrom(v.from); setCustomTo(v.to); setPreset("custom"); }}
+          />
         </div>
       </div>
 
@@ -693,75 +692,77 @@ function StatisticsPage({ userRole, token, manualFews }) {
             )}
           </div>
 
-          <div className="page-card">
-            <div className="card-header">
-              <h2>Status Breakdown by Week</h2>
-              <div className="wl-legend-row">
-                <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#e2e8f0" }} />Base</span>
-                <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#fde047" }} />Normal</span>
-                <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#f97316" }} />Warning</span>
-                <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#ef4444" }} />Critical</span>
-              </div>
-            </div>
-            {statusBreakdown?.length ? (
-              <div className="stats-breakdown-list">
-                {statusBreakdown.map(w => (
-                  <div key={w.week_start} className="stats-breakdown-row">
-                    <span className="stats-breakdown-week">{fmtBucketLabel(w.week_start, "week")}</span>
-                    <div className="stats-breakdown-bar">
-                      {w.base_pct > 0     && <div style={{ width: `${w.base_pct}%`,     background: "#e2e8f0" }} title={`Base: ${w.base_pct}%`} />}
-                      {w.normal_pct > 0   && <div style={{ width: `${w.normal_pct}%`,   background: "#fde047" }} title={`Normal: ${w.normal_pct}%`} />}
-                      {w.warning_pct > 0  && <div style={{ width: `${w.warning_pct}%`,  background: "#f97316" }} title={`Warning: ${w.warning_pct}%`} />}
-                      {w.critical_pct > 0 && <div style={{ width: `${w.critical_pct}%`, background: "#ef4444" }} title={`Critical: ${w.critical_pct}%`} />}
-                    </div>
-                    <span className="stats-breakdown-count">{w.total_readings} readings</span>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <div className="stats-chart-empty">No status data for this range.</div>
-            )}
-          </div>
-
-          <div className="page-card">
-            <div className="card-header">
-              <h2>Manual Station Health</h2>
-              <span className="card-tag">{manualFews.length} stations</span>
-            </div>
-            {manualFews.length ? (() => {
-              const serviceable = manualFews.filter(m => m.status === "serviceable").length;
-              const total = manualFews.length;
-              const pct = total ? Math.round((serviceable / total) * 100) : 0;
-              const circumference = 2 * Math.PI * 40;
-              const dashLength = (pct / 100) * circumference;
-              return (
-                <div className="stats-donut-row">
-                  <svg viewBox="0 0 100 100" className="stats-donut-svg">
-                    <circle cx="50" cy="50" r="40" fill="none" stroke="var(--bg-raised)" strokeWidth="14" />
-                    <circle
-                      cx="50" cy="50" r="40" fill="none" stroke="#22c55e" strokeWidth="14"
-                      strokeDasharray={`${dashLength} ${circumference}`}
-                      strokeLinecap="round"
-                      transform="rotate(-90 50 50)"
-                    />
-                    <text x="50" y="46" textAnchor="middle" className="stats-donut-pct">{pct}%</text>
-                    <text x="50" y="62" textAnchor="middle" className="stats-donut-sub">serviceable</text>
-                  </svg>
-                  <div className="stats-donut-legend">
-                    <div className="stats-donut-legend-row">
-                      <span className="stats-donut-dot" style={{ background: "#22c55e" }} />
-                      Serviceable <strong>{serviceable}</strong>
-                    </div>
-                    <div className="stats-donut-legend-row">
-                      <span className="stats-donut-dot" style={{ background: "var(--bg-raised)", border: "1px solid var(--border)" }} />
-                      Unserviceable <strong>{total - serviceable}</strong>
-                    </div>
-                  </div>
+          <div className="stats-grid-pair">
+            <div className="page-card stats-breakdown-card">
+              <div className="card-header">
+                <h2>Status Breakdown by Week</h2>
+                <div className="wl-legend-row">
+                  <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#e2e8f0" }} />Base</span>
+                  <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#fde047" }} />Normal</span>
+                  <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#f97316" }} />Warning</span>
+                  <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#ef4444" }} />Critical</span>
                 </div>
-              );
-            })() : (
-              <div className="stats-chart-empty">No manual station data available.</div>
-            )}
+              </div>
+              {statusBreakdown?.length ? (
+                <div className="stats-breakdown-list">
+                  {statusBreakdown.map(w => (
+                    <div key={w.week_start} className="stats-breakdown-row">
+                      <span className="stats-breakdown-week">{fmtBucketLabel(w.week_start, "week")}</span>
+                      <div className="stats-breakdown-bar">
+                        {w.base_pct > 0     && <div style={{ width: `${w.base_pct}%`,     background: "#e2e8f0" }} title={`Base: ${w.base_pct}%`} />}
+                        {w.normal_pct > 0   && <div style={{ width: `${w.normal_pct}%`,   background: "#fde047" }} title={`Normal: ${w.normal_pct}%`} />}
+                        {w.warning_pct > 0  && <div style={{ width: `${w.warning_pct}%`,  background: "#f97316" }} title={`Warning: ${w.warning_pct}%`} />}
+                        {w.critical_pct > 0 && <div style={{ width: `${w.critical_pct}%`, background: "#ef4444" }} title={`Critical: ${w.critical_pct}%`} />}
+                      </div>
+                      <span className="stats-breakdown-count">{w.total_readings} readings</span>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="stats-chart-empty">No status data for this range.</div>
+              )}
+            </div>
+
+            <div className="page-card stats-donut-card">
+              <div className="card-header">
+                <h2>Manual Station Health</h2>
+                <span className="card-tag">{manualFews.length} stations</span>
+              </div>
+              {manualFews.length ? (() => {
+                const serviceable = manualFews.filter(m => m.status === "serviceable").length;
+                const total = manualFews.length;
+                const pct = total ? Math.round((serviceable / total) * 100) : 0;
+                const circumference = 2 * Math.PI * 40;
+                const dashLength = (pct / 100) * circumference;
+                return (
+                  <div className="stats-donut-row">
+                    <svg viewBox="0 0 100 100" className="stats-donut-svg">
+                      <circle cx="50" cy="50" r="40" fill="none" stroke="var(--bg-raised)" strokeWidth="14" />
+                      <circle
+                        cx="50" cy="50" r="40" fill="none" stroke="#22c55e" strokeWidth="14"
+                        strokeDasharray={`${dashLength} ${circumference}`}
+                        strokeLinecap="round"
+                        transform="rotate(-90 50 50)"
+                      />
+                      <text x="50" y="46" textAnchor="middle" className="stats-donut-pct">{pct}%</text>
+                      <text x="50" y="62" textAnchor="middle" className="stats-donut-sub">serviceable</text>
+                    </svg>
+                    <div className="stats-donut-legend">
+                      <div className="stats-donut-legend-row">
+                        <span className="stats-donut-dot" style={{ background: "#22c55e" }} />
+                        Serviceable <strong>{serviceable}</strong>
+                      </div>
+                      <div className="stats-donut-legend-row">
+                        <span className="stats-donut-dot" style={{ background: "var(--bg-raised)", border: "1px solid var(--border)" }} />
+                        Unserviceable <strong>{total - serviceable}</strong>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })() : (
+                <div className="stats-chart-empty">No manual station data available.</div>
+              )}
+            </div>
           </div>
 
           <div className="page-card">
