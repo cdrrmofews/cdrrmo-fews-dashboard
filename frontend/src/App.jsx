@@ -494,7 +494,58 @@ function DeltaBadge({ current, previous, mode = "neutral", pointsMode = false, p
   return <div className={`stats-delta ${cls}`}>{label}</div>;
 }
 
-function StatisticsPage({ userRole, token }) {
+function fmtBucketLabel(iso, bucket) {
+  const d = new Date(iso + "T00:00:00");
+  if (bucket === "month") return d.toLocaleDateString("en-PH", { month: "short", year: "2-digit" });
+  return d.toLocaleDateString("en-PH", { month: "short", day: "numeric" });
+}
+
+function fmtIncidentStart(iso) {
+  const d = new Date(iso.replace(" ", "T").replace(/Z?$/, "Z"));
+  return new Intl.DateTimeFormat("en-PH", {
+    timeZone: "Asia/Manila", month: "short", day: "numeric",
+    hour: "2-digit", minute: "2-digit", hour12: true,
+  }).format(d);
+}
+
+function fmtDuration(seconds) {
+  const mins = Math.round(seconds / 60);
+  if (mins < 60) return `${mins} min`;
+  const hrs = Math.floor(mins / 60);
+  const remMins = mins % 60;
+  return remMins > 0 ? `${hrs}h ${remMins}m` : `${hrs}h`;
+}
+
+function buildTrendChartData(waterLevel) {
+  const labels = waterLevel.series.map(s => fmtBucketLabel(s.bucket_start, waterLevel.bucket));
+  return {
+    labels,
+    datasets: [
+      { label: "High",    data: waterLevel.series.map(s => s.high), borderColor: "#ef4444", backgroundColor: "transparent", tension: 0.2, pointRadius: 2, borderWidth: 2 },
+      { label: "Average", data: waterLevel.series.map(s => s.avg),  borderColor: "#38bdf8", backgroundColor: "transparent", tension: 0.2, pointRadius: 2, borderWidth: 2 },
+      { label: "Low",     data: waterLevel.series.map(s => s.low),  borderColor: "#e2e8f0", backgroundColor: "transparent", tension: 0.2, pointRadius: 2, borderWidth: 2 },
+    ],
+  };
+}
+
+const TREND_CHART_OPTIONS = {
+  responsive: true,
+  maintainAspectRatio: false,
+  plugins: {
+    legend: { display: false },
+    tooltip: {
+      backgroundColor: "#1e293b", titleColor: "#fff", bodyColor: "#94a3b8",
+      borderColor: "#334155", borderWidth: 1,
+      callbacks: { label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y ?? "—"} cm` },
+    },
+  },
+  scales: {
+    y: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#7e92b4", font: { size: 10 } } },
+    x: { grid: { color: "rgba(255,255,255,0.04)" }, ticks: { color: "#64748b", font: { size: 9 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 12 } },
+  },
+};
+
+function StatisticsPage({ userRole, token, manualFews }) {
   const [preset, setPreset]         = useState("30d");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo]     = useState("");
@@ -599,28 +650,140 @@ function StatisticsPage({ userRole, token }) {
       ) : error ? (
         <div className="page-card"><div className="settings-error">⚠️ Failed to load statistics — check your connection and try refreshing.</div></div>
       ) : (
-        <div className="stats-summary-grid">
-          <div className="stats-card">
-            <div className="stats-card-label">Average Water Level</div>
-            <div className="stats-card-value">{current?.avg != null ? `${current.avg} cm` : "—"}</div>
-            <DeltaBadge current={current?.avg} previous={previous?.avg} mode="neutral" />
+        <>
+          <div className="stats-summary-grid">
+            <div className="stats-card">
+              <div className="stats-card-label">Average Water Level</div>
+              <div className="stats-card-value">{current?.avg != null ? `${current.avg} cm` : "—"}</div>
+              <DeltaBadge current={current?.avg} previous={previous?.avg} mode="neutral" />
+            </div>
+            <div className="stats-card">
+              <div className="stats-card-label">Peak Reading</div>
+              <div className="stats-card-value">{current?.peak != null ? `${current.peak} cm` : "—"}</div>
+              <DeltaBadge current={current?.peak} previous={previous?.peak} mode="neutral" />
+            </div>
+            <div className="stats-card">
+              <div className="stats-card-label">Weeks With Alerts</div>
+              <div className="stats-card-value">{current ? `${current.weeksWithAlerts} of ${current.totalWeeks}` : "—"}</div>
+              <DeltaBadge current={current?.weeksWithAlerts} previous={previous?.weeksWithAlerts} mode="goodDown" />
+            </div>
+            <div className="stats-card">
+              <div className="stats-card-label">FEWS 1 Uptime</div>
+              <div className="stats-card-value">{current?.uptimePct != null ? `${current.uptimePct}%` : "—"}</div>
+              <DeltaBadge current={current?.uptimePct} previous={previous?.uptimePct} mode="goodUp" pointsMode precision={2} />
+            </div>
           </div>
-          <div className="stats-card">
-            <div className="stats-card-label">Peak Reading</div>
-            <div className="stats-card-value">{current?.peak != null ? `${current.peak} cm` : "—"}</div>
-            <DeltaBadge current={current?.peak} previous={previous?.peak} mode="neutral" />
+
+          <div className="page-card stats-chart-card">
+            <div className="card-header">
+              <h2>Water Level Trend</h2>
+              <div className="wl-legend-row">
+                <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#ef4444" }} />High</span>
+                <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#38bdf8" }} />Average</span>
+                <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#e2e8f0" }} />Low</span>
+              </div>
+              <span className="card-tag">By {waterLevel?.bucket || "—"}</span>
+            </div>
+            {waterLevel?.series?.length ? (
+              <div className="stats-chart-wrap">
+                <Line data={buildTrendChartData(waterLevel)} options={TREND_CHART_OPTIONS} />
+              </div>
+            ) : (
+              <div className="stats-chart-empty">No water level data for this range.</div>
+            )}
           </div>
-          <div className="stats-card">
-            <div className="stats-card-label">Weeks With Alerts</div>
-            <div className="stats-card-value">{current ? `${current.weeksWithAlerts} of ${current.totalWeeks}` : "—"}</div>
-            <DeltaBadge current={current?.weeksWithAlerts} previous={previous?.weeksWithAlerts} mode="goodDown" />
+
+          <div className="page-card">
+            <div className="card-header">
+              <h2>Status Breakdown by Week</h2>
+              <div className="wl-legend-row">
+                <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#e2e8f0" }} />Base</span>
+                <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#fde047" }} />Normal</span>
+                <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#f97316" }} />Warning</span>
+                <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#ef4444" }} />Critical</span>
+              </div>
+            </div>
+            {statusBreakdown?.length ? (
+              <div className="stats-breakdown-list">
+                {statusBreakdown.map(w => (
+                  <div key={w.week_start} className="stats-breakdown-row">
+                    <span className="stats-breakdown-week">{fmtBucketLabel(w.week_start, "week")}</span>
+                    <div className="stats-breakdown-bar">
+                      {w.base_pct > 0     && <div style={{ width: `${w.base_pct}%`,     background: "#e2e8f0" }} title={`Base: ${w.base_pct}%`} />}
+                      {w.normal_pct > 0   && <div style={{ width: `${w.normal_pct}%`,   background: "#fde047" }} title={`Normal: ${w.normal_pct}%`} />}
+                      {w.warning_pct > 0  && <div style={{ width: `${w.warning_pct}%`,  background: "#f97316" }} title={`Warning: ${w.warning_pct}%`} />}
+                      {w.critical_pct > 0 && <div style={{ width: `${w.critical_pct}%`, background: "#ef4444" }} title={`Critical: ${w.critical_pct}%`} />}
+                    </div>
+                    <span className="stats-breakdown-count">{w.total_readings} readings</span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="stats-chart-empty">No status data for this range.</div>
+            )}
           </div>
-          <div className="stats-card">
-            <div className="stats-card-label">FEWS 1 Uptime</div>
-            <div className="stats-card-value">{current?.uptimePct != null ? `${current.uptimePct}%` : "—"}</div>
-            <DeltaBadge current={current?.uptimePct} previous={previous?.uptimePct} mode="goodUp" pointsMode precision={2} />
+
+          <div className="page-card">
+            <div className="card-header">
+              <h2>Manual Station Health</h2>
+              <span className="card-tag">{manualFews.length} stations</span>
+            </div>
+            {manualFews.length ? (() => {
+              const serviceable = manualFews.filter(m => m.status === "serviceable").length;
+              const total = manualFews.length;
+              const pct = total ? Math.round((serviceable / total) * 100) : 0;
+              const circumference = 2 * Math.PI * 40;
+              const dashLength = (pct / 100) * circumference;
+              return (
+                <div className="stats-donut-row">
+                  <svg viewBox="0 0 100 100" className="stats-donut-svg">
+                    <circle cx="50" cy="50" r="40" fill="none" stroke="var(--bg-raised)" strokeWidth="14" />
+                    <circle
+                      cx="50" cy="50" r="40" fill="none" stroke="#22c55e" strokeWidth="14"
+                      strokeDasharray={`${dashLength} ${circumference}`}
+                      strokeLinecap="round"
+                      transform="rotate(-90 50 50)"
+                    />
+                    <text x="50" y="46" textAnchor="middle" className="stats-donut-pct">{pct}%</text>
+                    <text x="50" y="62" textAnchor="middle" className="stats-donut-sub">serviceable</text>
+                  </svg>
+                  <div className="stats-donut-legend">
+                    <div className="stats-donut-legend-row">
+                      <span className="stats-donut-dot" style={{ background: "#22c55e" }} />
+                      Serviceable <strong>{serviceable}</strong>
+                    </div>
+                    <div className="stats-donut-legend-row">
+                      <span className="stats-donut-dot" style={{ background: "var(--bg-raised)", border: "1px solid var(--border)" }} />
+                      Unserviceable <strong>{total - serviceable}</strong>
+                    </div>
+                  </div>
+                </div>
+              );
+            })() : (
+              <div className="stats-chart-empty">No manual station data available.</div>
+            )}
           </div>
-        </div>
+
+          <div className="page-card">
+            <div className="card-header">
+              <h2>Offline Incidents</h2>
+              <span className="card-tag">FEWS 1 · gaps ≥ 5 min</span>
+            </div>
+            {uptime?.worst_incidents?.length ? (
+              <div className="stats-incidents-list">
+                {uptime.worst_incidents.map((inc, i) => (
+                  <div key={i} className={`stats-incident-row ${inc.ongoing ? "stats-incident-ongoing" : ""}`}>
+                    <span className="stats-incident-start">{fmtIncidentStart(inc.start_ts)}</span>
+                    <span className="stats-incident-duration">{fmtDuration(inc.duration_sec)}</span>
+                    {inc.ongoing && <span className="stats-incident-badge">ONGOING</span>}
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="stats-chart-empty">No offline incidents of 5+ minutes in this range.</div>
+            )}
+          </div>
+        </>
       )}
     </div>
   );
@@ -4650,7 +4813,7 @@ const waterChartOptions = useMemo(() => ({
             </div>
           )}
 
-        {activeNav === "Statistics"  && <StatisticsPage userRole={user.role} token={token} />}
+        {activeNav === "Statistics"  && <StatisticsPage userRole={user.role} token={token} manualFews={manualFews} />}
         {activeNav === "UnitControl" && <UnitControlPage allFews={allFews} manualFews={manualFews} fews1Connected={isHardwareOnline} userRole={user.role} userName={user.name} unitPreference={user.unit_preference} addLog={addLog} token={token} onThresholdSaved={(t) => setThresholds(t)} onManualUnitSaved={(updated) => setManualFews(prev => prev.map(m => m.device_id === updated.device_id ? updated : m))} />}
         {activeNav === "Logs"        && <LogsPage token={token} userRole={user.role} showToast={showToast} />}
         {activeNav === "Settings"    && <SettingsPage
