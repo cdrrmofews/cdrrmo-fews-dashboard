@@ -679,7 +679,7 @@ function StatisticsPage({ userRole, token, manualFews }) {
             { key: "90d", label: "Last 90 days" },
             { key: "12m", label: "Last 12 months" },
           ].map(p => (
-            <button key={p.key} className={`stats-preset-btn ${preset === p.key ? "stats-preset-active" : ""}`} onClick={() => setPreset(p.key)}>
+            <button key={p.key} className={`stats-preset-btn ${preset === p.key ? "stats-preset-active" : ""}`} onClick={() => { setPreset(p.key); setCustomFrom(""); setCustomTo(""); }}>
               {p.label}
             </button>
           ))}
