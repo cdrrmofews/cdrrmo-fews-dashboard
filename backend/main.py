@@ -819,6 +819,32 @@ def stats_uptime(
             if "went offline" in row["message"]:
                 if offline_since is None:
                     offline_since = row["timestamp"]
+                else:
+                    # A new "went offline" arrived while a prior incident was
+                    # still open — its closing "back online" log is missing
+                    # (this is what caused durations like 361h). Check
+                    # sensor_readings for real proof the station came back
+                    # online in between before treating this as two incidents.
+                    cur.execute("""
+                        SELECT MIN(timestamp) AS recovered_at
+                        FROM sensor_readings
+                        WHERE device_id = 'fews_1' AND timestamp > %s AND timestamp < %s
+                    """, (offline_since, row["timestamp"]))
+                    recovery_row = cur.fetchone()
+                    recovered_at = recovery_row["recovered_at"] if recovery_row else None
+                    if recovered_at is not None:
+                        # Confirmed real recovery in between — close the first
+                        # incident here and start tracking a new one.
+                        incidents.append({
+                            "start_ts":     offline_since.isoformat(),
+                            "duration_sec": (recovered_at - offline_since).total_seconds(),
+                            "ongoing":      False,
+                        })
+                        offline_since = row["timestamp"]
+                    # else: no reading found in between — the station likely
+                    # never actually recovered, so this "went offline" is
+                    # probably a stale duplicate. Keep the original
+                    # offline_since and ignore this row.
             else:
                 if offline_since is not None:
                     incidents.append({

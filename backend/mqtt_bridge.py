@@ -294,6 +294,8 @@ def on_message(client, userdata, msg):
                 f"Water Level: {water_str} [{status_label}]"
             )
 
+            was_offline = _offline_logged.get(station_id, False)
+
             cur.execute("""
                 INSERT INTO system_logs (station, type, message, user_name)
                 VALUES (%s, %s, %s, %s)
@@ -304,9 +306,30 @@ def on_message(client, userdata, msg):
                 "System",
             ))
 
+            if was_offline:
+                cur.execute("""
+                    INSERT INTO system_logs (station, type, message, user_name)
+                    VALUES (%s, %s, %s, %s)
+                """, (
+                    station_name,
+                    "connectivity",
+                    f"{station_name} is back online and transmitting data after signal loss",
+                    "System",
+                ))
+
             conn.commit()
             mark_station_online(station_id)
             print(f"[BRIDGE] Saved → {station_id} {water_level_cm}cm {status} is_immediate={is_immediate} | Logged as [{log_type.upper()}]")
+
+            if was_offline:
+                threading.Thread(
+                    target=send_push_notifications,
+                    args=(
+                        "✅ CDRRMO FEWS BACK ONLINE",
+                        f"{station_name} ({STATION_LOCATIONS.get(station_id, '')}) is back online and transmitting data.",
+                    ),
+                    daemon=True,
+                ).start()
 
             station_location = STATION_LOCATIONS.get(station_id, "")
             prev_status = _prev_status.get(station_id, "")
