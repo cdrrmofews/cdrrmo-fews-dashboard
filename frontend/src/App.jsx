@@ -546,19 +546,18 @@ function TrendChart({ waterLevel }) {
   const chartRef = useRef(null);
   const wrapRef  = useRef(null);
 
+  // Data changed (new bucket, new range) — the chart instance is reused
+  // now (no more `key` remount below), so just re-layout it once the new
+  // data has painted.
   useEffect(() => {
-    const t = setTimeout(() => {
+    const raf = requestAnimationFrame(() => {
       if (chartRef.current) chartRef.current.resize();
-    }, 60);
-    return () => clearTimeout(t);
+    });
+    return () => cancelAnimationFrame(raf);
   }, [waterLevel.bucket, waterLevel.series.length]);
 
-  // Chart.js can end up with a 0-height canvas if it initializes before its
-  // flex/grid container has settled on a final size — the timeout above
-  // isn't reliable for that since it only re-fires on data changes, not on
-  // layout/viewport changes. Watch the wrapper directly and force a resize
-  // whenever its actual size changes, regardless of what caused it (zoom,
-  // window resize, sidebar toggle, etc).
+  // Container's actual box size changed (zoom, window resize, sidebar
+  // toggle) — independent of the data-driven resize above.
   useEffect(() => {
     if (!wrapRef.current) return;
     const observer = new ResizeObserver(() => {
@@ -572,7 +571,6 @@ function TrendChart({ waterLevel }) {
     <div ref={wrapRef} style={{ width: "100%", height: "100%" }}>
       <Line
         ref={chartRef}
-        key={`${waterLevel.bucket}-${waterLevel.series.length}`}
         data={buildTrendChartData(waterLevel)}
         options={TREND_CHART_OPTIONS}
       />
@@ -676,13 +674,12 @@ function StatisticsPage({ userRole, token, manualFews }) {
       <div className="page-card stats-controls-card">
         <div className="stats-date-controls">
           {[
-            { key: "30d", label: "Last 30 days", abbr: "30D" },
-            { key: "90d", label: "Last 90 days", abbr: "90D" },
-            { key: "12m", label: "Last 12 months", abbr: "12M" },
+            { key: "30d", label: "Last 30 days" },
+            { key: "90d", label: "Last 90 days" },
+            { key: "12m", label: "Last 12 months" },
           ].map(p => (
             <button key={p.key} className={`stats-preset-btn ${preset === p.key ? "stats-preset-active" : ""}`} onClick={() => setPreset(p.key)}>
-              <span className="stats-preset-full">{p.label}</span>
-              <span className="stats-preset-abbr">{p.abbr}</span>
+              {p.label}
             </button>
           ))}
           <DateRangeFilter

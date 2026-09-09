@@ -2275,17 +2275,18 @@ select.settings-input {
 @media (max-width: 768px) {
   .stats-date-controls {
     display: flex;
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     gap: 6px;
   }
   .stats-date-controls .stats-preset-btn {
-    flex: 1 1 0;
+    flex: 0 1 auto;
     min-width: 0;
-    padding: 0 4px;
+    padding: 0 10px;
+    white-space: nowrap;
   }
   .stats-date-controls .fdd-wrap {
-    flex: 1 1 0;
-    min-width: 0;
+    flex: 1 1 auto;
+    min-width: 84px;
   }
 
   .stats-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -2965,13 +2966,17 @@ select.settings-input {
     right: 0;
     left: auto;
     transform: none;
-    width: calc(100vw - 40px);
-    max-width: 280px;
+    width: calc(100vw - 64px);
+    max-width: 240px;
     z-index: 99999;
     border-radius: 14px;
+    padding: 10px 12px;
   }
-  .drf-panel-single { width: calc(100vw - 40px); max-width: 280px; }
-  .mc-month-label { font-size: 13px; }
+  .drf-panel-single { width: calc(100vw - 64px); max-width: 240px; }
+  .mc-month-label { font-size: 12px; }
+  .drf-panel .cdp-day-label { font-size: 8px; }
+  .drf-panel .cdp-cell { font-size: 10px; }
+  .drf-panel .cdp-grid { gap: 1px; }
 
   /* ── Profile dropdown — compact on mobile ── */
   .profile-avatar-btn { width: 30px; height: 30px; font-size: 10px; }
