@@ -2273,21 +2273,32 @@ select.settings-input {
 
 @media (max-width: 768px) {
   .stats-date-controls {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    display: flex;
+    flex-wrap: nowrap;
+    overflow-x: auto;
     gap: 8px;
+    -webkit-overflow-scrolling: touch;
+    padding-bottom: 2px;
   }
-  .stats-date-controls .stats-preset-btn { width: 100%; }
-  .stats-date-controls .fdd-wrap         { width: 100%; }
-  .stats-date-controls .fdd-trigger      { width: 100%; justify-content: center; }
-  .stats-date-controls .drf-panel {
-    left: 0; right: auto;
-  }
+  .stats-date-controls .stats-preset-btn { flex: 0 0 auto; }
+  .stats-date-controls .fdd-wrap         { flex: 0 0 auto; }
+  .stats-date-controls .fdd-trigger      { width: auto; }
 
   .stats-summary-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
-  .stats-card         { padding: 12px 14px; }
+  .stats-card         { padding: 12px 14px; align-items: center; text-align: center; }
   .stats-card-value   { font-size: 18px; }
   .stats-preset-btn   { height: 32px; padding: 0 12px; font-size: 11px; }
+
+  .stats-header-grid {
+    display: grid;
+    grid-template-columns: 1fr auto;
+    grid-template-areas: "title tag" "legend legend";
+    row-gap: 4px;
+    align-items: baseline;
+  }
+  .stats-header-grid h2             { grid-area: title; }
+  .stats-header-grid .card-tag      { grid-area: tag; justify-self: end; }
+  .stats-header-grid .wl-legend-row { grid-area: legend; }
 }
 
 /* ================================

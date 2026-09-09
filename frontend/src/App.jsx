@@ -527,6 +527,25 @@ function buildTrendChartData(waterLevel) {
   };
 }
 
+function TrendChart({ waterLevel }) {
+  const chartRef = useRef(null);
+  useEffect(() => {
+    const t = setTimeout(() => {
+      if (chartRef.current) chartRef.current.resize();
+    }, 60);
+    return () => clearTimeout(t);
+  }, [waterLevel.bucket, waterLevel.series.length]);
+
+  return (
+    <Line
+      ref={chartRef}
+      key={`${waterLevel.bucket}-${waterLevel.series.length}`}
+      data={buildTrendChartData(waterLevel)}
+      options={TREND_CHART_OPTIONS}
+    />
+  );
+}
+
 const TREND_CHART_OPTIONS = {
   responsive: true,
   maintainAspectRatio: false,
@@ -671,7 +690,7 @@ function StatisticsPage({ userRole, token, manualFews }) {
           </div>
 
           <div className="page-card stats-chart-card">
-            <div className="card-header">
+            <div className="card-header stats-header-grid">
               <h2>Water Level Trend</h2>
               <div className="wl-legend-row">
                 <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#ef4444" }} />High</span>
@@ -682,7 +701,7 @@ function StatisticsPage({ userRole, token, manualFews }) {
             </div>
             {waterLevel?.series?.length ? (
               <div className="stats-chart-wrap">
-                <Line key={`${waterLevel.bucket}-${waterLevel.series.length}`} data={buildTrendChartData(waterLevel)} options={TREND_CHART_OPTIONS} />
+                <TrendChart waterLevel={waterLevel} />
               </div>
             ) : (
               <div className="stats-chart-empty">No water level data for this range.</div>
@@ -691,7 +710,7 @@ function StatisticsPage({ userRole, token, manualFews }) {
 
           <div className="stats-grid-pair">
             <div className="page-card stats-breakdown-card">
-              <div className="card-header">
+              <div className="card-header stats-header-grid">
                 <h2>Status Breakdown by Week</h2>
                 <div className="wl-legend-row">
                   <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#e2e8f0" }} />Base</span>
@@ -721,7 +740,7 @@ function StatisticsPage({ userRole, token, manualFews }) {
             </div>
 
             <div className="page-card stats-donut-card">
-              <div className="card-header">
+              <div className="card-header stats-header-grid">
                 <h2>Manual Station Health</h2>
                 <span className="card-tag">{manualFews.length} stations</span>
               </div>
@@ -763,7 +782,7 @@ function StatisticsPage({ userRole, token, manualFews }) {
           </div>
 
           <div className="page-card">
-            <div className="card-header">
+            <div className="card-header stats-header-grid">
               <h2>Offline Incidents</h2>
               <span className="card-tag">FEWS 1 · gaps ≥ 5 min</span>
             </div>

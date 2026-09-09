@@ -828,12 +828,33 @@ def stats_uptime(
                     })
                     offline_since = None
 
+        # A dangling "went offline" with no matching "back online" usually means
+        # the backend restarted and lost its in-memory offline-tracking state
+        # (see mqtt_bridge.py's _offline_logged dict) rather than a real ongoing
+        # outage. Before treating it as ongoing, check sensor_readings — if a
+        # reading exists after this timestamp, the device was clearly back up
+        # by then, so use that reading's time as the effective recovery point.
         if offline_since is not None:
-            incidents.append({
-                "start_ts":     offline_since.isoformat(),
-                "duration_sec": (range_end - offline_since).total_seconds(),
-                "ongoing":      True,
-            })
+            cur.execute("""
+                SELECT MIN(timestamp) AS recovered_at
+                FROM sensor_readings
+                WHERE device_id = 'fews_1' AND timestamp > %s
+            """, (offline_since,))
+            recovery_row = cur.fetchone()
+            recovered_at = recovery_row["recovered_at"] if recovery_row else None
+
+            if recovered_at is not None:
+                incidents.append({
+                    "start_ts":     offline_since.isoformat(),
+                    "duration_sec": (recovered_at - offline_since).total_seconds(),
+                    "ongoing":      False,
+                })
+            else:
+                incidents.append({
+                    "start_ts":     offline_since.isoformat(),
+                    "duration_sec": (range_end - offline_since).total_seconds(),
+                    "ongoing":      True,
+                })
 
         total_seconds   = (range_end - range_start).total_seconds() if range_start else 0
         downtime_seconds = sum(i["duration_sec"] for i in incidents)
