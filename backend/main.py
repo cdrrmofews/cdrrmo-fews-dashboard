@@ -889,7 +889,7 @@ def stats_uptime(
         MIN_DISPLAY_SEC = 300  # 5 minutes — filters the LIST only, not the uptime % above
         worst_incidents = sorted(
             [i for i in incidents if i["duration_sec"] >= MIN_DISPLAY_SEC],
-            key=lambda i: i["duration_sec"],
+            key=lambda i: i["start_ts"],
             reverse=True
         )
 
