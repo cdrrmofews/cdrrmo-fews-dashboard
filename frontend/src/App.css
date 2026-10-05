@@ -10,14 +10,14 @@
 }
 
 :root {
-  --bg-base:    #080e1a;
-  --bg-panel:   #0d1526;
-  --bg-card:    #111d35;
-  --bg-raised:  #162040;
-  --border:     rgba(255,255,255,0.07);
-  --text-1:     #e2e8f0;
-  --text-2:     #7e92b4;
-  --text-3:     #4a607e;
+  --bg-base:    #0a0a0b;
+  --bg-panel:   #111113;
+  --bg-card:    #17171a;
+  --bg-raised:  #202024;
+  --border:     rgba(255,255,255,0.09);
+  --text-1:     #e8eaed;
+  --text-2:     #9aa0a8;
+  --text-3:     #7b828c;
   --green:      #22c55e;
   --amber:      #f59e0b;
   --red:        #ef4444;
@@ -1061,8 +1061,8 @@ body {
 .login-bg {
   position: absolute; inset: 0;
   background-image:
-    linear-gradient(rgba(56,189,248,0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(56,189,248,0.03) 1px, transparent 1px);
+    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
   background-size: 40px 40px;
   pointer-events: none;
 }
@@ -1294,7 +1294,7 @@ select.settings-input {
 
 .mu-avatar {
   width: 36px; height: 36px; border-radius: 50%;
-  background: linear-gradient(135deg, #1d4ed8, #7c3aed);
+  background: linear-gradient(135deg, #3a3a40, #26262a);
   display: flex; align-items: center; justify-content: center;
   font-size: 11px; font-weight: 700; color: #fff; flex-shrink: 0;
   overflow: hidden;
@@ -3035,8 +3035,12 @@ select.settings-input {
   }
 }
 
-.leaflet-container {
-  background: #aad3df;
+div.leaflet-container {
+  background: #17181a;
+}
+
+.fews-tiles {
+  filter: brightness(1.4) contrast(1.05) saturate(1.5);
 }
 
 .leaflet-tile {
@@ -3522,3 +3526,51 @@ select.settings-input {
   .mu-email         { font-size: 11px; }
   .settings-input   { font-size: 14px; height: 42px; }
 }
+
+/* ── Dark map chrome ── */
+.leaflet-control-zoom-in,
+.leaflet-control-zoom-out {
+  background: rgba(23, 23, 26, 0.92) !important;
+  color: #e8eaed !important;
+}
+.leaflet-control-zoom-in { border-bottom: 1px solid rgba(255, 255, 255, 0.09) !important; }
+.leaflet-control-zoom-in:hover,
+.leaflet-control-zoom-out:hover {
+  background: #202024 !important;
+  color: #ffffff !important;
+}
+
+.map-expand-btn,
+.map-fs-close {
+  background: rgba(23, 23, 26, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #9aa0a8;
+}
+.map-expand-btn:hover { background: #202024; color: #ffffff; }
+.map-fs-close:hover   { background: #202024; color: #ef4444; }
+
+.map-fs-station,
+.map-fs-legend {
+  background: rgba(23, 23, 26, 0.92);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+.map-fs-station-name,
+.map-fs-row-val,
+.map-fs-legend-item { color: #e8eaed; }
+.map-fs-water-unit,
+.map-fs-row-label   { color: #9aa0a8; }
+.map-fs-divider     { background: rgba(255, 255, 255, 0.10); }
+.map-fs-legend-dot  { border-color: rgba(255, 255, 255, 0.25); }
+
+.leaflet-container .leaflet-popup-content-wrapper {
+  background: #202024;
+  color: #e8eaed;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+.leaflet-container .leaflet-popup-tip {
+  background: #202024;
+  box-shadow: none;
+}
+.leaflet-container a.leaflet-popup-close-button       { color: #9aa0a8 !important; }
+.leaflet-container a.leaflet-popup-close-button:hover { color: #ffffff !important; }
