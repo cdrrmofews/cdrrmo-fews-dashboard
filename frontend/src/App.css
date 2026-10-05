@@ -158,7 +158,7 @@ body {
 .brand-icon             { font-size: 22px; flex-shrink: 0; }
 .brand-text             { overflow: hidden; white-space: nowrap; }
 .brand-text.hidden      { display: none; }
-.brand-name             { font-size: 16px; font-weight: 700; letter-spacing: 0.05em; color: var(--text-1); }
+.brand-name             { font-size: 16px; font-weight: 600; letter-spacing: 0; color: var(--text-1); }
 .brand-tag              { font-size: 11px; color: var(--text-3); margin-top: 2px; }
 
 /* Expanded sidebar header: logo on top, name below, toggle in the corner */
@@ -172,7 +172,7 @@ body {
 }
 
 .brand-logo {
-  height: 44px;
+  height: 56px;
   width: auto;
   max-width: 100%;
   object-fit: contain;
@@ -187,7 +187,7 @@ body {
 }
 
 @media (min-width: 1440px) {
-  .brand-logo { height: 52px; }
+  .brand-logo { height: 64px; }
 }
 
 .nav {
@@ -233,7 +233,7 @@ body {
   gap: 10px;
   background: transparent;
   border: none;
-  color: var(--text-3);
+  color: var(--red);
   padding: 8px 12px;
   border-radius: var(--radius-sm);
   cursor: pointer;
@@ -244,7 +244,7 @@ body {
   transition: color 0.15s, background 0.15s;
 }
 
-.logout-btn:hover { color: var(--red); background: rgba(239,68,68,0.08); }
+.logout-btn:hover { color: var(--red); background: rgba(239,68,68,0.14); }
 
 /* ================================
    MAIN
@@ -3496,7 +3496,6 @@ div.leaflet-container {
     width: 72px;
     min-width: 72px;
   }
-  .brand-name       { font-size: 18px; }
   .nav-btn          { font-size: 14px; padding: 12px 14px; }
   .nav-icon svg     { width: 18px; height: 18px; }
 
@@ -3629,8 +3628,8 @@ div.leaflet-container {
 .map-ctrl-btn:hover { background: #202024; color: #ffffff; }
 
 .map-ctrl-group-fs {
-  left: calc(12px + env(safe-area-inset-left, 0px));
-  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  left: calc(var(--fs-gap) + env(safe-area-inset-left, 0px));
+  bottom: calc(var(--fs-gap) + env(safe-area-inset-bottom, 0px));
   z-index: 1000;
   gap: 8px;
 }
@@ -3641,6 +3640,14 @@ div.leaflet-container {
 .map-fullscreen-inner .leaflet-top    { margin-top: env(safe-area-inset-top, 0px); }
 .map-fullscreen-inner .leaflet-left   { margin-left: env(safe-area-inset-left, 0px); }
 .map-fullscreen-inner .leaflet-bottom { margin-bottom: env(safe-area-inset-bottom, 0px); }
+
+/* Desktop only: zoom buttons share the same edge gap as the rest of the fullscreen chrome */
+@media (min-width: 769px) {
+  .map-fullscreen-inner .leaflet-top.leaflet-left .leaflet-control-zoom {
+    margin-top:  var(--fs-gap);
+    margin-left: var(--fs-gap);
+  }
+}
 
 /* Temporary: lifts the old station card above the new buttons until batch 3 replaces it */
 .map-fs-station { bottom: calc(66px + env(safe-area-inset-bottom, 0px)); }
@@ -3687,14 +3694,14 @@ div.leaflet-container {
 .fs-dot-sel { outline: 2px solid rgba(232, 234, 237, 0.55); outline-offset: 2px; }
 
 /* ── Fullscreen station drawer ── */
-:root { --fs-dr-w: clamp(280px, 22vw, 340px); }
-@media (max-width: 768px) { :root { --fs-dr-w: min(86vw, 340px); } }
+:root { --fs-dr-w: clamp(280px, 22vw, 340px); --fs-gap: 24px; }
+@media (max-width: 768px) { :root { --fs-dr-w: min(86vw, 340px); --fs-gap: 12px; } }
 
 .fs-drawer {
   position: absolute;
-  top:    calc(12px + env(safe-area-inset-top, 0px));
-  right:  calc(12px + env(safe-area-inset-right, 0px));
-  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  top:    calc(var(--fs-gap) + env(safe-area-inset-top, 0px));
+  right:  calc(var(--fs-gap) + env(safe-area-inset-right, 0px));
+  bottom: calc(var(--fs-gap) + env(safe-area-inset-bottom, 0px));
   width: var(--fs-dr-w);
   z-index: 1000;
   background: rgba(23, 23, 26, 0.96);
@@ -3709,8 +3716,8 @@ div.leaflet-container {
 
 .fs-dr-toggle {
   position: absolute;
-  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
-  right:  calc(12px + env(safe-area-inset-right, 0px));
+  bottom: calc(var(--fs-gap) + env(safe-area-inset-bottom, 0px));
+  right:  calc(var(--fs-gap) + env(safe-area-inset-right, 0px));
   z-index: 1001;
   width: 36px; height: 36px;
   border-radius: 10px;
@@ -3722,14 +3729,11 @@ div.leaflet-container {
   transition: background 0.15s, color 0.15s;
 }
 .fs-dr-toggle:hover { background: #202024; color: #ffffff; }
-.fs-dr-toggle-open { right: calc(var(--fs-dr-w) + 20px + env(safe-area-inset-right, 0px)); }
+.fs-dr-toggle-open { right: calc(var(--fs-dr-w) + var(--fs-gap) + 8px + env(safe-area-inset-right, 0px)); }
 
-/* Attribution: keep it visible, out from under the toggle and the drawer */
+/* Attribution stays put in the bottom-right corner, in the strip under the toggle and drawer */
 .map-fullscreen-inner .leaflet-bottom.leaflet-right {
-  margin-right: calc(56px + env(safe-area-inset-right, 0px));
-}
-.map-fullscreen-inner.fs-drawer-open .leaflet-bottom.leaflet-right {
-  margin-right: calc(var(--fs-dr-w) + 64px + env(safe-area-inset-right, 0px));
+  margin-right: env(safe-area-inset-right, 0px);
 }
 
 .fs-dr-head {
@@ -3765,7 +3769,12 @@ div.leaflet-container {
 .fs-dr-search-input:focus { border-color: var(--blue); }
 .fs-dr-search-input::placeholder { color: var(--text-3); }
 
-.fs-dr-body { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 8px; }
+.fs-dr-body {
+  flex: 1; min-height: 0; overflow-y: auto;
+  padding-bottom: 28px; /* lets the last row scroll clear of the fade */
+  -webkit-mask-image: linear-gradient(to bottom, #000 calc(100% - 24px), transparent);
+  mask-image: linear-gradient(to bottom, #000 calc(100% - 24px), transparent);
+}
 .fs-dr-sec-label {
   font-size: 10px; font-weight: 700; color: var(--text-3);
   letter-spacing: 0.08em; text-transform: uppercase;
@@ -3795,13 +3804,20 @@ div.leaflet-container {
   white-space: nowrap; flex-shrink: 0;
 }
 
-.fs-dr-reading {
-  display: flex; align-items: baseline; gap: 6px;
-  padding: 14px;
+.fs-dr-hero {
+  display: flex; flex-direction: column; align-items: center; gap: 10px;
+  padding: 22px 14px 18px;
   border-bottom: 1px solid var(--border);
 }
-.fs-dr-reading-val  { font-size: 34px; font-weight: 800; font-family: var(--mono); line-height: 1; }
-.fs-dr-reading-unit { font-size: 13px; color: var(--text-2); font-weight: 600; }
+.fs-dr-hero-val  { font-size: 44px; font-weight: 800; font-family: var(--mono); line-height: 1; }
+.fs-dr-hero-unit { font-size: 16px; color: var(--text-2); font-weight: 600; margin-left: 6px; }
+.fs-dr-hero-word { font-size: 34px; letter-spacing: 0.04em; color: var(--text-1); }
+.fs-dr-hero-pill {
+  font-size: 12px; font-weight: 700; font-family: var(--mono);
+  letter-spacing: 0.06em;
+  padding: 3px 12px; border-radius: 4px;
+  white-space: nowrap;
+}
 
 .fs-dr-sec { padding: 12px 14px; border-bottom: 1px solid var(--border); }
 .fs-dr-sec-title {
@@ -3814,7 +3830,15 @@ div.leaflet-container {
 .fs-dr-kv strong { color: var(--text-1); font-weight: 600; text-align: right; min-width: 0; overflow-wrap: anywhere; }
 .fs-dr-desc { font-size: 12px; color: var(--text-2); line-height: 1.6; white-space: pre-line; }
 
-.fs-dr-actions { display: flex; gap: 6px; margin-top: 8px; }
+.fs-dr-foot {
+  flex-shrink: 0;
+  display: flex; gap: 6px;
+  padding: 12px 14px;
+  border-top: 1px solid var(--border);
+}
+.fs-dr-siren-in { display: flex; flex-direction: column; gap: 7px; }
+/* last section in the body has no bottom line, the footer's top border takes over */
+.fs-dr-body > .fs-dr-sec:last-child { border-bottom: none; }
 .fs-dr-btn {
   flex: 1;
   display: flex; align-items: center; justify-content: center;
@@ -3839,8 +3863,8 @@ div.leaflet-container {
 /* Status pill — bottom left, right of the two buttons */
 .map-fs-pill {
   position: absolute;
-  left:   calc(100px + env(safe-area-inset-left, 0px));
-  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  left:   calc(var(--fs-gap) + 88px + env(safe-area-inset-left, 0px)); /* 2 buttons (36px each) + 2 gaps (8px) */
+  bottom: calc(var(--fs-gap) + env(safe-area-inset-bottom, 0px));
   z-index: 1000;
   height: 36px;
   display: flex; align-items: center; gap: 6px;
@@ -3915,10 +3939,14 @@ div.leaflet-container {
     cursor: pointer;
     flex-shrink: 0;
   }
-  .fs-dr-collapse-end { margin-left: auto; }
+  .fs-dr-collapse-end { margin-left: 6px; } /* the header tag now takes the auto margin */
 
   .fs-dr-row   { padding: 12px 14px; }
   .fs-dr-siren { padding: 12px 14px; }
+
+  .fs-dr-hero      { padding: 14px 14px 12px; gap: 8px; }
+  .fs-dr-hero-val  { font-size: 34px; }
+  .fs-dr-hero-word { font-size: 26px; }
 
   /* Toggle: bottom-bar icon; hidden while the sheet is open (handle + chevron close it) */
   .fs-ic-side   { display: none; }
@@ -3931,6 +3959,11 @@ div.leaflet-container {
     bottom: calc(55% + 12px);
   }
   .map-fullscreen-inner.fs-drawer-open .map-fs-pill { display: none; }
+
+  /* Attribution stays clear of the toggle on phones */
+  .map-fullscreen-inner .leaflet-bottom.leaflet-right {
+    margin-right: calc(56px + env(safe-area-inset-right, 0px));
+  }
 
   /* Attribution sits above the sheet instead of behind it */
   .map-fullscreen-inner.fs-drawer-open .leaflet-bottom {

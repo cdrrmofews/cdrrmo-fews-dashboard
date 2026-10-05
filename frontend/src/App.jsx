@@ -1488,6 +1488,28 @@ function MapRefSetter({ mapRef }) {
   return null;
 }
 
+// Leaflet only re-measures its container on window resize. Collapsing the
+// sidebar resizes the container without a window resize, so we watch the
+// container ourselves and tell Leaflet to re-measure.
+function MapResizeWatcher() {
+  const map = useMap();
+  useEffect(() => {
+    const el = map.getContainer();
+    if (!el || typeof ResizeObserver === "undefined") return;
+    let raf = null;
+    const observer = new ResizeObserver(() => {
+      if (raf) cancelAnimationFrame(raf);
+      raf = requestAnimationFrame(() => map.invalidateSize({ animate: false }));
+    });
+    observer.observe(el);
+    return () => {
+      observer.disconnect();
+      if (raf) cancelAnimationFrame(raf);
+    };
+  }, [map]);
+  return null;
+}
+
 const CenterIcon = () => (
   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
     <circle cx="12" cy="12" r="3"/>
@@ -1530,7 +1552,7 @@ function makeFsLabelIcon({ name, statusWord, statusColor, markerColor, markerBor
 }
 
 // Px of map hidden behind the open drawer (desktop) — used so flyTo centers on the visible part
-const FS_DRAWER_PAD = 372;
+const FS_DRAWER_PAD = 384;
 
 // Phone bottom sheet covers this fraction of the screen height (keep in sync with `height: 55%` in App.css)
 const FS_SHEET_VH = 0.55;
@@ -1670,20 +1692,31 @@ function FsDrawer({
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
           </button>
           <span className="fs-dr-title">{f.name}</span>
-          <span className="fs-dr-badge" style={{ color: p.badgeColor, background: p.badgeBg }}>{p.badge}</span>
+          <span className="fs-dr-badge" style={{
+            marginLeft: "auto",
+            color:      f.isLive ? p.badgeColor : "var(--text-2)",
+            background: f.isLive ? p.badgeBg    : "rgba(255,255,255,0.06)",
+          }}>
+            {f.isLive ? p.badge : "MANUAL"}
+          </span>
           {collapseBtn("fs-dr-collapse-end")}
         </div>
 
         <div className="fs-dr-body">
-          {f.isLive && (
-            <div className="fs-dr-reading">
-              <span className="fs-dr-reading-val" style={{ color: p.online ? p.cfg.color : "var(--text-3)" }}>
+          {f.isLive ? (
+            <div className="fs-dr-hero">
+              <div className="fs-dr-hero-val" style={{ color: p.online ? p.cfg.color : "var(--text-3)" }}>
                 {p.online ? convertCm(f.waterLevel, unitPref)?.toFixed(UNIT_DECIMALS[unitPref] ?? 0) : "—"}
-              </span>
-              {p.online && <span className="fs-dr-reading-unit">{unitPref}</span>}
-              <span className="fs-dr-badge" style={{ marginLeft: "auto", color: p.online ? p.cfg.color : "var(--text-3)", background: p.online ? p.cfg.bg : "rgba(255,255,255,0.06)" }}>
+                {p.online && <span className="fs-dr-hero-unit">{unitPref}</span>}
+              </div>
+              <span className="fs-dr-hero-pill" style={{ color: p.online ? p.cfg.color : "var(--text-3)", background: p.online ? p.cfg.bg : "rgba(255,255,255,0.06)" }}>
                 {p.online ? p.cfg.label : "OFFLINE"}
               </span>
+            </div>
+          ) : (
+            <div className="fs-dr-hero">
+              <div className="fs-dr-hero-val fs-dr-hero-word">MANUAL</div>
+              <span className="fs-dr-hero-pill" style={{ color: p.badgeColor, background: p.badgeBg }}>{p.badge}</span>
             </div>
           )}
 
@@ -1692,7 +1725,7 @@ function FsDrawer({
               <div className="fs-dr-kv"><span>Last sync</span><strong>{lastUpdatedStr ?? "—"}</strong></div>
               <div className="fs-dr-kv"><span>Today's highest</span><strong>{today.high != null ? formatWaterLevel(today.high, unitPref) : "—"}</strong></div>
               <div className="fs-dr-kv"><span>Today's lowest</span><strong>{today.low != null ? formatWaterLevel(today.low, unitPref) : "—"}</strong></div>
-              <div className="fs-dr-kv"><span>Warning at</span><strong style={{ color: "var(--amber)" }}>{formatWaterLevel(thresholds.warning, unitPref)}</strong></div>
+              <div className="fs-dr-kv"><span>Warning at</span><strong style={{ color: "#f97316" }}>{formatWaterLevel(thresholds.warning, unitPref)}</strong></div>
               <div className="fs-dr-kv"><span>Critical at</span><strong style={{ color: "var(--red)" }}>{formatWaterLevel(thresholds.danger, unitPref)}</strong></div>
             </div>
           )}
@@ -1714,24 +1747,10 @@ function FsDrawer({
               <span>Coordinates</span>
               <strong style={{ fontFamily: "var(--mono)", fontSize: 11 }}>{fmtCoord(f.lat)}, {fmtCoord(f.lng)}</strong>
             </div>
-            <div className="fs-dr-actions">
-              <button type="button" className="fs-dr-btn" onClick={() => {
-                navigator.clipboard.writeText(`${f.lat}, ${f.lng}`);
-                setCopied(true);
-                if (copyTimer.current) clearTimeout(copyTimer.current);
-                copyTimer.current = setTimeout(() => setCopied(false), 1500);
-              }}>
-                {copied ? "Copied!" : "Copy"}
-              </button>
-              <a className="fs-dr-btn" href={`https://www.google.com/maps?q=${f.lat},${f.lng}`} target="_blank" rel="noopener noreferrer">
-                Open in Maps
-              </a>
-            </div>
           </div>
-        </div>
 
-        {f.isLive && canSiren && (
-          <div className="fs-dr-siren">
+          {f.isLive && canSiren && (
+          <div className="fs-dr-sec fs-dr-siren-in">
             <div className="rsb-siren-label">Siren Control</div>
             <div className="rsb-siren-row">
               <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: sirenOn && p.online ? "var(--red)" : (p.online ? "var(--text-2)" : "var(--text-3)") }}>
@@ -1757,7 +1776,22 @@ function FsDrawer({
               {!p.online ? "Available if fews is live" : sirenOn ? "Tap to silence" : "Tap to manually activate"}
             </div>
           </div>
-        )}
+          )}
+        </div>
+
+        <div className="fs-dr-foot">
+          <button type="button" className="fs-dr-btn" onClick={() => {
+            navigator.clipboard.writeText(`${f.lat}, ${f.lng}`);
+            setCopied(true);
+            if (copyTimer.current) clearTimeout(copyTimer.current);
+            copyTimer.current = setTimeout(() => setCopied(false), 1500);
+          }}>
+            {copied ? "Copied!" : "Copy"}
+          </button>
+          <a className="fs-dr-btn" href={`https://www.google.com/maps?q=${f.lat},${f.lng}`} target="_blank" rel="noopener noreferrer">
+            Open in Maps
+          </a>
+        </div>
       </>
     );
   };
@@ -4625,6 +4659,7 @@ const waterChartOptions = useMemo(() => ({
                       attribution={MAP_ATTRIBUTION}
                       url={MAP_TILE_URL} />
                     <MapRefSetter mapRef={dashMapRef} />
+                    <MapResizeWatcher />
                     <FlyToStation fews={selectedStation} />
                     <OpenPopup fews={selectedStation} markerRefs={markerRefs} />
                     {allFews.map(f => {
@@ -5167,23 +5202,6 @@ const waterChartOptions = useMemo(() => ({
                       <CollapseIcon />
                     </button>
                   </div>
-
-                  {/* Legend — top center pill */}
-                  <div className="map-fs-legend">
-                    {[
-                      { color: "#e2e8f0", label: "Base"     },
-                      { color: "#fde047", label: "Normal"   },
-                      { color: "#f59e0b", label: "Warning"  },
-                      { color: "#ef4444", label: "Critical" },
-                      { color: "#64748b", label: "Offline"  },
-                    ].map(({ color, label }) => (
-                      <div key={label} className="map-fs-legend-item">
-                        <div className="map-fs-legend-dot" style={{ background: color }} />
-                        {label}
-                      </div>
-                    ))}
-                  </div>
-
                 </div>
               </div>
             </div>
