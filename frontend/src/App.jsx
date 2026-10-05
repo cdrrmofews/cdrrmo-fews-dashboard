@@ -1799,6 +1799,17 @@ function AddUserModal({ onAdd, onClose, token, addLog }) {
 }
 
 // ─── PROFILE DROPDOWN ─────────────────────────────────────────────────────────
+// Default avatar shown when a user has no profile photo (head + shoulders).
+// Fills its container; the circular overflow:hidden parent clips the shoulders.
+function DefaultAvatar() {
+  return (
+    <svg width="100%" height="100%" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <circle cx="12" cy="9" r="4.2" />
+      <path d="M3.5 24c0-5.2 3.8-8.2 8.5-8.2s8.5 3 8.5 8.2z" />
+    </svg>
+  );
+}
+
 function ProfileDropdown({ user, token, onSave, onClose, addLog }) {
   const ref                   = useRef();
   const fileRef               = useRef();
@@ -1866,7 +1877,7 @@ function ProfileDropdown({ user, token, onSave, onClose, addLog }) {
             <div className="pd-avatar-lg">
               {user.photo
                 ? <img src={user.photo} alt="profile" style={{ width:"100%", height:"100%", borderRadius:"50%", objectFit:"cover" }} />
-                : <span>{user.initials}</span>
+                : <DefaultAvatar />
               }
             </div>
             <div className="pd-view-info">
@@ -1885,7 +1896,7 @@ function ProfileDropdown({ user, token, onSave, onClose, addLog }) {
             <div className="pd-edit-avatar" onClick={() => fileRef.current.click()}>
               {photo
                 ? <img src={photo} alt="profile" style={{ width:"100%", height:"100%", borderRadius:"50%", objectFit:"cover" }} />
-                : <span style={{ fontSize: 26 }}>{user.initials}</span>
+                : <DefaultAvatar />
               }
               <div className="pd-photo-overlay">Change</div>
             </div>
@@ -3078,7 +3089,7 @@ export default function App() {
   });
   const [showLogoutModal, setShowLogoutModal]         = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
-  const [sidebarOpen, setSidebarOpen]                 = useState(false);
+  const [sidebarOpen, setSidebarOpen]                 = useState(() => !isMobileViewport());
   const [selectedFEWS, setSelectedFEWS]               = useState(null);
   const [activeNav, setActiveNav]                     = useState(() => {
     return sessionStorage.getItem("activeNav") || "Dashboard";
@@ -3480,7 +3491,7 @@ export default function App() {
     setHistoryData({ positions: [], values: [], exactLabels: [] });
     setHadDataBefore(false);
     setShowProfileDropdown(false);
-    setSidebarOpen(false);
+    setSidebarOpen(!isMobileViewport());
     setActiveNav("Dashboard");
   }, []);
 
@@ -3502,7 +3513,7 @@ export default function App() {
         setHistoryData({ positions: [], values: [], exactLabels: [] });
         setHadDataBefore(false);
         setShowProfileDropdown(false);
-        setSidebarOpen(false);
+        setSidebarOpen(!isMobileViewport());
         setActiveNav("Dashboard");
       }
     };
@@ -3921,10 +3932,10 @@ const waterChartOptions = useMemo(() => ({
       },
       annotation: {
         annotations: {
-          zoneLow:     { type: "box", yMin: 0,                    yMax: Math.min(100, thresholds.warning), backgroundColor: "rgba(255,255,255,0.28)", borderWidth: 0 },
-          zoneSafe:    { type: "box", yMin: Math.min(100, thresholds.warning), yMax: thresholds.warning, backgroundColor: "rgba(253,224,71,0.38)",  borderWidth: 0 },
-          zoneWarning: { type: "box", yMin: thresholds.warning,   yMax: thresholds.danger,  backgroundColor: "rgba(249,115,22,0.42)", borderWidth: 0 },
-          zoneCritical:{ type: "box", yMin: thresholds.danger,    yMax: 700,                backgroundColor: "rgba(239,68,68,0.42)",  borderWidth: 0 },
+          zoneLow:     { type: "box", yMin: 0,                    yMax: Math.min(100, thresholds.warning), backgroundColor: "rgba(226,232,240,0.55)", borderWidth: 0 },
+          zoneSafe:    { type: "box", yMin: Math.min(100, thresholds.warning), yMax: thresholds.warning, backgroundColor: "rgba(253,224,71,0.60)",  borderWidth: 0 },
+          zoneWarning: { type: "box", yMin: thresholds.warning,   yMax: thresholds.danger,  backgroundColor: "rgba(249,115,22,0.60)", borderWidth: 0 },
+          zoneCritical:{ type: "box", yMin: thresholds.danger,    yMax: 700,                backgroundColor: "rgba(239,68,68,0.60)",  borderWidth: 0 },
           zoneCritical:{ type: "box", yMin: thresholds.danger,    yMax: 700,                backgroundColor: "rgba(239,68,68,0.60)",  borderWidth: 0 },
           lineWarning: { type: "line", yMin: thresholds.warning, yMax: thresholds.warning, borderColor: "rgba(249,115,22,0.80)", borderWidth: 2, borderDash: [4, 4], label: { display: false } },
           lineCritical:{ type: "line", yMin: thresholds.danger,  yMax: thresholds.danger,  borderColor: "rgba(239,68,68,0.80)",  borderWidth: 2, borderDash: [4, 4], label: { display: false } },
@@ -4038,13 +4049,13 @@ const waterChartOptions = useMemo(() => ({
 
       {/* ─── SIDEBAR ─── */}
       <aside className={`sidebar ${sidebarOpen ? "" : "collapsed"}`}>
-        <div className="brand">
-          {sidebarOpen && <img src="/logo6.png" alt="FEWS" className="brand-icon" style={{ width: 22, height: 22, objectFit: "contain", borderRadius: 4 }} />}
+        <div className={`brand ${sidebarOpen ? "brand-open" : ""}`}>
+          {sidebarOpen && <img src="/logo1.jpg" alt="CDRRMO FEWS" className="brand-logo" />}
           <div className={`brand-text ${sidebarOpen ? "" : "hidden"}`}>
-            <div className="brand-name">CDRRMO</div>
+            <div className="brand-name">CDRRMO Fews</div>
           </div>
           <button
-            className="nav-btn"
+            className="nav-btn brand-toggle"
             style={{ marginLeft: sidebarOpen ? "auto" : "0", padding: "10px", flexShrink: 0 }}
             onClick={() => setSidebarOpen(o => !o)}
             title={sidebarOpen ? "Collapse sidebar" : "Expand sidebar"}
@@ -4095,7 +4106,6 @@ const waterChartOptions = useMemo(() => ({
       <div className="main">
         <header className="topbar">
           <div className="top-left">
-            <img src="/logo1.jpg" alt="CDRRMO FEWS" className="topbar-seal-img" />
             <div className="title-block">
               <h1>{pageInfo.title}</h1>
               <div className="subtitle">{pageInfo.sub}</div>
@@ -4116,7 +4126,7 @@ const waterChartOptions = useMemo(() => ({
             </div>
             <div className="profile-wrap">
               <div className="profile-avatar-btn" ref={avatarBtnRef} onMouseDown={e => e.stopPropagation()} onClick={() => setShowProfileDropdown(v => !v)}>
-                {user.photo ? <img src={user.photo} alt="avatar" style={{ width:"100%", height:"100%", borderRadius:"50%", objectFit:"cover" }} /> : user.initials}
+                {user.photo ? <img src={user.photo} alt="avatar" style={{ width:"100%", height:"100%", borderRadius:"50%", objectFit:"cover" }} /> : <DefaultAvatar />}
               </div>
               {showProfileDropdown && (() => {
                   const rect    = avatarBtnRef.current?.getBoundingClientRect();
@@ -4687,8 +4697,13 @@ const waterChartOptions = useMemo(() => ({
                       <div className="rsb-siren">
                         <div className="rsb-siren-label">Siren Control</div>
                         <div className="rsb-siren-row">
-                          <span style={{ color: isActuallyLive ? "var(--text-2)" : "var(--text-3)" }}>
-                            {sirenOn && isActuallyLive ? "🔊 Active" : "🔇 Off"}
+                          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: sirenOn && isActuallyLive ? "var(--red)" : (isActuallyLive ? "var(--text-2)" : "var(--text-3)") }}>
+                            {sirenOn && isActuallyLive ? (
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+                            ) : (
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+                            )}
+                            {sirenOn && isActuallyLive ? "Active" : "Off"}
                           </span>
                           <button
                             type="button"

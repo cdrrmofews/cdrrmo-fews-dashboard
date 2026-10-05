@@ -34,7 +34,11 @@ export default function Login({ onLogin }) {
       });
       const data = await res.json();
       if (!res.ok) {
-        setError(data.detail || "Invalid credentials.");
+        if (res.status >= 500) {
+          setError("The server isn't responding right now. Try again in a moment.");
+        } else {
+          setError(data.detail || "Invalid credentials.");
+        }
         return;
       }
       const userData = JSON.stringify({

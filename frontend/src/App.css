@@ -161,6 +161,35 @@ body {
 .brand-name             { font-size: 16px; font-weight: 700; letter-spacing: 0.05em; color: var(--text-1); }
 .brand-tag              { font-size: 11px; color: var(--text-3); margin-top: 2px; }
 
+/* Expanded sidebar header: logo on top, name below, toggle in the corner */
+.brand.brand-open {
+  position: relative;
+  flex-direction: column;
+  justify-content: center;
+  height: auto;
+  gap: 8px;
+  padding: 16px 4px 14px;
+}
+
+.brand-logo {
+  height: 44px;
+  width: auto;
+  max-width: 100%;
+  object-fit: contain;
+  border-radius: 10px;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.4));
+}
+
+.brand.brand-open .brand-toggle {
+  position: absolute;
+  top: 6px;
+  right: -10px;
+}
+
+@media (min-width: 1440px) {
+  .brand-logo { height: 52px; }
+}
+
 .nav {
   margin-top: 24px;
   display: flex;
@@ -355,11 +384,12 @@ body {
   justify-content: center;
   font-size: 11px;
   font-weight: 700;
-  color: #fff;
+  color: var(--text-2);
+  background: var(--bg-raised);
   cursor: pointer;
   flex-shrink: 0;
   overflow: hidden;
-  border: none;
+  border: 1.5px solid rgba(255,255,255,0.28);
   transition: opacity 0.2s, transform 0.2s;
 }
 
@@ -394,13 +424,14 @@ body {
   width: 56px;
   height: 56px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #1d4ed8, #7c3aed);
+  background: var(--bg-raised);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 16px;
   font-weight: 700;
-  color: #fff;
+  color: var(--text-2);
+  border: 1.5px solid rgba(255,255,255,0.28);
   flex-shrink: 0;
   overflow: hidden;
 }
@@ -444,18 +475,18 @@ body {
   width: 80px;
   height: 80px;
   border-radius: 50%;
-  background: linear-gradient(135deg, #1d4ed8, #7c3aed);
+  background: var(--bg-raised);
   display: flex;
   align-items: center;
   justify-content: center;
   font-size: 24px;
   font-weight: 700;
-  color: #fff;
+  color: var(--text-2);
   cursor: pointer;
   position: relative;
   overflow: hidden;
   flex-shrink: 0;
-  border: none;
+  border: 1.5px solid rgba(255,255,255,0.28);
   transition: opacity 0.2s, transform 0.2s;
 }
 
@@ -1002,8 +1033,8 @@ body {
 .rsb-siren-row   { display: flex; justify-content: space-between; align-items: center; font-size: 11px; color: var(--text-2); }
 
 .siren-btn {
-  font-size: 9px; font-weight: 700; font-family: var(--mono);
-  padding: 4px 10px; border-radius: 999px; border: none;
+  font-size: 10px; font-weight: 700; font-family: var(--mono);
+  padding: 7px 12px; min-width: 84px; min-height: 30px; border-radius: 999px; border: none;
   cursor: pointer; letter-spacing: 0.05em;
   transition: background 0.2s, color 0.2s, box-shadow 0.2s;
   -webkit-appearance: none;

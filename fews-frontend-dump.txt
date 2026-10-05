@@ -35,6 +35,12 @@ L.Icon.Default.mergeOptions({
 });
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
+
+const CARTO_KEY = import.meta.env.VITE_CARTO_KEY || "";
+const MAP_TILE_URL = CARTO_KEY
+  ? `https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png?key=${CARTO_KEY}`
+  : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+const MAP_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -46,10 +52,10 @@ class ErrorBoundary extends React.Component {
   render() {
     if (this.state.hasError) {
       return (
-        <div style={{ height:"100vh", width:"100vw", background:"#080e1a", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:16, fontFamily:"sans-serif" }}>
+        <div style={{ height:"100vh", width:"100vw", background:"#0a0a0b", display:"flex", flexDirection:"column", alignItems:"center", justifyContent:"center", gap:16, fontFamily:"sans-serif" }}>
           <div style={{ fontSize:36 }}>⚠️</div>
           <div style={{ color:"#e2e8f0", fontSize:18, fontWeight:700 }}>Something went wrong</div>
-          <div style={{ color:"#7e92b4", fontSize:12, maxWidth:400, textAlign:"center" }}>{this.state.error?.message || "An unexpected error occurred."}</div>
+          <div style={{ color:"#9aa0a8", fontSize:12, maxWidth:400, textAlign:"center" }}>{this.state.error?.message || "An unexpected error occurred."}</div>
           <button onClick={() => window.location.reload()} style={{ marginTop:8, padding:"10px 24px", background:"#38bdf8", color:"#000", border:"none", borderRadius:10, fontWeight:700, fontSize:14, cursor:"pointer" }}>
             Reload Dashboard
           </button>
@@ -589,8 +595,8 @@ const TREND_CHART_OPTIONS = {
   plugins: {
     legend: { display: false },
     tooltip: {
-      backgroundColor: "#1e293b", titleColor: "#fff", bodyColor: "#94a3b8",
-      borderColor: "#334155", borderWidth: 1,
+      backgroundColor: "#202024", titleColor: "#fff", bodyColor: "#9aa0a8",
+      borderColor: "rgba(255,255,255,0.12)", borderWidth: 1,
       callbacks: { label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y ?? "—"} cm` },
     },
   },
@@ -3895,10 +3901,10 @@ const waterChartOptions = useMemo(() => ({
         display: false,
       },
       tooltip: {
-        backgroundColor: "#1e293b",
+        backgroundColor: "#202024",
         titleColor: "#fff",
-        bodyColor: "#94a3b8",
-        borderColor: "#334155",
+        bodyColor: "#9aa0a8",
+        borderColor: "rgba(255,255,255,0.12)",
         borderWidth: 1,
         callbacks: {
           title: (items) => {
@@ -3919,9 +3925,10 @@ const waterChartOptions = useMemo(() => ({
       },
       annotation: {
         annotations: {
-          zoneLow:     { type: "box", yMin: 0,                    yMax: Math.min(100, thresholds.warning), backgroundColor: "rgba(255,255,255,0.60)", borderWidth: 0 },
-          zoneSafe:    { type: "box", yMin: Math.min(100, thresholds.warning), yMax: thresholds.warning, backgroundColor: "rgba(253,224,71,0.60)",  borderWidth: 0 },
-          zoneWarning: { type: "box", yMin: thresholds.warning,   yMax: thresholds.danger,  backgroundColor: "rgba(249,115,22,0.60)", borderWidth: 0 },
+          zoneLow:     { type: "box", yMin: 0,                    yMax: Math.min(100, thresholds.warning), backgroundColor: "rgba(255,255,255,0.28)", borderWidth: 0 },
+          zoneSafe:    { type: "box", yMin: Math.min(100, thresholds.warning), yMax: thresholds.warning, backgroundColor: "rgba(253,224,71,0.38)",  borderWidth: 0 },
+          zoneWarning: { type: "box", yMin: thresholds.warning,   yMax: thresholds.danger,  backgroundColor: "rgba(249,115,22,0.42)", borderWidth: 0 },
+          zoneCritical:{ type: "box", yMin: thresholds.danger,    yMax: 700,                backgroundColor: "rgba(239,68,68,0.42)",  borderWidth: 0 },
           zoneCritical:{ type: "box", yMin: thresholds.danger,    yMax: 700,                backgroundColor: "rgba(239,68,68,0.60)",  borderWidth: 0 },
           lineWarning: { type: "line", yMin: thresholds.warning, yMax: thresholds.warning, borderColor: "rgba(249,115,22,0.80)", borderWidth: 2, borderDash: [4, 4], label: { display: false } },
           lineCritical:{ type: "line", yMin: thresholds.danger,  yMax: thresholds.danger,  borderColor: "rgba(239,68,68,0.80)",  borderWidth: 2, borderDash: [4, 4], label: { display: false } },
@@ -4177,8 +4184,8 @@ const waterChartOptions = useMemo(() => ({
           return (
             <div className="ticker-overlay" style={{
               position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9000,
-              background: "rgba(14,30,60,0.55)",
-              borderTop: "1px solid rgba(56,189,248,0.15)",
+              background: "rgba(10,10,11,0.72)",
+              borderTop: "1px solid rgba(255,255,255,0.09)",
               overflow: "hidden",
               transition: "opacity 1.5s ease",
               opacity: tickerLeaving ? 0 : 1,
@@ -4248,8 +4255,9 @@ const waterChartOptions = useMemo(() => ({
                     style={{ height:"100%", width:"100%", borderRadius:"10px" }}
                     scrollWheelZoom={true}>
                     <TileLayer
-                      attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>'
-                      url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                      className={CARTO_KEY ? "fews-tiles" : undefined}
+                      attribution={MAP_ATTRIBUTION}
+                      url={MAP_TILE_URL} />
                     <FlyToStation fews={selectedStation} />
                     <OpenPopup fews={selectedStation} markerRefs={markerRefs} />
                     {allFews.map(f => {
@@ -4262,7 +4270,7 @@ const waterChartOptions = useMemo(() => ({
                         ? (isActuallyLive ? cfg.color : "#64748b")
                         : (isManualServiceable ? "#38bdf8" : "#64748b");
                       const isBaseLive = isActuallyLive && displayStatus === "base";
-                      const popupTextColor = isBaseLive ? "#1e293b" : markerColor;
+                      const popupTextColor = markerColor;
                       const markerBorderColor = isBaseLive ? "#94a3b8" : "white";
                       const showPulse = isActuallyLive || isManualServiceable;
                       const icon = L.divIcon({
@@ -4283,12 +4291,12 @@ const waterChartOptions = useMemo(() => ({
                               {f.isLive ? (
                                 <>
                                   <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3 }}>
-                                    <strong style={{ fontSize:"clamp(13px, 1.1vw, 16px)", color:"#1e293b" }}>{f.name}</strong>
+                                    <strong style={{ fontSize:"clamp(13px, 1.1vw, 16px)", color:"#e8eaed" }}>{f.name}</strong>
                                     <span style={{ fontSize:"clamp(9px, 0.8vw, 11px)", color: isHardwareOnline ? "#22c55e" : "#94a3b8", fontWeight:700 }}>
                                       {isHardwareOnline ? "● LIVE" : "◌ WAITING"}
                                     </span>
                                   </div>
-                                  <div style={{ fontSize:"clamp(10px, 0.9vw, 12px)", color:"#1e293b", marginBottom:3 }}>
+                                  <div style={{ fontSize:"clamp(10px, 0.9vw, 12px)", color:"#e8eaed", marginBottom:3 }}>
                                     {f.location}
                                   </div>
                                   <div style={{ display:"flex", alignItems:"baseline", gap:4, marginBottom:3 }}>
@@ -4303,12 +4311,12 @@ const waterChartOptions = useMemo(() => ({
                               ) : (
                                 <>
                                   <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:3 }}>
-                                    <strong style={{ fontSize:"clamp(13px, 1.1vw, 16px)", color:"#1e293b" }}>{f.name}</strong>
+                                    <strong style={{ fontSize:"clamp(13px, 1.1vw, 16px)", color:"#e8eaed" }}>{f.name}</strong>
                                     <span style={{ fontSize:"clamp(9px, 0.8vw, 11px)", color: isManualServiceable ? "#38bdf8" : "#94a3b8", fontWeight:700 }}>
                                       {isManualServiceable ? "● MANUAL" : "◌ MANUAL"}
                                     </span>
                                   </div>
-                                  <div style={{ fontSize:"clamp(10px, 0.9vw, 12px)", color:"#1e293b", marginBottom:3 }}>
+                                  <div style={{ fontSize:"clamp(10px, 0.9vw, 12px)", color:"#e8eaed", marginBottom:3 }}>
                                     {f.location}
                                   </div>
                                   <div>
@@ -4326,7 +4334,7 @@ const waterChartOptions = useMemo(() => ({
                                   setCopiedId(null);
                                   copiedTimerRef.current = null;
                                 }, 1500);
-                              }} style={{ marginTop:"4px", padding:"3px 8px", background: markerColor, color: isBaseLive ? "#1e293b" : "#ffffff", border:"none", outline:"none", boxShadow:"none", borderRadius:"4px", cursor:"pointer", fontWeight:"700", fontSize:"clamp(10px, 0.85vw, 12px)", width:"100%", transition:"background 0.2s" }}>
+                              }} style={{ marginTop:"4px", padding:"3px 8px", background:"rgba(255,255,255,0.08)", color:"#e8eaed", border:"1px solid rgba(255,255,255,0.14)", outline:"none", boxShadow:"none", borderRadius:"4px", cursor:"pointer", fontWeight:"700", fontSize:"clamp(10px, 0.85vw, 12px)", width:"100%", transition:"background 0.2s" }}>
                                 {copiedId===f.id ? "Copied!" : "Copy Coordinates"}
                               </button>
                             </div>
@@ -4380,20 +4388,20 @@ const waterChartOptions = useMemo(() => ({
                 const ALARM_CFG = {
                   base: {
                     color:  "#e2e8f0",
-                    bg:     "rgba(226,232,240,0.60)",
-                    border: "rgba(226,232,240,0.70)",
-                    sqBg:   "rgba(226,232,240,0.65)",
-                    sqBor:  "rgba(226,232,240,0.80)",
+                    bg:     "rgba(226,232,240,0.12)",
+                    border: "rgba(226,232,240,0.30)",
+                    sqBg:   "rgba(226,232,240,0.16)",
+                    sqBor:  "rgba(226,232,240,0.45)",
                     label:  "BASE",
                     icon:   "✓",
                     anim:   false,
                   },
                   safe: {
                     color:  "#fde047",
-                    bg:     "rgba(253,224,71,0.60)",
-                    border: "rgba(253,224,71,0.70)",
-                    sqBg:   "rgba(253,224,71,0.65)",
-                    sqBor:  "rgba(253,224,71,0.80)",
+                    bg:     "rgba(253,224,71,0.14)",
+                    border: "rgba(253,224,71,0.35)",
+                    sqBg:   "rgba(253,224,71,0.18)",
+                    sqBor:  "rgba(253,224,71,0.50)",
                     label:  "ALL CLEAR",
                     icon:   "✓",
                     anim:   false,
@@ -4419,11 +4427,11 @@ const waterChartOptions = useMemo(() => ({
                     anim:   true,
                   },
                   offline: {
-                    color:    "#a8b8cc",
-                    bg:       "rgba(74,96,126,0.60)",
-                    border:   "rgba(74,96,126,0.70)",
-                    sqBg:     "rgba(74,96,126,0.65)",
-                    sqBor:    "rgba(74,96,126,0.80)",
+                    color:    "#c0c5cc",
+                    bg:       "rgba(122,128,138,0.30)",
+                    border:   "rgba(122,128,138,0.50)",
+                    sqBg:     "rgba(122,128,138,0.36)",
+                    sqBor:    "rgba(122,128,138,0.60)",
                     label:    "OFFLINE",
                     icon:     "◌",
                     anim:     false,
@@ -4721,7 +4729,7 @@ const waterChartOptions = useMemo(() => ({
                     style={{ height:"100%", width:"100%" }}
                     scrollWheelZoom={true}
                     minZoom={3}>
-                    <TileLayer attribution='&copy; <a href="https://www.openstreetmap.org/">OpenStreetMap</a>' url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                    <TileLayer className={CARTO_KEY ? "fews-tiles" : undefined} attribution={MAP_ATTRIBUTION} url={MAP_TILE_URL} />
                     <OpenAllPopups fewsList={allFews} markerRefs={fsMarkerRefs} active={fullscreenMap} />
                     {allFews.map(f => {
                       const isManualServiceable = !f.isLive && f.manualStatus === "serviceable";
@@ -4749,13 +4757,13 @@ const waterChartOptions = useMemo(() => ({
                           <Popup minWidth={160} maxWidth={360} autoPan={false} autoClose={false} closeOnClick={false}>
                             <div style={{ fontFamily:"sans-serif", padding:"2px 0" }}>
                               <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
-                                <strong style={{ fontSize:"clamp(13px, 1.1vw, 16px)", color:"#1e293b" }}>{f.name}</strong>
+                                <strong style={{ fontSize:"clamp(13px, 1.1vw, 16px)", color:"#e8eaed" }}>{f.name}</strong>
                                 <span style={{ fontSize:"clamp(9px, 0.8vw, 11px)", color: f.isLive ? (isHardwareOnline ? "#22c55e" : "#94a3b8") : (isManualServiceable ? "#38bdf8" : "#94a3b8"), fontWeight:700 }}>
                                   {f.isLive ? (isHardwareOnline ? "● LIVE" : "◌ WAITING") : (isManualServiceable ? "● MANUAL" : "◌ MANUAL")}
                                 </span>
                               </div>
-                              <div style={{ fontSize:"clamp(11px, 0.9vw, 13px)", color:"#475569", lineHeight:1.2, marginBottom:4, whiteSpace:"nowrap" }}>
-                                <strong style={{ color:"#1e293b" }}>{f.location}</strong>
+                              <div style={{ fontSize:"clamp(11px, 0.9vw, 13px)", color:"#9aa0a8", lineHeight:1.2, marginBottom:4, whiteSpace:"nowrap" }}>
+                                <strong style={{ color:"#e8eaed" }}>{f.location}</strong>
                                 {" · "}
                                 {f.isLive
                                   ? <span>Water: {isHardwareOnline ? formatWaterLevel(f.waterLevel, user.unit_preference) : "—"}</span>
@@ -4776,17 +4784,17 @@ const waterChartOptions = useMemo(() => ({
 
                   if (!f.isLive) {
                     const isManualServiceable = f.manualStatus === "serviceable";
-                    const manualColor = isManualServiceable ? "#0c447c" : "#94a3b8";
+                    const manualColor = isManualServiceable ? "#38bdf8" : "#94a3b8";
                     return (
                       <div className="map-fs-station">
                         <div className="map-fs-station-name">
                           <div style={{ width:9, height:9, borderRadius:"50%", background: isManualServiceable ? "#38bdf8" : "#94a3b8", flexShrink:0 }} />
                           {f.name}
-                          <span className="map-fs-live" style={{ background: isManualServiceable ? "rgba(56,189,248,0.13)" : "rgba(0,0,0,0.06)", color: "#64748b" }}>
+                          <span className="map-fs-live" style={{ background: isManualServiceable ? "rgba(56,189,248,0.13)" : "rgba(255,255,255,0.08)", color: "#64748b" }}>
                             MANUAL
                           </span>
                         </div>
-                        <span className="map-fs-status" style={{ background: isManualServiceable ? "rgba(56,189,248,0.13)" : "rgba(0,0,0,0.06)", color: manualColor, border: `1px solid ${isManualServiceable ? "rgba(56,189,248,0.35)" : "rgba(0,0,0,0.08)"}` }}>
+                        <span className="map-fs-status" style={{ background: isManualServiceable ? "rgba(56,189,248,0.13)" : "rgba(255,255,255,0.08)", color: manualColor, border: `1px solid ${isManualServiceable ? "rgba(56,189,248,0.35)" : "rgba(255,255,255,0.12)"}` }}>
                           {isManualServiceable ? "SERVICEABLE" : "UNSERVICEABLE"}
                         </span>
                         <div className="map-fs-divider" />
@@ -4806,13 +4814,13 @@ const waterChartOptions = useMemo(() => ({
                   const displayStatus = getDisplayStatus(f.status, f.waterLevel, isActuallyLive, thresholds);
                   const cfg = STATUS_CONFIG[displayStatus] || STATUS_CONFIG["safe"];
                   const isBaseLive = isActuallyLive && displayStatus === "base";
-                  const fsTextColor = isBaseLive ? "#1e293b" : cfg.color;
+                  const fsTextColor = isBaseLive ? "#e8eaed" : cfg.color;
                   return (
                     <div className="map-fs-station">
                       <div className="map-fs-station-name">
                         <div style={{ width:9, height:9, borderRadius:"50%", background: isActuallyLive ? cfg.color : "#94a3b8", border: isBaseLive ? "1px solid #94a3b8" : "none", flexShrink:0 }} />
                         {f.name}
-                        <span className="map-fs-live" style={{ background: isActuallyLive ? `${cfg.color}22` : "rgba(0,0,0,0.06)", color: isActuallyLive ? fsTextColor : "#94a3b8" }}>
+                        <span className="map-fs-live" style={{ background: isActuallyLive ? `${cfg.color}22` : "rgba(255,255,255,0.08)", color: isActuallyLive ? fsTextColor : "#94a3b8" }}>
                           {isActuallyLive ? "● LIVE" : "◌ WAITING"}
                         </span>
                       </div>
@@ -4822,7 +4830,7 @@ const waterChartOptions = useMemo(() => ({
                         </span>
                         {isActuallyLive && <span className="map-fs-water-unit">{user.unit_preference}</span>}
                       </div>
-                      <span className="map-fs-status" style={{ background: isActuallyLive ? `${cfg.color}18` : "rgba(0,0,0,0.06)", color: isActuallyLive ? fsTextColor : "#94a3b8", border: `1px solid ${isActuallyLive ? cfg.color + "35" : "rgba(0,0,0,0.08)"}` }}>
+                      <span className="map-fs-status" style={{ background: isActuallyLive ? `${cfg.color}18` : "rgba(255,255,255,0.08)", color: isActuallyLive ? fsTextColor : "#94a3b8", border: `1px solid ${isActuallyLive ? cfg.color + "35" : "rgba(255,255,255,0.12)"}` }}>
                         {isActuallyLive ? cfg.label : "OFFLINE"}
                       </span>
                       <div className="map-fs-divider" />
@@ -4905,14 +4913,14 @@ FILE: frontend/src/App.css
 }
 
 :root {
-  --bg-base:    #080e1a;
-  --bg-panel:   #0d1526;
-  --bg-card:    #111d35;
-  --bg-raised:  #162040;
-  --border:     rgba(255,255,255,0.07);
-  --text-1:     #e2e8f0;
-  --text-2:     #7e92b4;
-  --text-3:     #4a607e;
+  --bg-base:    #0a0a0b;
+  --bg-panel:   #111113;
+  --bg-card:    #17171a;
+  --bg-raised:  #202024;
+  --border:     rgba(255,255,255,0.09);
+  --text-1:     #e8eaed;
+  --text-2:     #9aa0a8;
+  --text-3:     #7b828c;
   --green:      #22c55e;
   --amber:      #f59e0b;
   --red:        #ef4444;
@@ -5956,8 +5964,8 @@ body {
 .login-bg {
   position: absolute; inset: 0;
   background-image:
-    linear-gradient(rgba(56,189,248,0.03) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(56,189,248,0.03) 1px, transparent 1px);
+    linear-gradient(rgba(255,255,255,0.03) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255,255,255,0.03) 1px, transparent 1px);
   background-size: 40px 40px;
   pointer-events: none;
 }
@@ -6189,7 +6197,7 @@ select.settings-input {
 
 .mu-avatar {
   width: 36px; height: 36px; border-radius: 50%;
-  background: linear-gradient(135deg, #1d4ed8, #7c3aed);
+  background: linear-gradient(135deg, #3a3a40, #26262a);
   display: flex; align-items: center; justify-content: center;
   font-size: 11px; font-weight: 700; color: #fff; flex-shrink: 0;
   overflow: hidden;
@@ -7930,8 +7938,12 @@ select.settings-input {
   }
 }
 
-.leaflet-container {
-  background: #aad3df;
+div.leaflet-container {
+  background: #17181a;
+}
+
+.fews-tiles {
+  filter: brightness(1.4) contrast(1.05) saturate(1.5);
 }
 
 .leaflet-tile {
@@ -8418,6 +8430,54 @@ select.settings-input {
   .settings-input   { font-size: 14px; height: 42px; }
 }
 
+/* ── Dark map chrome ── */
+.leaflet-control-zoom-in,
+.leaflet-control-zoom-out {
+  background: rgba(23, 23, 26, 0.92) !important;
+  color: #e8eaed !important;
+}
+.leaflet-control-zoom-in { border-bottom: 1px solid rgba(255, 255, 255, 0.09) !important; }
+.leaflet-control-zoom-in:hover,
+.leaflet-control-zoom-out:hover {
+  background: #202024 !important;
+  color: #ffffff !important;
+}
+
+.map-expand-btn,
+.map-fs-close {
+  background: rgba(23, 23, 26, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #9aa0a8;
+}
+.map-expand-btn:hover { background: #202024; color: #ffffff; }
+.map-fs-close:hover   { background: #202024; color: #ef4444; }
+
+.map-fs-station,
+.map-fs-legend {
+  background: rgba(23, 23, 26, 0.92);
+  border-color: rgba(255, 255, 255, 0.12);
+}
+.map-fs-station-name,
+.map-fs-row-val,
+.map-fs-legend-item { color: #e8eaed; }
+.map-fs-water-unit,
+.map-fs-row-label   { color: #9aa0a8; }
+.map-fs-divider     { background: rgba(255, 255, 255, 0.10); }
+.map-fs-legend-dot  { border-color: rgba(255, 255, 255, 0.25); }
+
+.leaflet-container .leaflet-popup-content-wrapper {
+  background: #202024;
+  color: #e8eaed;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+}
+.leaflet-container .leaflet-popup-tip {
+  background: #202024;
+  box-shadow: none;
+}
+.leaflet-container a.leaflet-popup-close-button       { color: #9aa0a8 !important; }
+.leaflet-container a.leaflet-popup-close-button:hover { color: #ffffff !important; }
+
 =========================================
 FILE: frontend/src/index.css
 =========================================
@@ -8642,7 +8702,7 @@ FILE: frontend/index.html
     <link rel="apple-touch-icon" href="/icon-apple-180.png" />
 
     <!-- ── PWA: Theme color (matches --bg-base in App.css) ── -->
-    <meta name="theme-color" content="#080e1a" />
+    <meta name="theme-color" content="#0a0a0b" />
 
     <!-- ── Viewport: cover lets dark bg extend under iOS status bar ── -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -8687,7 +8747,7 @@ FILE: frontend/index.html
               'display:flex',
               'align-items:center',
               'gap:10px',
-              'background:#111d35',
+              'background:#17171a',
               'border:1px solid rgba(56,189,248,0.35)',
               'border-radius:12px',
               'padding:10px 16px',
@@ -8702,7 +8762,7 @@ FILE: frontend/index.html
 
             container.innerHTML = `
               <span style="font-size:15px;">🔄</span>
-              <span style="color:#7e92b4;">Dashboard updated</span>
+              <span style="color:#9aa0a8;">Dashboard updated</span>
               <button onclick="window.location.reload()" style="
                 background:transparent;
                 border:1px solid rgba(56,189,248,0.35);
@@ -8718,7 +8778,7 @@ FILE: frontend/index.html
               <button onclick="this.parentElement.remove()" style="
                 background:transparent;
                 border:1px solid rgba(255,255,255,0.08);
-                color:#4a607e;
+                color:#7b828c;
                 border-radius:8px;
                 padding:4px 8px;
                 font-family:inherit;
