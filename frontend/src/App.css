@@ -112,18 +112,20 @@ body {
    SIDEBAR
 ================================ */
 .sidebar {
-  width: clamp(200px, 14vw, 280px);
-  min-width: clamp(200px, 14vw, 280px);
+  --sb-pad: 16px;
+  width: clamp(188px, 14vw, 280px);
+  min-width: clamp(188px, 14vw, 280px);
   background: var(--bg-panel);
   border-right: 1px solid var(--border);
   display: flex;
   flex-direction: column;
-  padding: 0 16px 24px;
+  padding: 0 10px 24px;
   transition: width 0.3s ease, min-width 0.3s ease;
   overflow: hidden;
 }
 
 .sidebar.collapsed {
+  --sb-pad: 10px;
   width: clamp(52px, 4.5vw, 72px);
   min-width: clamp(52px, 4.5vw, 72px);
   padding: 0 10px 20px;
@@ -146,13 +148,23 @@ body {
 }
 
 .brand {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 10px;
   padding: 0 4px;
   height: clamp(60px, 5vh, 80px);
-  border-bottom: 1px solid var(--border);
   flex-shrink: 0;
+}
+
+.brand::after {
+  content: "";
+  position: absolute;
+  left: calc(-1 * var(--sb-pad));
+  right: calc(-1 * var(--sb-pad));
+  bottom: 0;
+  height: 1px;
+  background: var(--border);
 }
 
 .brand-icon             { font-size: 22px; flex-shrink: 0; }
@@ -223,8 +235,18 @@ body {
 .nav-label.hidden     { display: none; }
 
 .sidebar-footer {
+  position: relative;
   padding-top: 16px;
-  border-top: 1px solid var(--border);
+}
+
+.sidebar-footer::before {
+  content: "";
+  position: absolute;
+  left: calc(-1 * var(--sb-pad));
+  right: calc(-1 * var(--sb-pad));
+  top: 0;
+  height: 1px;
+  background: var(--border);
 }
 
 .logout-btn {
@@ -262,7 +284,7 @@ body {
 ================================ */
 .topbar {
   height: clamp(60px, 5vh, 80px);
-  padding: 0 24px;
+  padding: 0 14px;
   background: var(--bg-panel);
   border-bottom: 1px solid var(--border);
   display: flex;
@@ -335,7 +357,8 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 5px 14px;
+  height: 34px;
+  padding: 0 12px;
   border-radius: 999px;
   font-size: 10px;
   font-weight: 600;
@@ -640,192 +663,10 @@ body {
   height: 100%;
 }
 
-/* Close button */
-.map-fs-close {
-  position: absolute;
-  top: 14px;
-  right: 14px;
-  z-index: 99999;
-  width: 34px;
-  height: 34px;
-  border-radius: 50%;
-  background: rgba(255, 255, 255, 0.88);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.10);
-  color: #475569;
-  font-size: 16px;
-  font-weight: 700;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-  line-height: 1;
-  pointer-events: all;
-}
-.map-fs-close:hover {
-  background: rgba(255, 255, 255, 1);
-  color: #ef4444;
-}
-
-
-.map-expand-btn {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  z-index: 800;
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.88);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.10);
-  color: #475569;
-  font-size: 13px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
-  transition: background 0.15s, color 0.15s;
-  pointer-events: all;
-}
-
-.map-expand-btn:hover {
-  background: rgba(255, 255, 255, 1);
-  color: #1e293b;
-}
-
-/* Station info panel ── bottom left */
-.map-fs-station {
-  position: absolute;
-  bottom: 18px;
-  left: 18px;
-  z-index: 1000;
-  background: rgba(255, 255, 255, 0.88);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 14px;
-  box-shadow: 0 4px 24px rgba(0, 0, 0, 0.10);
-  padding: clamp(10px, 1vw, 15px) clamp(12px, 1.2vw, 18px);
-  display: flex;
-  flex-direction: column;
-  gap: clamp(5px, 0.5vw, 8px);
-  min-width: clamp(170px, 15vw, 220px);
-  max-width: clamp(200px, 18vw, 260px);
-}
-
-.map-fs-station-name {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  font-size: clamp(12px, 1vw, 14px);
-  font-weight: 700;
-  color: #1e293b;
-}
-
-.map-fs-live {
-  font-size: clamp(9px, 0.7vw, 10px);
-  font-weight: 700;
-  font-family: var(--mono);
-  letter-spacing: 0.07em;
-  padding: 2px 7px;
-  border-radius: 999px;
-}
-
-.map-fs-status {
-  font-size: clamp(9px, 0.7vw, 10px);
-  font-weight: 700;
-  font-family: var(--mono);
-  letter-spacing: 0.07em;
-  padding: 2px 8px;
-  border-radius: 999px;
-  align-self: flex-start;
-}
-
-.map-fs-water {
-  display: flex;
-  align-items: baseline;
-  gap: 4px;
-}
-
-.map-fs-water-val {
-  font-size: clamp(24px, 2vw, 32px);
-  font-weight: 800;
-  font-family: var(--mono);
-  line-height: 1;
-}
-
-.map-fs-water-unit {
-  font-size: clamp(11px, 0.8vw, 13px);
-  color: #64748b;
-  font-weight: 600;
-}
-
-.map-fs-divider {
-  height: 1px;
-  background: rgba(0, 0, 0, 0.07);
-}
-
-.map-fs-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  font-size: clamp(10px, 0.75vw, 12px);
-  gap: 6px;
-}
-
-.map-fs-row-label {
-  color: #64748b;
-  display: flex;
-  align-items: center;
-  gap: 4px;
-}
-
-.map-fs-row-val {
-  color: #1e293b;
-  font-weight: 600;
-  font-family: var(--mono);
-  font-size: clamp(10px, 0.75vw, 12px);
-  text-align: right;
-}
-
-.map-fs-legend {
-  position: absolute;
-  top: 14px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 1000;
-  background: rgba(255, 255, 255, 0.88);
-  border: 1px solid rgba(0, 0, 0, 0.08);
-  border-radius: 999px;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.10);
-  padding: clamp(4px, 0.4vw, 7px) clamp(10px, 1vw, 16px);
-  display: flex;
-  flex-direction: row;
-  gap: clamp(12px, 1.4vw, 22px);
-  white-space: nowrap;
-}
-
-.map-fs-legend-item {
-  display: flex;
-  align-items: center;
-  gap: clamp(4px, 0.4vw, 6px);
-  font-size: clamp(10px, 0.75vw, 12px);
-  color: #1e293b;
-  font-weight: 600;
-}
-
-.map-fs-legend-dot {
-  width: clamp(7px, 0.6vw, 9px);
-  height: clamp(7px, 0.6vw, 9px);
-  border-radius: 50%;
-  flex-shrink: 0;
-  border: 1.5px solid rgba(0, 0, 0, 0.10);
-}
-
 /* Radar pulse keyframe */
 @keyframes radar-pulse {
-  0%   { transform: scale(1);   opacity: 0.8; }
-  100% { transform: scale(3.5); opacity: 0;   }
+  0%   { transform: scale(1); opacity: 0.8; }
+  100% { transform: scale(8); opacity: 0;   }
 }
 
 .radar-pulse {
@@ -844,50 +685,6 @@ body {
 .map-fullscreen-overlay {
   padding: 0;
 }
-
-.map-fs-close {
-  top: 12px;
-  right: 12px;
-  width: 36px;
-  height: 36px;
-  font-size: 16px;
-  z-index: 99999;
-}
-
-.map-fs-station {
-  bottom: 16px;
-  left: 12px;
-  min-width: 160px;
-  max-width: 190px;
-  padding: 10px 12px;
-  gap: 5px;
-  border-radius: 12px;
-}
-
-.map-fs-legend {
-  top: 16px;
-  left: 50%;
-  transform: translateX(-50%);
-  padding: 5px 12px;
-  gap: 10px;
-  border-radius: 999px;
-  white-space: nowrap;
-}
-
-.map-fs-legend-item {
-  font-size: 10px;
-  gap: 4px;
-}
-
-.map-fs-legend-dot {
-  width: 7px;
-  height: 7px;
-}
-
-.map-fs-water-val { font-size: 20px; }
-.map-fs-station-name { font-size: 12px; }
-.map-fs-row { font-size: 10px; }
-.map-fs-row-val { font-size: 10px; }
 
 .map-fullscreen-inner .leaflet-popup-content-wrapper {
     max-width: 280px !important;
@@ -2675,7 +2472,7 @@ select.settings-input {
     margin-left: auto;
   }
 
-  .connection  { font-size: 10px; padding: 4px 10px; }
+  .connection  { font-size: 10px; height: 30px; padding: 0 10px; }
   .alert-badge { font-size: 10px; padding: 4px 10px; }
 
   /* ── Login page: tighter, centered, not so tall ── */
@@ -3067,7 +2864,12 @@ div.leaflet-container {
 }
 
 .fews-tiles {
-  filter: brightness(1.4) contrast(1.05) saturate(1.5);
+  filter: brightness(2) contrast(1) saturate(1.5);
+}
+
+/* Labels layer: pushes the grey label text to white; the dark outline stays dark */
+.fews-labels {
+  filter: brightness(1.6) contrast(1);
 }
 
 .leaflet-tile {
@@ -3478,18 +3280,19 @@ div.leaflet-container {
 @media (min-width: 1440px) {
 
   /* ── Topbar ── */
-  .topbar           { height: 72px; padding: 0 36px; }
+  .topbar           { height: 72px; padding: 0 20px; }
   .brand            { height: 72px; }
   .title-block h1   { font-size: 17px; }
   .subtitle         { font-size: 12px; }
-  .connection       { font-size: 12px; padding: 7px 18px; }
+  .connection       { font-size: 12px; height: 34px; padding: 0 14px; }
   .alert-badge      { font-size: 12px; padding: 6px 16px; }
   .topbar-seal-img  { height: 54px; }
 
   /* ── Sidebar ── */
   .sidebar {
-    width: 260px;
-    min-width: 260px;
+    --sb-pad: 20px;
+    width: 240px;
+    min-width: 240px;
     padding: 0 20px 28px;
   }
   .sidebar.collapsed {
@@ -3566,28 +3369,6 @@ div.leaflet-container {
   color: #ffffff !important;
 }
 
-.map-expand-btn,
-.map-fs-close {
-  background: rgba(23, 23, 26, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #9aa0a8;
-}
-.map-expand-btn:hover { background: #202024; color: #ffffff; }
-.map-fs-close:hover   { background: #202024; color: #ef4444; }
-
-.map-fs-station,
-.map-fs-legend {
-  background: rgba(23, 23, 26, 0.92);
-  border-color: rgba(255, 255, 255, 0.12);
-}
-.map-fs-station-name,
-.map-fs-row-val,
-.map-fs-legend-item { color: #e8eaed; }
-.map-fs-water-unit,
-.map-fs-row-label   { color: #9aa0a8; }
-.map-fs-divider     { background: rgba(255, 255, 255, 0.10); }
-.map-fs-legend-dot  { border-color: rgba(255, 255, 255, 0.25); }
-
 .leaflet-container .leaflet-popup-content-wrapper {
   background: #202024;
   color: #e8eaed;
@@ -3636,7 +3417,6 @@ div.leaflet-container {
 .map-ctrl-group-fs .map-ctrl-btn { width: 36px; height: 36px; border-radius: 10px; }
 
 /* Fullscreen is now edge to edge: keep chrome clear of the notch / home indicator */
-.map-fs-legend { top: calc(14px + env(safe-area-inset-top, 0px)); }
 .map-fullscreen-inner .leaflet-top    { margin-top: env(safe-area-inset-top, 0px); }
 .map-fullscreen-inner .leaflet-left   { margin-left: env(safe-area-inset-left, 0px); }
 .map-fullscreen-inner .leaflet-bottom { margin-bottom: env(safe-area-inset-bottom, 0px); }
@@ -3649,13 +3429,8 @@ div.leaflet-container {
   }
 }
 
-/* Temporary: lifts the old station card above the new buttons until batch 3 replaces it */
-.map-fs-station { bottom: calc(66px + env(safe-area-inset-bottom, 0px)); }
-
 @media (max-width: 768px) {
   .map-ctrl-btn { width: 32px; height: 32px; }
-  .map-fs-legend { top: calc(16px + env(safe-area-inset-top, 0px)); }
-  .map-fs-station { bottom: calc(66px + env(safe-area-inset-bottom, 0px)); }
 }
 
 /* ── Fullscreen marker labels ── */
@@ -3853,13 +3628,6 @@ div.leaflet-container {
 }
 .fs-dr-btn:hover { color: var(--text-1); border-color: rgba(255, 255, 255, 0.22); }
 
-.fs-dr-siren {
-  flex-shrink: 0;
-  padding: 12px 14px;
-  border-top: 1px solid var(--border);
-  display: flex; flex-direction: column; gap: 7px;
-}
-
 /* Status pill — bottom left, right of the two buttons */
 .map-fs-pill {
   position: absolute;
@@ -3942,7 +3710,6 @@ div.leaflet-container {
   .fs-dr-collapse-end { margin-left: 6px; } /* the header tag now takes the auto margin */
 
   .fs-dr-row   { padding: 12px 14px; }
-  .fs-dr-siren { padding: 12px 14px; }
 
   .fs-dr-hero      { padding: 14px 14px 12px; gap: 8px; }
   .fs-dr-hero-val  { font-size: 34px; }

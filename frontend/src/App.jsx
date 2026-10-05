@@ -34,8 +34,13 @@ const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const CARTO_KEY = import.meta.env.VITE_CARTO_KEY || "";
 const MAP_TILE_URL = CARTO_KEY
-  ? `https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png?key=${CARTO_KEY}`
+  ? `https://basemaps.cartocdn.com/rastertiles/dark_nolabels/{z}/{x}/{y}.png?key=${CARTO_KEY}`
   : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
+// Labels-only layer drawn on top of the dark base. Needs the CARTO key;
+// without it the app stays on plain OpenStreetMap tiles, which have no separate labels.
+const MAP_LABELS_URL = CARTO_KEY
+  ? `https://basemaps.cartocdn.com/rastertiles/dark_only_labels/{z}/{x}/{y}.png?key=${CARTO_KEY}`
+  : "";
 const MAP_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
 class ErrorBoundary extends React.Component {
   constructor(props) {
@@ -4287,7 +4292,7 @@ export default function App() {
         const v = ctx.parsed?.y;
         if (v == null) return "transparent";
         if (v > thresholds.danger)  return "#ef4444";
-        if (v > thresholds.warning) return "#f59e0b";
+        if (v > thresholds.warning) return "#f97316";
         if (v < getBaselineCutoff(thresholds)) return "#e2e8f0";
         return "#fde047";
       },
@@ -4295,7 +4300,7 @@ export default function App() {
         const v = ctx.parsed?.y;
         if (v == null) return "transparent";
         if (v > thresholds.danger)  return "#ef4444";
-        if (v > thresholds.warning) return "#f59e0b";
+        if (v > thresholds.warning) return "#f97316";
         if (v < getBaselineCutoff(thresholds)) return "#e2e8f0";
         return "#fde047";
       },
@@ -4327,7 +4332,7 @@ const waterChartOptions = useMemo(() => ({
           },
           labelColor: (ctx) => {
             const v = ctx.parsed.y;
-            const color = v > thresholds.danger ? "#ef4444" : v > thresholds.warning ? "#f59e0b" : v < getBaselineCutoff(thresholds) ? "#e2e8f0" : "#fde047";
+            const color = v > thresholds.danger ? "#ef4444" : v > thresholds.warning ? "#f97316" : v < getBaselineCutoff(thresholds) ? "#e2e8f0" : "#fde047";
             return { borderColor: color, backgroundColor: color };
           },
         },
@@ -4337,7 +4342,6 @@ const waterChartOptions = useMemo(() => ({
           zoneLow:     { type: "box", yMin: 0,                    yMax: Math.min(100, thresholds.warning), backgroundColor: "rgba(226,232,240,0.55)", borderWidth: 0 },
           zoneSafe:    { type: "box", yMin: Math.min(100, thresholds.warning), yMax: thresholds.warning, backgroundColor: "rgba(253,224,71,0.60)",  borderWidth: 0 },
           zoneWarning: { type: "box", yMin: thresholds.warning,   yMax: thresholds.danger,  backgroundColor: "rgba(249,115,22,0.60)", borderWidth: 0 },
-          zoneCritical:{ type: "box", yMin: thresholds.danger,    yMax: 700,                backgroundColor: "rgba(239,68,68,0.60)",  borderWidth: 0 },
           zoneCritical:{ type: "box", yMin: thresholds.danger,    yMax: 700,                backgroundColor: "rgba(239,68,68,0.60)",  borderWidth: 0 },
           lineWarning: { type: "line", yMin: thresholds.warning, yMax: thresholds.warning, borderColor: "rgba(249,115,22,0.80)", borderWidth: 2, borderDash: [4, 4], label: { display: false } },
           lineCritical:{ type: "line", yMin: thresholds.danger,  yMax: thresholds.danger,  borderColor: "rgba(239,68,68,0.80)",  borderWidth: 2, borderDash: [4, 4], label: { display: false } },
@@ -4611,8 +4615,8 @@ const waterChartOptions = useMemo(() => ({
               }}>
                 {doubled.map((d, i) => {
                   const statusKey = d.value > thresholds.danger ? "CRITICAL" : d.value > thresholds.warning ? "WARNING" : d.value < getBaselineCutoff(thresholds) ? "BASE" : "NORMAL";
-                  const color = statusKey === "CRITICAL" ? "#ef4444" : statusKey === "WARNING" ? "#f59e0b" : statusKey === "BASE" ? "#e2e8f0" : "#fde047";
-                  const borderColor = statusKey === "CRITICAL" ? "rgba(239,68,68,0.2)" : statusKey === "WARNING" ? "rgba(245,158,11,0.2)" : statusKey === "BASE" ? "rgba(226,232,240,0.2)" : "rgba(253,224,71,0.2)";
+                  const color = statusKey === "CRITICAL" ? "#ef4444" : statusKey === "WARNING" ? "#f97316" : statusKey === "BASE" ? "#e2e8f0" : "#fde047";
+                  const borderColor = statusKey === "CRITICAL" ? "rgba(239,68,68,0.2)" : statusKey === "WARNING" ? "rgba(249,115,22,0.2)" : statusKey === "BASE" ? "rgba(226,232,240,0.2)" : "rgba(253,224,71,0.2)";
                   return (
                     <div key={i} className="ticker-card" style={{
                         background: `${color}0d`, border: `1px solid ${borderColor}`,
@@ -4658,6 +4662,7 @@ const waterChartOptions = useMemo(() => ({
                       className={CARTO_KEY ? "fews-tiles" : undefined}
                       attribution={MAP_ATTRIBUTION}
                       url={MAP_TILE_URL} />
+                    {MAP_LABELS_URL && <TileLayer className="fews-labels" url={MAP_LABELS_URL} zIndex={2} />}
                     <MapRefSetter mapRef={dashMapRef} />
                     <MapResizeWatcher />
                     <FlyToStation fews={selectedStation} />
@@ -4804,7 +4809,7 @@ const waterChartOptions = useMemo(() => ({
                     border: "rgba(253,224,71,0.35)",
                     sqBg:   "rgba(253,224,71,0.18)",
                     sqBor:  "rgba(253,224,71,0.50)",
-                    label:  "ALL CLEAR",
+                    label:  "NORMAL",
                     icon:   "✓",
                     anim:   false,
                   },
@@ -4854,7 +4859,7 @@ const waterChartOptions = useMemo(() => ({
                   if (worstStatus === "offline") return "FEWS 1 is offline.";
                   if (worstStatus === "base")    return "Water level is at baseline, well below normal levels.";
                   if (worstStatus === "safe")    return "No critical advisories at this time.";
-                  if (worstStatus === "warning") return "Water level is rising for FEWS 1.";
+                  if (worstStatus === "warning") return "Water level is above the warning level at FEWS 1.";
                   return "Immediate action required for FEWS 1.";
                 };
 
@@ -5136,6 +5141,7 @@ const waterChartOptions = useMemo(() => ({
                     scrollWheelZoom={true}
                     minZoom={3}>
                     <TileLayer className={CARTO_KEY ? "fews-tiles" : undefined} attribution={MAP_ATTRIBUTION} url={MAP_TILE_URL} />
+                    {MAP_LABELS_URL && <TileLayer className="fews-labels" url={MAP_LABELS_URL} zIndex={2} />}
                     <MapRefSetter mapRef={fsMapRef} />
                     {allFews.map(f => {
                       const isManualServiceable = !f.isLive && f.manualStatus === "serviceable";
