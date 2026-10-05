@@ -620,8 +620,7 @@ body {
 .map-fullscreen-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.30);
-  backdrop-filter: blur(2px);
+  background: var(--bg-base);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -629,13 +628,11 @@ body {
 }
 
 .map-fullscreen-box {
-  width: calc(100% - 32px);
-  height: calc(100% - 32px);
-  border-radius: 16px;
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
   overflow: hidden;
   position: relative;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  box-shadow: 0 32px 80px rgba(0, 0, 0, 0.4);
 }
 
 .map-fullscreen-inner {
@@ -840,11 +837,10 @@ body {
 
 @media (max-width: 768px) {
   .map-fullscreen-box {
-  width: 90%;
-  height: 88%;
-  border-radius: 16px;
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
 }
-
 .map-fullscreen-overlay {
   padding: 0;
 }
@@ -1206,7 +1202,7 @@ body {
   background: rgba(0,0,0,0.65);
   backdrop-filter: blur(4px);
   display: flex; align-items: center; justify-content: center;
-  z-index: 9999;
+  z-index: 10000;
 }
 
 .modal-box {
@@ -3605,3 +3601,347 @@ div.leaflet-container {
 }
 .leaflet-container a.leaflet-popup-close-button       { color: #9aa0a8 !important; }
 .leaflet-container a.leaflet-popup-close-button:hover { color: #ffffff !important; }
+
+/* ── Map control cluster (center + fullscreen) ── */
+.map-ctrl-group {
+  position: absolute;
+  left: 8px;
+  bottom: 8px;
+  z-index: 800;
+  display: flex;
+  gap: 6px;
+}
+.map-ctrl-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 8px;
+  background: rgba(23, 23, 26, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #9aa0a8;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  pointer-events: all;
+  transition: background 0.15s, color 0.15s;
+}
+.map-ctrl-btn:hover { background: #202024; color: #ffffff; }
+
+.map-ctrl-group-fs {
+  left: calc(12px + env(safe-area-inset-left, 0px));
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  z-index: 1000;
+  gap: 8px;
+}
+.map-ctrl-group-fs .map-ctrl-btn { width: 36px; height: 36px; border-radius: 10px; }
+
+/* Fullscreen is now edge to edge: keep chrome clear of the notch / home indicator */
+.map-fs-legend { top: calc(14px + env(safe-area-inset-top, 0px)); }
+.map-fullscreen-inner .leaflet-top    { margin-top: env(safe-area-inset-top, 0px); }
+.map-fullscreen-inner .leaflet-left   { margin-left: env(safe-area-inset-left, 0px); }
+.map-fullscreen-inner .leaflet-bottom { margin-bottom: env(safe-area-inset-bottom, 0px); }
+
+/* Temporary: lifts the old station card above the new buttons until batch 3 replaces it */
+.map-fs-station { bottom: calc(66px + env(safe-area-inset-bottom, 0px)); }
+
+@media (max-width: 768px) {
+  .map-ctrl-btn { width: 32px; height: 32px; }
+  .map-fs-legend { top: calc(16px + env(safe-area-inset-top, 0px)); }
+  .map-fs-station { bottom: calc(66px + env(safe-area-inset-bottom, 0px)); }
+}
+
+/* ── Fullscreen marker labels ── */
+.fs-mk {
+  position: absolute;
+  left: 0;
+  top: 0;
+  transform: translate(-50%, calc(-100% + 7px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+}
+.fs-lb {
+  background: rgba(23, 23, 26, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  padding: 2px 7px;
+  font-family: var(--font);
+  font-size: 11px;
+  font-weight: 600;
+  color: #e8eaed;
+  white-space: nowrap;
+  line-height: 1.4;
+}
+.fs-lb-sel { border-color: #e8eaed; }
+.fs-dot-wrap { position: relative; width: 14px; height: 14px; flex-shrink: 0; }
+.fs-dot {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid white;
+  z-index: 2;
+}
+.fs-dot-sel { outline: 2px solid rgba(232, 234, 237, 0.55); outline-offset: 2px; }
+
+/* ── Fullscreen station drawer ── */
+:root { --fs-dr-w: clamp(280px, 22vw, 340px); }
+@media (max-width: 768px) { :root { --fs-dr-w: min(86vw, 340px); } }
+
+.fs-drawer {
+  position: absolute;
+  top:    calc(12px + env(safe-area-inset-top, 0px));
+  right:  calc(12px + env(safe-area-inset-right, 0px));
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  width: var(--fs-dr-w);
+  z-index: 1000;
+  background: rgba(23, 23, 26, 0.96);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  color: var(--text-1);
+}
+
+.fs-dr-toggle {
+  position: absolute;
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  right:  calc(12px + env(safe-area-inset-right, 0px));
+  z-index: 1001;
+  width: 36px; height: 36px;
+  border-radius: 10px;
+  background: rgba(23, 23, 26, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #9aa0a8;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s;
+}
+.fs-dr-toggle:hover { background: #202024; color: #ffffff; }
+.fs-dr-toggle-open { right: calc(var(--fs-dr-w) + 20px + env(safe-area-inset-right, 0px)); }
+
+/* Attribution: keep it visible, out from under the toggle and the drawer */
+.map-fullscreen-inner .leaflet-bottom.leaflet-right {
+  margin-right: calc(56px + env(safe-area-inset-right, 0px));
+}
+.map-fullscreen-inner.fs-drawer-open .leaflet-bottom.leaflet-right {
+  margin-right: calc(var(--fs-dr-w) + 64px + env(safe-area-inset-right, 0px));
+}
+
+.fs-dr-head {
+  display: flex; align-items: center; gap: 8px;
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  flex-shrink: 0;
+}
+.fs-dr-title { font-size: 15px; font-weight: 700; color: var(--text-1); }
+.fs-dr-count { margin-left: auto; font-size: 11px; color: var(--text-3); font-family: var(--mono); }
+.fs-dr-back {
+  width: 28px; height: 28px; padding: 0;
+  border-radius: 8px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  color: var(--text-2);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; flex-shrink: 0;
+}
+.fs-dr-back:hover { color: var(--text-1); }
+
+.fs-dr-search { padding: 10px 14px 4px; flex-shrink: 0; }
+.fs-dr-search-input {
+  width: 100%; height: 34px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 0 12px;
+  color: var(--text-1);
+  font-family: var(--font); font-size: 12px;
+  outline: none;
+}
+.fs-dr-search-input:focus { border-color: var(--blue); }
+.fs-dr-search-input::placeholder { color: var(--text-3); }
+
+.fs-dr-body { flex: 1; min-height: 0; overflow-y: auto; padding-bottom: 8px; }
+.fs-dr-sec-label {
+  font-size: 10px; font-weight: 700; color: var(--text-3);
+  letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 12px 14px 4px;
+}
+.fs-dr-empty { padding: 20px 14px; font-size: 12px; color: var(--text-3); text-align: center; }
+
+.fs-dr-row {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%;
+  padding: 10px 14px;
+  background: transparent; border: none;
+  text-align: left; cursor: pointer;
+  font-family: var(--font);
+  transition: background 0.15s;
+}
+.fs-dr-row:hover { background: var(--bg-raised); }
+.fs-dr-dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.fs-dr-row-info { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
+.fs-dr-row-name { font-size: 13px; font-weight: 600; color: var(--text-1); }
+.fs-dr-row-loc  { font-size: 11px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.fs-dr-badge {
+  font-size: 10px; font-weight: 700; font-family: var(--mono);
+  letter-spacing: 0.04em;
+  padding: 2px 7px; border-radius: 4px;
+  white-space: nowrap; flex-shrink: 0;
+}
+
+.fs-dr-reading {
+  display: flex; align-items: baseline; gap: 6px;
+  padding: 14px;
+  border-bottom: 1px solid var(--border);
+}
+.fs-dr-reading-val  { font-size: 34px; font-weight: 800; font-family: var(--mono); line-height: 1; }
+.fs-dr-reading-unit { font-size: 13px; color: var(--text-2); font-weight: 600; }
+
+.fs-dr-sec { padding: 12px 14px; border-bottom: 1px solid var(--border); }
+.fs-dr-sec-title {
+  font-size: 10px; font-weight: 700; color: var(--text-3);
+  letter-spacing: 0.08em; text-transform: uppercase;
+  margin-bottom: 6px;
+}
+.fs-dr-kv { display: flex; justify-content: space-between; gap: 12px; font-size: 12px; padding: 4px 0; }
+.fs-dr-kv span   { color: var(--text-3); flex-shrink: 0; }
+.fs-dr-kv strong { color: var(--text-1); font-weight: 600; text-align: right; min-width: 0; overflow-wrap: anywhere; }
+.fs-dr-desc { font-size: 12px; color: var(--text-2); line-height: 1.6; white-space: pre-line; }
+
+.fs-dr-actions { display: flex; gap: 6px; margin-top: 8px; }
+.fs-dr-btn {
+  flex: 1;
+  display: flex; align-items: center; justify-content: center;
+  padding: 8px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-2);
+  font-family: var(--font); font-size: 11px; font-weight: 600;
+  text-decoration: none; cursor: pointer;
+  transition: color 0.15s, border-color 0.15s;
+}
+.fs-dr-btn:hover { color: var(--text-1); border-color: rgba(255, 255, 255, 0.22); }
+
+.fs-dr-siren {
+  flex-shrink: 0;
+  padding: 12px 14px;
+  border-top: 1px solid var(--border);
+  display: flex; flex-direction: column; gap: 7px;
+}
+
+/* Status pill — bottom left, right of the two buttons */
+.map-fs-pill {
+  position: absolute;
+  left:   calc(100px + env(safe-area-inset-left, 0px));
+  bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+  z-index: 1000;
+  height: 36px;
+  display: flex; align-items: center; gap: 6px;
+  padding: 0 14px;
+  background: rgba(23, 23, 26, 0.92);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+  font-size: 12px; font-weight: 600; color: #e8eaed;
+  white-space: nowrap;
+}
+.map-fs-pill-dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 2px; flex-shrink: 0; }
+
+/* ── Batch 4: phone bottom sheet ── */
+.fs-dr-handle   { display: none; }
+.fs-dr-collapse { display: none; }
+.fs-ic-bottom   { display: none; }
+.fs-dr-collapse-end { margin-left: auto; }
+.fs-dr-body { overscroll-behavior: contain; }
+
+@keyframes fs-sheet-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+
+@media (max-width: 768px) {
+  /* Drawer becomes a bottom sheet */
+  .fs-drawer {
+    top: auto;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    width: auto;
+    height: 55%; /* keep in sync with FS_SHEET_VH in App.jsx */
+    border-radius: 16px 16px 0 0;
+    border-left: none;
+    border-right: none;
+    border-bottom: none;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+    animation: fs-sheet-up 0.22s ease-out;
+  }
+
+  .fs-dr-handle {
+    display: flex;
+    justify-content: center;
+    width: 100%;
+    padding: 10px 0 4px;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .fs-dr-handle span {
+    width: 36px;
+    height: 4px;
+    border-radius: 2px;
+    background: rgba(255, 255, 255, 0.22);
+  }
+
+  .fs-dr-head { padding: 6px 14px 10px; }
+
+  .fs-dr-collapse {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    margin-left: 6px;
+    background: transparent;
+    border: none;
+    color: var(--text-2);
+    cursor: pointer;
+    flex-shrink: 0;
+  }
+  .fs-dr-collapse-end { margin-left: auto; }
+
+  .fs-dr-row   { padding: 12px 14px; }
+  .fs-dr-siren { padding: 12px 14px; }
+
+  /* Toggle: bottom-bar icon; hidden while the sheet is open (handle + chevron close it) */
+  .fs-ic-side   { display: none; }
+  .fs-ic-bottom { display: block; }
+  .fs-dr-toggle-open { display: none; }
+
+  /* Buttons ride up above the sheet; the pill gets out of the way */
+  .map-ctrl-group-fs { transition: bottom 0.22s ease-out; }
+  .map-fullscreen-inner.fs-drawer-open .map-ctrl-group-fs {
+    bottom: calc(55% + 12px);
+  }
+  .map-fullscreen-inner.fs-drawer-open .map-fs-pill { display: none; }
+
+  /* Attribution sits above the sheet instead of behind it */
+  .map-fullscreen-inner.fs-drawer-open .leaflet-bottom {
+    bottom: 55%;
+  }
+  .map-fullscreen-inner.fs-drawer-open .leaflet-bottom.leaflet-right {
+    margin-right: env(safe-area-inset-right, 0px);
+  }
+}
+
+/* Very narrow phones: no room for the pill between the buttons and the toggle */
+@media (max-width: 340px) {
+  .map-fs-pill { display: none; }
+}

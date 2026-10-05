@@ -73,6 +73,7 @@ function usePullToRefresh(onRefresh) {
     if (!indicator) return;
 
     const onTouchStart = (e) => {
+      if (e.target?.closest?.(".map-fullscreen-overlay")) return;
       if (window.scrollY === 0 || document.documentElement.scrollTop === 0) {
         startYRef.current = e.touches[0].clientY;
         pullingRef.current = true;
@@ -1452,6 +1453,9 @@ function OpenPopup({ fews, markerRefs }) {
 // if included — its popup just opens off-screen until the user pans out.
 const CITY_DEFAULT_BOUNDS = [[13.744, 121.050], [13.766, 121.082]];
 
+// FEWS 1 close-up — the dashboard map's home view (also used by its center button)
+const DASH_DEFAULT_BOUNDS = [[13.760466, 121.066331], [13.764466, 121.070331]];
+
 function OpenAllPopups({ fewsList, markerRefs, active }) {
   const map = useMap();
   useEffect(() => {
@@ -1472,6 +1476,316 @@ function OpenAllPopups({ fewsList, markerRefs, active }) {
     return () => clearTimeout(t);
   }, [active]); // eslint-disable-line react-hooks/exhaustive-deps
   return null;
+}
+
+// Hands the Leaflet map instance to a ref so buttons outside <MapContainer> can drive it
+function MapRefSetter({ mapRef }) {
+  const map = useMap();
+  useEffect(() => {
+    mapRef.current = map;
+    return () => { mapRef.current = null; };
+  }, [map, mapRef]);
+  return null;
+}
+
+const CenterIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <circle cx="12" cy="12" r="3"/>
+    <line x1="12" y1="2" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="22"/>
+    <line x1="2" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="22" y2="12"/>
+  </svg>
+);
+const ExpandIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <polyline points="3 8 3 3 8 3"/><polyline points="16 3 21 3 21 8"/>
+    <polyline points="21 16 21 21 16 21"/><polyline points="8 21 3 21 3 16"/>
+  </svg>
+);
+const CollapseIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <polyline points="8 3 8 8 3 8"/><polyline points="21 8 16 8 16 3"/>
+    <polyline points="16 21 16 16 21 16"/><polyline points="3 16 8 16 8 21"/>
+  </svg>
+);
+
+function escapeHtml(s) {
+  return String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
+}
+
+// Fullscreen marker: dot + "FEWS 1 - LIVE" style label. iconSize is 0x0 so the
+// dot sits exactly on the coordinate; CSS positions the label above it.
+function makeFsLabelIcon({ name, statusWord, statusColor, markerColor, markerBorderColor, showPulse, isSel }) {
+  return L.divIcon({
+    className: "",
+    html: `<div class="fs-mk">
+      <span class="fs-lb ${isSel ? "fs-lb-sel" : ""}">${escapeHtml(name)} - <span style="color:${statusColor}">${statusWord}</span></span>
+      <div class="fs-dot-wrap">
+        <div class="fs-dot ${isSel ? "fs-dot-sel" : ""}" style="background:${markerColor};border-color:${markerBorderColor};box-shadow:0 0 8px ${markerColor}"></div>
+        ${showPulse ? `<div class="radar-pulse" style="width:14px;height:14px;background:${markerColor};top:0;left:0;"></div>` : ""}
+      </div>
+    </div>`,
+    iconSize: [0, 0],
+    iconAnchor: [0, 0],
+  });
+}
+
+// Px of map hidden behind the open drawer (desktop) — used so flyTo centers on the visible part
+const FS_DRAWER_PAD = 372;
+
+// Phone bottom sheet covers this fraction of the screen height (keep in sync with `height: 55%` in App.css)
+const FS_SHEET_VH = 0.55;
+
+// Map padding (right, bottom) so flyTo keeps the target in the visible part of the map
+function fsInsets(drawerOpen) {
+  if (!drawerOpen) return { right: 20, bottom: 20 };
+  if (isMobileViewport()) return { right: 20, bottom: Math.round(window.innerHeight * FS_SHEET_VH) + 20 };
+  return { right: FS_DRAWER_PAD, bottom: 20 };
+}
+
+// DB text sometimes has a literal "\n" at the end; turn it into a real line break and trim
+function cleanText(s) {
+  return String(s ?? "").replace(/\\n/g, "\n").trim();
+}
+
+function FsDrawer({
+  open, onToggle, stations, selectedId, onSelect, onBack,
+  isHardwareOnline, thresholds, unitPref, todayStats, lastUpdatedStr,
+  fews1Info, sirens, sirenLoading, canSiren, onToggleSiren,
+}) {
+  const [query, setQuery]   = useState("");
+  const [copied, setCopied] = useState(false);
+  const copyTimer = useRef(null);
+
+  useEffect(() => () => { if (copyTimer.current) clearTimeout(copyTimer.current); }, []);
+  useEffect(() => { setCopied(false); }, [selectedId]);
+
+  const selected = selectedId != null ? stations.find(s => s.id === selectedId) : null;
+  const clean = (v) => (v && v !== "—" ? v : "");
+
+  // Phone-only (hidden by CSS on desktop): chevron that collapses the sheet
+  const collapseBtn = (extra = "") => (
+    <button type="button" className={`fs-dr-collapse ${extra}`} onClick={onToggle} aria-label="Hide station panel">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>
+    </button>
+  );
+
+  const present = (f) => {
+    if (f.isLive) {
+      const online = isHardwareOnline;
+      const ds  = getDisplayStatus(f.status, f.waterLevel, online, thresholds);
+      const cfg = STATUS_CONFIG[ds] || STATUS_CONFIG.safe;
+      return {
+        online, cfg,
+        dot:        online ? cfg.color : "#64748b",
+        badge:      online ? "LIVE" : "WAITING",
+        badgeColor: online ? "#22c55e" : "#94a3b8",
+        badgeBg:    online ? "rgba(34,197,94,0.15)" : "rgba(148,163,184,0.12)",
+      };
+    }
+    const ok = f.manualStatus === "serviceable";
+    return {
+      online: false, cfg: null,
+      dot:        ok ? "#38bdf8" : "#64748b",
+      badge:      ok ? "SERVICEABLE" : "UNSERVICEABLE",
+      badgeColor: ok ? "#38bdf8" : "#9aa0a8",
+      badgeBg:    ok ? "rgba(56,189,248,0.12)" : "rgba(255,255,255,0.06)",
+    };
+  };
+
+  const renderRow = (f) => {
+    const p = present(f);
+    return (
+      <button key={f.id} type="button" className="fs-dr-row" onClick={() => onSelect(f.id)}>
+        <span className="fs-dr-dot" style={{ background: p.dot }} />
+        <span className="fs-dr-row-info">
+          <span className="fs-dr-row-name">{f.name}</span>
+          <span className="fs-dr-row-loc">{f.location || "—"}</span>
+        </span>
+        <span className="fs-dr-badge" style={{ color: p.badgeColor, background: p.badgeBg }}>{p.badge}</span>
+      </button>
+    );
+  };
+
+  const renderList = () => {
+    const q = query.trim().toLowerCase();
+    const shown = q
+      ? stations.filter(f => `${f.name} ${f.location || ""}`.toLowerCase().includes(q))
+      : stations;
+    const live   = shown.filter(f => f.isLive);
+    const manual = shown.filter(f => !f.isLive);
+    return (
+      <>
+        <div className="fs-dr-head">
+          <span className="fs-dr-title">Stations</span>
+          <span className="fs-dr-count">{stations.length} total</span>
+          {collapseBtn()}
+        </div>
+        <div className="fs-dr-search">
+          <input className="fs-dr-search-input" placeholder="Search stations" value={query}
+            onChange={e => setQuery(e.target.value)} />
+        </div>
+        <div className="fs-dr-body">
+          {live.length > 0 && (
+            <>
+              <div className="fs-dr-sec-label">Live · {live.length}</div>
+              {live.map(renderRow)}
+            </>
+          )}
+          {manual.length > 0 && (
+            <>
+              <div className="fs-dr-sec-label">Manual · {manual.length}</div>
+              {manual.map(renderRow)}
+            </>
+          )}
+          {live.length === 0 && manual.length === 0 && (
+            <div className="fs-dr-empty">No stations match your search.</div>
+          )}
+        </div>
+      </>
+    );
+  };
+
+  const renderDetails = (f) => {
+    const p = present(f);
+    const info = f.isLive
+      ? {
+          description: cleanText(fews1Info.description),
+          installed:   clean(fews1Info.installed_date) || clean(f.installedDate),
+          hw:          clean(fews1Info.hw_technician)  || clean(f.hw_technician),
+          sw:          clean(fews1Info.sw_technician)  || clean(f.sw_technician),
+        }
+      : {
+          description: cleanText(f.description),
+          installed:   clean(f.installedDate),
+          hw:          clean(f.hw_technician),
+          sw:          "",
+        };
+    const today = todayStats[`fews_${f.id}`] || {};
+    const sirenOn = !!sirens[f.id];
+
+    return (
+      <>
+        <div className="fs-dr-head">
+          <button type="button" className="fs-dr-back" onClick={onBack} aria-label="Back to station list">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
+          </button>
+          <span className="fs-dr-title">{f.name}</span>
+          <span className="fs-dr-badge" style={{ color: p.badgeColor, background: p.badgeBg }}>{p.badge}</span>
+          {collapseBtn("fs-dr-collapse-end")}
+        </div>
+
+        <div className="fs-dr-body">
+          {f.isLive && (
+            <div className="fs-dr-reading">
+              <span className="fs-dr-reading-val" style={{ color: p.online ? p.cfg.color : "var(--text-3)" }}>
+                {p.online ? convertCm(f.waterLevel, unitPref)?.toFixed(UNIT_DECIMALS[unitPref] ?? 0) : "—"}
+              </span>
+              {p.online && <span className="fs-dr-reading-unit">{unitPref}</span>}
+              <span className="fs-dr-badge" style={{ marginLeft: "auto", color: p.online ? p.cfg.color : "var(--text-3)", background: p.online ? p.cfg.bg : "rgba(255,255,255,0.06)" }}>
+                {p.online ? p.cfg.label : "OFFLINE"}
+              </span>
+            </div>
+          )}
+
+          {f.isLive && (
+            <div className="fs-dr-sec">
+              <div className="fs-dr-kv"><span>Last sync</span><strong>{lastUpdatedStr ?? "—"}</strong></div>
+              <div className="fs-dr-kv"><span>Today's highest</span><strong>{today.high != null ? formatWaterLevel(today.high, unitPref) : "—"}</strong></div>
+              <div className="fs-dr-kv"><span>Today's lowest</span><strong>{today.low != null ? formatWaterLevel(today.low, unitPref) : "—"}</strong></div>
+              <div className="fs-dr-kv"><span>Warning at</span><strong style={{ color: "var(--amber)" }}>{formatWaterLevel(thresholds.warning, unitPref)}</strong></div>
+              <div className="fs-dr-kv"><span>Critical at</span><strong style={{ color: "var(--red)" }}>{formatWaterLevel(thresholds.danger, unitPref)}</strong></div>
+            </div>
+          )}
+
+          {info.description && (
+            <div className="fs-dr-sec">
+              <div className="fs-dr-sec-title">Description</div>
+              <div className="fs-dr-desc">{info.description}</div>
+            </div>
+          )}
+
+          <div className="fs-dr-sec">
+            <div className="fs-dr-sec-title">Details</div>
+            <div className="fs-dr-kv"><span>Location</span><strong>{f.location || "—"}</strong></div>
+            {info.installed && <div className="fs-dr-kv"><span>Installed</span><strong>{info.installed}</strong></div>}
+            {info.hw && <div className="fs-dr-kv"><span>Hardware</span><strong>{info.hw}</strong></div>}
+            {info.sw && <div className="fs-dr-kv"><span>Software</span><strong>{info.sw}</strong></div>}
+            <div className="fs-dr-kv">
+              <span>Coordinates</span>
+              <strong style={{ fontFamily: "var(--mono)", fontSize: 11 }}>{fmtCoord(f.lat)}, {fmtCoord(f.lng)}</strong>
+            </div>
+            <div className="fs-dr-actions">
+              <button type="button" className="fs-dr-btn" onClick={() => {
+                navigator.clipboard.writeText(`${f.lat}, ${f.lng}`);
+                setCopied(true);
+                if (copyTimer.current) clearTimeout(copyTimer.current);
+                copyTimer.current = setTimeout(() => setCopied(false), 1500);
+              }}>
+                {copied ? "Copied!" : "Copy"}
+              </button>
+              <a className="fs-dr-btn" href={`https://www.google.com/maps?q=${f.lat},${f.lng}`} target="_blank" rel="noopener noreferrer">
+                Open in Maps
+              </a>
+            </div>
+          </div>
+        </div>
+
+        {f.isLive && canSiren && (
+          <div className="fs-dr-siren">
+            <div className="rsb-siren-label">Siren Control</div>
+            <div className="rsb-siren-row">
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: sirenOn && p.online ? "var(--red)" : (p.online ? "var(--text-2)" : "var(--text-3)") }}>
+                {sirenOn && p.online ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+                )}
+                {sirenOn && p.online ? "Active" : "Off"}
+              </span>
+              <button
+                type="button"
+                className={`siren-btn ${sirenOn && p.online ? "siren-on" : "siren-off"}`}
+                onClick={() => onToggleSiren(f.id)}
+                disabled={!p.online || sirenLoading[f.id]}
+              >
+                {sirenLoading[f.id]
+                  ? <span className="btn-spinner" style={{ width: 10, height: 10, borderWidth: 1.5, borderTopColor: sirenOn && p.online ? "#fff" : "var(--text-2)", borderColor: sirenOn && p.online ? "rgba(255,255,255,0.25)" : "rgba(126,146,180,0.25)" }} />
+                  : sirenOn && p.online ? "SILENCE" : "MANUAL ON"}
+              </button>
+            </div>
+            <div className="rsb-siren-note">
+              {!p.online ? "Available if fews is live" : sirenOn ? "Tap to silence" : "Tap to manually activate"}
+            </div>
+          </div>
+        )}
+      </>
+    );
+  };
+
+  return (
+    <>
+      <button type="button"
+        className={`fs-dr-toggle ${open ? "fs-dr-toggle-open" : ""}`}
+        onClick={onToggle}
+        title={open ? "Hide station panel" : "Show station panel"}
+        aria-label={open ? "Hide station panel" : "Show station panel"}>
+        <svg className="fs-ic-side" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="15" y1="3" x2="15" y2="21"/>
+        </svg>
+        <svg className="fs-ic-bottom" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <rect x="3" y="3" width="18" height="18" rx="2"/><line x1="3" y1="15" x2="21" y2="15"/>
+        </svg>
+      </button>
+      {open && (
+        <aside className="fs-drawer">
+          <button type="button" className="fs-dr-handle" onClick={onToggle} aria-label="Hide station panel">
+            <span />
+          </button>
+          {selected ? renderDetails(selected) : renderList()}
+        </aside>
+      )}
+    </>
+  );
 }
 
 // ─── MODALS ───────────────────────────────────────────────────────────────────
@@ -3095,6 +3409,7 @@ export default function App() {
     return sessionStorage.getItem("activeNav") || "Dashboard";
   });
   const markerRefs = useRef({});
+  const dashMapRef = useRef(null);
   const mapCardRef = useRef();
   const [copiedId, setCopiedId] = useState(null);
   const avatarBtnRef = useRef();
@@ -3181,6 +3496,7 @@ export default function App() {
     }
   }, [sirens[1], user.audio_enabled]);
   const [thresholds, setThresholds] = useState({ warning: 200, danger: 300 });
+  const [fews1Info, setFews1Info] = useState({});
   const { showToast, ToastContainer: AppToastContainer } = useToast();
 
   const handlePullRefresh = useCallback(() => {
@@ -3288,6 +3604,12 @@ export default function App() {
                     setThresholds({
                         warning: fews1Row.threshold_warning ?? 200,
                         danger:  fews1Row.threshold_danger  ?? 300,
+                    });
+                    setFews1Info({
+                        description:   fews1Row.description,
+                        installed_date: fews1Row.installed_date,
+                        hw_technician: fews1Row.hw_technician,
+                        sw_technician: fews1Row.sw_technician,
                     });
                 }
             })
@@ -3810,7 +4132,53 @@ export default function App() {
     const [sirenConfirm, setSirenConfirm] = useState(null);
     const [fullscreenMap, setFullscreenMap] = useState(false);
     const [fsSelectedFEWS, setFsSelectedFEWS] = useState(null);
-    const fsMarkerRefs = useRef({});
+    const [fsDrawerOpen, setFsDrawerOpen] = useState(() => !isMobileViewport());
+    const fsMapRef = useRef(null);
+
+    const closeFullscreen = () => {
+      setFullscreenMap(false);
+      setFsSelectedFEWS(null);
+      setFsDrawerOpen(!isMobileViewport());
+    };
+
+    const handleDashCenter = () => {
+      setSelectedFEWS(null);
+      dashMapRef.current?.flyToBounds(DASH_DEFAULT_BOUNDS, { padding: [20, 20], duration: 0.6 });
+    };
+    const flyFsToCity = () => {
+      const ins = fsInsets(fsDrawerOpen);
+      fsMapRef.current?.flyToBounds(CITY_DEFAULT_BOUNDS, {
+        paddingTopLeft: [20, 20], paddingBottomRight: [ins.right, ins.bottom], duration: 0.6,
+      });
+    };
+    const handleFsCenter = () => { setFsSelectedFEWS(null); flyFsToCity(); };
+    const handleFsBack   = () => { setFsSelectedFEWS(null); flyFsToCity(); };
+
+    const selectFsStation = (id) => {
+      const f = allFews.find(x => x.id === id);
+      setFsSelectedFEWS(id);
+      setFsDrawerOpen(true);
+      if (!f || !fsMapRef.current) return;
+      const r = 0.002; // ~200m, same close-up as the dashboard map
+      const ins = fsInsets(true);
+      fsMapRef.current.flyToBounds(
+        [[f.lat - r, f.lng - r], [f.lat + r, f.lng + r]],
+        { paddingTopLeft: [20, 60], paddingBottomRight: [ins.right, isMobileViewport() ? ins.bottom : 80], duration: 0.6 }
+      );
+    };
+
+    useEffect(() => {
+      if (!fullscreenMap) return;
+      const onKey = (e) => {
+        if (e.key === "Escape" && sirenConfirm === null) {
+          setFullscreenMap(false);
+          setFsSelectedFEWS(null);
+          setFsDrawerOpen(!isMobileViewport());
+        }
+      };
+      window.addEventListener("keydown", onKey);
+      return () => window.removeEventListener("keydown", onKey);
+    }, [fullscreenMap, sirenConfirm]);
 
     const toggleSiren = async (id) => {
         if (!can(user.role, "sirenControl")) return;
@@ -4239,24 +4607,16 @@ const waterChartOptions = useMemo(() => ({
                   <span className="card-tag">Batangas City</span>
                 </div>
                 <div className="map-wrap">
-                  <button
-                    className="map-expand-btn"
-                    onClick={() => {
-                      setFullscreenMap(true);
-                    }}
-                    title="Fullscreen map"
-                  >
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none"
-                      stroke="currentColor" strokeWidth="2.5"
-                      strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="3 8 3 3 8 3"/>
-                      <polyline points="16 3 21 3 21 8"/>
-                      <polyline points="21 16 21 21 16 21"/>
-                      <polyline points="8 21 3 21 3 16"/>
-                    </svg>
-                  </button>
+                  <div className="map-ctrl-group">
+                    <button className="map-ctrl-btn" onClick={handleDashCenter} title="Center map" aria-label="Center map">
+                      <CenterIcon />
+                    </button>
+                    <button className="map-ctrl-btn" onClick={() => setFullscreenMap(true)} title="Fullscreen map" aria-label="Fullscreen map">
+                      <ExpandIcon />
+                    </button>
+                  </div>
                   <MapContainer
-                    bounds={[[13.760466, 121.066331], [13.764466, 121.070331]]}
+                    bounds={DASH_DEFAULT_BOUNDS}
                     boundsOptions={{ padding: [20, 20] }}
                     style={{ height:"100%", width:"100%", borderRadius:"10px" }}
                     scrollWheelZoom={true}>
@@ -4264,6 +4624,7 @@ const waterChartOptions = useMemo(() => ({
                       className={CARTO_KEY ? "fews-tiles" : undefined}
                       attribution={MAP_ATTRIBUTION}
                       url={MAP_TILE_URL} />
+                    <MapRefSetter mapRef={dashMapRef} />
                     <FlyToStation fews={selectedStation} />
                     <OpenPopup fews={selectedStation} markerRefs={markerRefs} />
                     {allFews.map(f => {
@@ -4730,18 +5091,17 @@ const waterChartOptions = useMemo(() => ({
 
           {/* ── FULLSCREEN MAP MODAL ── */}
           {fullscreenMap && (
-            <div className="map-fullscreen-overlay" onClick={() => { setFullscreenMap(false); setFsSelectedFEWS(null); }}>
-              <div className="map-fullscreen-box" onClick={e => e.stopPropagation()}>
-                <div className="map-fullscreen-inner">
-                  <button className="map-fs-close" onClick={() => { setFullscreenMap(false); setFsSelectedFEWS(null); }}>✕</button>
+            <div className="map-fullscreen-overlay">
+              <div className="map-fullscreen-box">
+                <div className={`map-fullscreen-inner ${fsDrawerOpen ? "fs-drawer-open" : ""}`}>
                   <MapContainer
-                    bounds={[[13.761466, 121.067331], [13.763466, 121.069331]]}
-                    boundsOptions={{ padding: [40, 40] }}
+                    bounds={CITY_DEFAULT_BOUNDS}
+                    boundsOptions={{ paddingTopLeft: [20, 20], paddingBottomRight: [(fsDrawerOpen && !isMobileViewport()) ? FS_DRAWER_PAD : 20, 20] }}
                     style={{ height:"100%", width:"100%" }}
                     scrollWheelZoom={true}
                     minZoom={3}>
                     <TileLayer className={CARTO_KEY ? "fews-tiles" : undefined} attribution={MAP_ATTRIBUTION} url={MAP_TILE_URL} />
-                    <OpenAllPopups fewsList={allFews} markerRefs={fsMarkerRefs} active={fullscreenMap} />
+                    <MapRefSetter mapRef={fsMapRef} />
                     {allFews.map(f => {
                       const isManualServiceable = !f.isLive && f.manualStatus === "serviceable";
                       const isActuallyLive = f.isLive && isHardwareOnline;
@@ -4752,118 +5112,61 @@ const waterChartOptions = useMemo(() => ({
                         : (isManualServiceable ? "#38bdf8" : "#64748b");
                       const markerBorderColor = (isActuallyLive && displayStatus === "base") ? "#94a3b8" : "white";
                       const showPulse = isActuallyLive || isManualServiceable;
-                      const icon = L.divIcon({
-                        className: "",
-                        html: `<div style="position:relative;width:14px;height:14px">
-                          <div style="position:absolute;inset:0;border-radius:50%;background:${markerColor};border:2px solid ${markerBorderColor};box-shadow:0 0 8px ${markerColor};z-index:2"></div>
-                          ${showPulse ? `<div class="radar-pulse" style="width:14px;height:14px;background:${markerColor};top:0;left:0;"></div>` : ""}
-                        </div>`,
-                        iconSize: [14, 14],
-                        iconAnchor: [7, 7],
+                      const isFsSel = fsSelectedFEWS === f.id;
+                      const statusWord = f.isLive
+                        ? (isActuallyLive ? "LIVE" : "WAITING")
+                        : (isManualServiceable ? "SERVICEABLE" : "UNSERVICEABLE");
+                      const statusColor = f.isLive
+                        ? (isActuallyLive ? "#22c55e" : "#94a3b8")
+                        : (isManualServiceable ? "#38bdf8" : "#9aa0a8");
+                      const icon = makeFsLabelIcon({
+                        name: f.name, statusWord, statusColor,
+                        markerColor, markerBorderColor, showPulse, isSel: isFsSel,
                       });
                       return (
                         <Marker key={f.id} position={[f.lat, f.lng]} icon={icon}
-                          ref={el => { fsMarkerRefs.current[f.id] = el; }}
-                          eventHandlers={{ click: () => setFsSelectedFEWS(fsSelectedFEWS === f.id ? null : f.id) }}>
-                          <Popup minWidth={160} maxWidth={360} autoPan={false} autoClose={false} closeOnClick={false}>
-                            <div style={{ fontFamily:"sans-serif", padding:"2px 0" }}>
-                              <div style={{ display:"flex", alignItems:"center", gap:6, marginBottom:6 }}>
-                                <strong style={{ fontSize:"clamp(13px, 1.1vw, 16px)", color:"#e8eaed" }}>{f.name}</strong>
-                                <span style={{ fontSize:"clamp(9px, 0.8vw, 11px)", color: f.isLive ? (isHardwareOnline ? "#22c55e" : "#94a3b8") : (isManualServiceable ? "#38bdf8" : "#94a3b8"), fontWeight:700 }}>
-                                  {f.isLive ? (isHardwareOnline ? "● LIVE" : "◌ WAITING") : (isManualServiceable ? "● MANUAL" : "◌ MANUAL")}
-                                </span>
-                              </div>
-                              <div style={{ fontSize:"clamp(11px, 0.9vw, 13px)", color:"#9aa0a8", lineHeight:1.2, marginBottom:4, whiteSpace:"nowrap" }}>
-                                <strong style={{ color:"#e8eaed" }}>{f.location}</strong>
-                                {" · "}
-                                {f.isLive
-                                  ? <span>Water: {isHardwareOnline ? formatWaterLevel(f.waterLevel, user.unit_preference) : "—"}</span>
-                                  : <span>{isManualServiceable ? "SERVICEABLE" : "UNSERVICEABLE"}</span>
-                                }
-                              </div>
-                            </div>
-                          </Popup>
-                        </Marker>
+                          zIndexOffset={isFsSel ? 1000 : 0}
+                          eventHandlers={{ click: () => selectFsStation(f.id) }} />
                       );
                     })}
                   </MapContainer>
 
-                  {/* Station info panel — bottom left */}
-                  {fsSelectedFEWS && (() => {
-                  const f = allFews.find(x => x.id === fsSelectedFEWS);
-                  if (!f) return null;
+                  {/* Status pill — bottom left, next to the buttons */}
+                  <div className="map-fs-pill">
+                    <span className="map-fs-pill-dot" style={{ background: alertCount > 0 ? "#ef4444" : "#22c55e" }} />
+                    {allFews.filter(f => f.isLive && isHardwareOnline).length} live
+                    {" · "}{allFews.filter(f => !f.isLive).length} manual
+                    {" · "}{alertCount} alert{alertCount === 1 ? "" : "s"}
+                  </div>
 
-                  if (!f.isLive) {
-                    const isManualServiceable = f.manualStatus === "serviceable";
-                    const manualColor = isManualServiceable ? "#38bdf8" : "#94a3b8";
-                    return (
-                      <div className="map-fs-station">
-                        <div className="map-fs-station-name">
-                          <div style={{ width:9, height:9, borderRadius:"50%", background: isManualServiceable ? "#38bdf8" : "#94a3b8", flexShrink:0 }} />
-                          {f.name}
-                          <span className="map-fs-live" style={{ background: isManualServiceable ? "rgba(56,189,248,0.13)" : "rgba(255,255,255,0.08)", color: "#64748b" }}>
-                            MANUAL
-                          </span>
-                        </div>
-                        <span className="map-fs-status" style={{ background: isManualServiceable ? "rgba(56,189,248,0.13)" : "rgba(255,255,255,0.08)", color: manualColor, border: `1px solid ${isManualServiceable ? "rgba(56,189,248,0.35)" : "rgba(255,255,255,0.12)"}` }}>
-                          {isManualServiceable ? "SERVICEABLE" : "UNSERVICEABLE"}
-                        </span>
-                        <div className="map-fs-divider" />
-                        <div className="map-fs-row">
-                          <span className="map-fs-row-label">Location</span>
-                          <span className="map-fs-row-val">{f.location}</span>
-                        </div>
-                        <div className="map-fs-row">
-                          <span className="map-fs-row-label">Coordinates</span>
-                          <span className="map-fs-row-val">{fmtCoord(f.lat)}, {fmtCoord(f.lng)}</span>
-                        </div>
-                      </div>
-                    );
-                  }
+                  <FsDrawer
+                    open={fsDrawerOpen}
+                    onToggle={() => setFsDrawerOpen(o => !o)}
+                    stations={allFews}
+                    selectedId={fsSelectedFEWS}
+                    onSelect={selectFsStation}
+                    onBack={handleFsBack}
+                    isHardwareOnline={isHardwareOnline}
+                    thresholds={thresholds}
+                    unitPref={user.unit_preference}
+                    todayStats={todayStats}
+                    lastUpdatedStr={lastUpdatedStr}
+                    fews1Info={fews1Info}
+                    sirens={sirens}
+                    sirenLoading={sirenLoading}
+                    canSiren={can(user.role, "sirenControl")}
+                    onToggleSiren={toggleSiren}
+                  />
 
-                  const isActuallyLive = f.isLive && isHardwareOnline;
-                  const displayStatus = getDisplayStatus(f.status, f.waterLevel, isActuallyLive, thresholds);
-                  const cfg = STATUS_CONFIG[displayStatus] || STATUS_CONFIG["safe"];
-                  const isBaseLive = isActuallyLive && displayStatus === "base";
-                  const fsTextColor = isBaseLive ? "#e8eaed" : cfg.color;
-                  return (
-                    <div className="map-fs-station">
-                      <div className="map-fs-station-name">
-                        <div style={{ width:9, height:9, borderRadius:"50%", background: isActuallyLive ? cfg.color : "#94a3b8", border: isBaseLive ? "1px solid #94a3b8" : "none", flexShrink:0 }} />
-                        {f.name}
-                        <span className="map-fs-live" style={{ background: isActuallyLive ? `${cfg.color}22` : "rgba(255,255,255,0.08)", color: isActuallyLive ? fsTextColor : "#94a3b8" }}>
-                          {isActuallyLive ? "● LIVE" : "◌ WAITING"}
-                        </span>
-                      </div>
-                      <div className="map-fs-water">
-                        <span className="map-fs-water-val" style={{ color: isActuallyLive ? fsTextColor : "#94a3b8" }}>
-                          {isActuallyLive ? convertCm(f.waterLevel, user.unit_preference)?.toFixed(UNIT_DECIMALS[user.unit_preference] ?? 0) : "—"}
-                        </span>
-                        {isActuallyLive && <span className="map-fs-water-unit">{user.unit_preference}</span>}
-                      </div>
-                      <span className="map-fs-status" style={{ background: isActuallyLive ? `${cfg.color}18` : "rgba(255,255,255,0.08)", color: isActuallyLive ? fsTextColor : "#94a3b8", border: `1px solid ${isActuallyLive ? cfg.color + "35" : "rgba(255,255,255,0.12)"}` }}>
-                        {isActuallyLive ? cfg.label : "OFFLINE"}
-                      </span>
-                      <div className="map-fs-divider" />
-                      <div className="map-fs-row">
-                        <span className="map-fs-row-label">Last sync</span>
-                        <span className="map-fs-row-val">{lastUpdatedStr ?? "—"}</span>
-                      </div>
-                      <div className="map-fs-row">
-                        <span className="map-fs-row-label">Location</span>
-                        <span className="map-fs-row-val">Bridge of Progress</span>
-                      </div>
-                      <div className="map-fs-row">
-                        <span className="map-fs-row-label">Warning</span>
-                        <span className="map-fs-row-val" style={{ color: "#f59e0b" }}>{formatWaterLevel(thresholds.warning, user.unit_preference)}</span>
-                      </div>
-                     <div className="map-fs-row">
-                      <span className="map-fs-row-label">Critical</span>
-                      <span className="map-fs-row-val" style={{ color: "#ef4444" }}>{formatWaterLevel(thresholds.danger, user.unit_preference)}</span>
-                    </div>
-                    </div>
-                  );
-                })()}
+                  {/* Map controls — bottom left */}
+                  <div className="map-ctrl-group map-ctrl-group-fs">
+                    <button className="map-ctrl-btn" onClick={handleFsCenter} title="Center map" aria-label="Center map">
+                      <CenterIcon />
+                    </button>
+                    <button className="map-ctrl-btn" onClick={closeFullscreen} title="Exit fullscreen" aria-label="Exit fullscreen">
+                      <CollapseIcon />
+                    </button>
+                  </div>
 
                   {/* Legend — top center pill */}
                   <div className="map-fs-legend">
