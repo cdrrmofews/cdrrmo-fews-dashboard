@@ -1338,7 +1338,7 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
 }
 
 // ─── CUSTOM DATE PICKER ───────────────────────────────────────────────────────
-function CustomDatePicker({ value, onChange }) {
+function CustomDatePicker({ value, onChange, placeholder = "Select date of birth" }) {
   const [open, setOpen]           = useState(false);
   const [view, setView]           = useState("day");
   const [viewYear, setViewYear]   = useState(() => {
@@ -1354,6 +1354,8 @@ function CustomDatePicker({ value, onChange }) {
     return Math.floor(y / 16) * 16;
   });
   const ref = useRef();
+  const triggerRef = useRef();
+  const [calPos, setCalPos] = useState({});
 
   const selected = value ? (() => {
     const d = new Date(value + "T00:00:00");
@@ -1361,10 +1363,33 @@ function CustomDatePicker({ value, onChange }) {
   })() : null;
 
   useEffect(() => {
-    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    const handler = (e) => {
+      if (ref.current && !ref.current.contains(e.target) &&
+          !(e.target.closest && e.target.closest(".cdp-calendar-portal"))) setOpen(false);
+    };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
+
+  useEffect(() => {
+    if (!open) return;
+    const onScroll = () => setOpen(false);
+    window.addEventListener("scroll", onScroll, true);
+    return () => window.removeEventListener("scroll", onScroll, true);
+  }, [open]);
+
+  const toggleOpen = () => {
+    if (!open && triggerRef.current) {
+      const r = triggerRef.current.getBoundingClientRect();
+      const left = Math.max(8, Math.min(r.left, window.innerWidth - 224 - 8));
+      const openUp = window.innerHeight - r.bottom < 300;
+      setCalPos(openUp
+        ? { left, top: "auto", bottom: window.innerHeight - r.top + 6 }
+        : { left, top: r.bottom + 6 });
+    }
+    setOpen(o => !o);
+    setView("day");
+  };
 
   const getDaysInMonth     = (y, m) => new Date(y, m + 1, 0).getDate();
   const getFirstDayOfMonth = (y, m) => new Date(y, m, 1).getDay();
@@ -1412,16 +1437,18 @@ function CustomDatePicker({ value, onChange }) {
 
   return (
     <div className="cdp-wrap" ref={ref}>
-      <button className="cdp-trigger" onClick={() => { setOpen(o => !o); setView("day"); }} type="button">
+      <button className="cdp-trigger" ref={triggerRef} onClick={toggleOpen} type="button">
         <span className="cdp-icon">📅</span>
         <span className={displayValue ? "cdp-val" : "cdp-placeholder"}>
-          {displayValue || "Select date of birth"}
+          {displayValue || placeholder}
         </span>
-        <span className="cdp-arrow">{open ? "▴" : "▾"}</span>
+        <svg className="cdp-arrow" width="10" height="6" viewBox="0 0 10 6" fill="none" style={open ? { transform: "rotate(180deg)" } : undefined}>
+          <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
       </button>
 
-      {open && (
-        <div className="cdp-calendar">
+      {open && createPortal(
+        <div className="cdp-calendar cdp-calendar-portal" style={{ position: "fixed", ...calPos }}>
           {view === "day" && (
             <>
               <div className="cdp-header">
@@ -1498,7 +1525,8 @@ function CustomDatePicker({ value, onChange }) {
               </div>
             </>
           )}
-        </div>
+        </div>,
+        document.body
       )}
     </div>
   );
@@ -2367,7 +2395,20 @@ function ProfileDropdown({ user, token, onSave, onClose, addLog }) {
 
 // ─── UNIT CONTROL PAGE ────────────────────────────────────────────────────────
 
-const MANUAL_STATUS_OPTIONS = ["Serviceable", "Unserviceable"];
+// Installed date is stored as text ("June 23, 2026"); the picker works in "2026-06-23".
+function installedTextToIso(text) {
+  if (!text || text === "—" || text === "-") return "";
+  const d = new Date(text);
+  if (Number.isNaN(d.getTime())) return "";
+  return toLocalIso(d);
+}
+function isoToInstalledText(iso) {
+  if (!iso) return "";
+  const d = new Date(iso + "T00:00:00");
+  return `${MONTHS[d.getMonth()]} ${d.getDate()}, ${d.getFullYear()}`;
+}
+
+const MANUAL_STATUS_OPTIONS = ["SERVICEABLE", "UNSERVICEABLE"];
 
 function ManualFewsCard({ m, canControl, token, manualEditing, setManualEditing, manualSaving, setManualSaving, manualError, setManualError, onSaved }) {
   const ed = manualEditing[m.id];
@@ -2380,7 +2421,7 @@ function ManualFewsCard({ m, canControl, token, manualEditing, setManualEditing,
         latitude:       String(m.latitude),
         longitude:      String(m.longitude),
         installed_date: m.installed_date || "",
-        status:         isServiceable ? "Serviceable" : "Unserviceable",
+        status:         isServiceable ? "SERVICEABLE" : "UNSERVICEABLE",
         hw_technician:  m.hw_technician || "",
         description:    m.description || "",
       }
@@ -2403,7 +2444,7 @@ function ManualFewsCard({ m, canControl, token, manualEditing, setManualEditing,
     setManualSaving(prev => ({ ...prev, [m.id]: true }));
     setManualError(prev => ({ ...prev, [m.id]: "" }));
     try {
-      const res = await fetch(`${API_BASE}/manual-units/${m.device_id}`, {
+      const res = await authFetch(`${API_BASE}/manual-units/${m.device_id}`, {
         method:  "PUT",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
         body: JSON.stringify({
@@ -2422,15 +2463,17 @@ function ManualFewsCard({ m, canControl, token, manualEditing, setManualEditing,
       }
       onSaved(data);
       cancelEdit();
-    } catch {
-      setManualError(prev => ({ ...prev, [m.id]: "Network error. Try again." }));
+    } catch (err) {
+      if (err?.message !== "Unauthorized") {
+        setManualError(prev => ({ ...prev, [m.id]: "Network error. Try again." }));
+      }
     } finally {
       setManualSaving(prev => ({ ...prev, [m.id]: false }));
     }
   };
 
   return (
-    <div className={`uc-card ${!isServiceable ? "uc-card-offline" : ""}`} style={{ "--status-color": "#38bdf8" }}>
+    <div className="uc-card" style={{ "--status-color": "#38bdf8" }}>
       <div className="uc-card-header">
         <div className="uc-card-left">
           <div className="uc-status-dot" style={{ background: isServiceable ? "#38bdf8" : "#334155" }} />
@@ -2469,13 +2512,15 @@ function ManualFewsCard({ m, canControl, token, manualEditing, setManualEditing,
               <input className="uc-inline-input" type="number" step="any" value={ed.longitude}
                 onChange={e => setManualEditing(prev => ({ ...prev, [m.id]: { ...prev[m.id], longitude: e.target.value } }))} />
             </div>
-          ) : <span className="uc-stat-val" style={{ fontFamily:"var(--mono)", fontSize:10 }}>{m.latitude}, {m.longitude}</span>}
+          ) : <span className="uc-stat-val" style={{ fontFamily:"var(--mono)", fontSize:10 }}>{fmtCoord(m.latitude)}, {fmtCoord(m.longitude)}</span>}
         </div>
         <div className="uc-stat">
           <span className="uc-stat-label">Installed</span>
           {ed ? (
-            <input className="uc-inline-input" value={ed.installed_date}
-              onChange={e => setManualEditing(prev => ({ ...prev, [m.id]: { ...prev[m.id], installed_date: e.target.value } }))} />
+            <CustomDatePicker
+              value={installedTextToIso(ed.installed_date)}
+              placeholder="Select date"
+              onChange={iso => setManualEditing(prev => ({ ...prev, [m.id]: { ...prev[m.id], installed_date: isoToInstalledText(iso) } }))} />
           ) : <span className="uc-stat-val">{m.installed_date || "—"}</span>}
         </div>
         <div className="uc-stat">
@@ -2483,7 +2528,7 @@ function ManualFewsCard({ m, canControl, token, manualEditing, setManualEditing,
           {ed ? (
             <MuDropdown value={ed.status} options={MANUAL_STATUS_OPTIONS}
               onChange={val => setManualEditing(prev => ({ ...prev, [m.id]: { ...prev[m.id], status: val } }))} />
-          ) : <span className="uc-stat-val">{isServiceable ? "Serviceable" : "Unserviceable"}</span>}
+          ) : <span className="uc-stat-val">{isServiceable ? "SERVICEABLE" : "UNSERVICEABLE"}</span>}
         </div>
         <div className="uc-stat" style={{ flex: 1 }}>
           <span className="uc-stat-label">Hardware Technician</span>
@@ -2695,6 +2740,8 @@ function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userNa
           const displayStatus = getDisplayStatus(f.status, f.waterLevel, isActuallyLive, thr);
           const cfg = STATUS_CONFIG[displayStatus] || STATUS_CONFIG["safe"];
           const ed  = editing[f.id];
+          const prevThr  = prevThresholds[f.id];
+          const thrDirty = !!prevThr && (thr.warning !== prevThr.warning || thr.danger !== prevThr.danger);
           return (
             <div key={f.id} className={`uc-card ${!isActuallyLive ? "uc-card-offline" : ""}`} style={{ "--status-color": cfg.color }}>
               <div className="uc-card-header">
@@ -2734,14 +2781,16 @@ function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userNa
                 </div>
                 <div className="uc-stat">
                   <span className="uc-stat-label">Coordinates</span>
-                  <span className="uc-stat-val" style={{ fontFamily:"var(--mono)", fontSize:10 }}>{f.lat}, {f.lng}</span>
+                  <span className="uc-stat-val" style={{ fontFamily:"var(--mono)", fontSize:10 }}>{fmtCoord(f.lat)}, {fmtCoord(f.lng)}</span>
                 </div>
                 <div className="uc-stat">
                   <span className="uc-stat-label">Installed</span>
                   {ed ? (
-                    <input className="uc-inline-input" value={ed.installedDate}
-                      onChange={e => setEditing(prev => ({ ...prev, [f.id]: { ...prev[f.id], installedDate: e.target.value } }))} />
-                  ) : <span className="uc-stat-val">{localData.installedDate}</span>}
+                    <CustomDatePicker
+                      value={installedTextToIso(ed.installedDate)}
+                      placeholder="Select date"
+                      onChange={iso => setEditing(prev => ({ ...prev, [f.id]: { ...prev[f.id], installedDate: isoToInstalledText(iso) } }))} />
+                  ) : <span className="uc-stat-val">{localData.installedDate || "—"}</span>}
                 </div>
                 <div className="uc-stat" style={{ flex: 1 }}>
                   <span className="uc-stat-label">Hardware Technician</span>
@@ -2793,7 +2842,7 @@ function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userNa
                         </button>
                         <span className="uc-thr-step-val">{formatWaterLevel(thr.warning, unitPreference)}</span>
                         <button type="button" className="uc-thr-step-btn"
-                          disabled={!isActuallyLive || thr.warning >= 300}
+                          disabled={!isActuallyLive || thr.warning >= Math.min(300, thr.danger - 100)}
                           onClick={() => setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], warning: prev[f.id].warning + 100 } }))}>
                           +
                         </button>
@@ -2803,7 +2852,7 @@ function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userNa
                       <label className="uc-thr-field-label">🔴 Critical ({unitPreference})</label>
                       <div className="uc-thr-stepper">
                         <button type="button" className="uc-thr-step-btn"
-                          disabled={!isActuallyLive || thr.danger <= 200}
+                          disabled={!isActuallyLive || thr.danger <= Math.max(200, thr.warning + 100)}
                           onClick={() => setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], danger: prev[f.id].danger - 100 } }))}>
                           −
                         </button>
@@ -2815,7 +2864,7 @@ function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userNa
                         </button>
                       </div>
                     </div>
-                    <button className="uc-thr-save" disabled={!isActuallyLive} onClick={() => {
+                    <button className="uc-thr-save" disabled={!isActuallyLive || !thrDirty} onClick={() => {
                       const thr = thresholds[f.id];
                       if (!thr.warning || thr.warning < 100 || thr.warning % 100 !== 0) {
                         setThrError(p => ({ ...p, [f.id]: "Warning must be a multiple of 100 and at least 100cm." })); return;
@@ -2830,7 +2879,8 @@ function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userNa
                       setThrConfirm(f.id);
                     }}>Save</button>
                   </div>
-                  {thrError[f.id] && <div className="settings-error" style={{ fontSize: 11, marginTop: 4 }}>{thrError[f.id]}</div>}
+                  {!isActuallyLive && <div className="uc-thr-note">Available when FEWS 1 is live</div>}
+                  {isActuallyLive && thrDirty && <div className="uc-thr-note uc-thr-note-dirty">Unsaved changes</div>}
                 </div>
               )}
             </div>
