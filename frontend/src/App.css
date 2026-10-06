@@ -1992,6 +1992,9 @@ select.settings-input {
 ================================ */
 .stats-controls-card { padding: 12px 14px; }
 .stats-date-controls { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.stats-compare-note  { font-size: 11px; color: var(--text-3); font-family: var(--mono); }
+.page-body > * { transition: opacity 0.15s; }
+.stats-updating > :not(.stats-controls-card) { opacity: 0.5; pointer-events: none; }
 
 .stats-preset-btn {
   height: 34px; padding: 0 14px; border-radius: 14px;
@@ -2044,14 +2047,22 @@ select.settings-input {
   color: var(--text-2); font-family: var(--mono);
 }
 .stats-breakdown-bar {
-  flex: 1; height: 16px; border-radius: 4px; overflow: hidden;
+  flex: 1; height: 18px; border-radius: 4px; overflow: hidden;
   display: flex; background: var(--bg-raised);
+  border: 1px solid rgba(255,255,255,0.14);
 }
 .stats-breakdown-bar > div { height: 100%; transition: width 0.2s; }
+.stats-breakdown-seg {
+  display: flex; align-items: center; justify-content: center;
+  font-size: 10px; font-weight: 700; color: #0a0a0b;
+  font-family: var(--mono); overflow: hidden;
+}
 .stats-breakdown-count {
-  width: 90px; flex-shrink: 0; text-align: right; font-size: 10px;
+  width: 110px; flex-shrink: 0; font-size: 10px; line-height: 1.3;
+  display: flex; flex-direction: column; align-items: flex-end;
   color: var(--text-3); font-family: var(--mono);
 }
+.stats-breakdown-count strong { font-weight: 700; }
 
 .stats-donut-row { display: flex; align-items: center; justify-content: center; gap: 24px; }
 .stats-donut-svg { width: 120px; height: 120px; flex-shrink: 0; }
@@ -2089,7 +2100,7 @@ select.settings-input {
 
 @media (max-width: 768px) {
   .stats-breakdown-week  { width: 46px; font-size: 10px; }
-  .stats-breakdown-count { width: 70px; font-size: 9px; }
+  .stats-breakdown-count { width: 82px; font-size: 9px; }
 }
 
 @media (max-width: 768px) {
@@ -2870,11 +2881,6 @@ div.leaflet-container {
 /* Labels layer: pushes the grey label text to white; the dark outline stays dark */
 .fews-labels {
   filter: brightness(1.6) contrast(1);
-}
-
-.leaflet-tile {
-  image-rendering: -webkit-optimize-contrast;
-  image-rendering: crisp-edges;
 }
 
 /* ── Leaflet zoom controls ── desktop styling only ── */

@@ -34,12 +34,12 @@ const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const CARTO_KEY = import.meta.env.VITE_CARTO_KEY || "";
 const MAP_TILE_URL = CARTO_KEY
-  ? `https://basemaps.cartocdn.com/rastertiles/dark_nolabels/{z}/{x}/{y}.png?key=${CARTO_KEY}`
+  ? `https://basemaps.cartocdn.com/rastertiles/dark_nolabels/{z}/{x}/{y}@2x.png?key=${CARTO_KEY}`
   : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
 // Labels-only layer drawn on top of the dark base. Needs the CARTO key;
 // without it the app stays on plain OpenStreetMap tiles, which have no separate labels.
 const MAP_LABELS_URL = CARTO_KEY
-  ? `https://basemaps.cartocdn.com/rastertiles/dark_only_labels/{z}/{x}/{y}.png?key=${CARTO_KEY}`
+  ? `https://basemaps.cartocdn.com/rastertiles/dark_only_labels/{z}/{x}/{y}@2x.png?key=${CARTO_KEY}`
   : "";
 const MAP_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
 class ErrorBoundary extends React.Component {
@@ -472,24 +472,30 @@ function ExportMenu({ token, activeFilters, exporting, setExporting, showToast }
 }
 
 // ─── STATISTICS PAGE ──────────────────────────────────────────────────────────
+// YYYY-MM-DD in the browser's local time (toISOString converts to UTC,
+// which shifts dates back a day in the Philippines)
+function toLocalIso(d) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
 function getPresetRange(preset) {
   const to = new Date();
   const from = new Date();
   if (preset === "30d") from.setDate(from.getDate() - 30);
   else if (preset === "90d") from.setDate(from.getDate() - 90);
   else if (preset === "12m") from.setFullYear(from.getFullYear() - 1);
-  const toIso = (d) => d.toISOString().slice(0, 10);
-  return { from: toIso(from), to: toIso(to) };
+  return { from: toLocalIso(from), to: toLocalIso(to) };
 }
 
 function getShadowRange(from, to) {
   const fromD = new Date(from + "T00:00:00");
   const toD   = new Date(to + "T00:00:00");
-  const spanMs = toD - fromD;
-  const shadowTo   = new Date(fromD.getTime() - 86400000);
-  const shadowFrom = new Date(shadowTo.getTime() - spanMs);
-  const toIso = (d) => d.toISOString().slice(0, 10);
-  return { from: toIso(shadowFrom), to: toIso(shadowTo) };
+  const days  = Math.round((toD - fromD) / 86400000);
+  const shadowTo = new Date(fromD);
+  shadowTo.setDate(shadowTo.getDate() - 1);
+  const shadowFrom = new Date(shadowTo);
+  shadowFrom.setDate(shadowFrom.getDate() - days);
+  return { from: toLocalIso(shadowFrom), to: toLocalIso(shadowTo) };
 }
 
 function DeltaBadge({ current, previous, mode = "neutral", pointsMode = false, precision = 1 }) {
@@ -503,7 +509,7 @@ function DeltaBadge({ current, previous, mode = "neutral", pointsMode = false, p
     const isUp = current > 0;
     const arrow = isUp ? "▲" : "▼";
     const amount = Number.isInteger(current) ? Math.abs(current) : Math.abs(current).toFixed(precision);
-    const label = `${arrow} ${amount}${pointsMode ? "pp" : ""} more than prior period`;
+    const label = `${arrow} ${amount}${pointsMode ? " pts" : ""} more than prior period`;
     let cls = "stats-delta-neutral";
     if (mode === "goodUp")   cls = isUp ? "stats-delta-good" : "stats-delta-bad";
     if (mode === "goodDown") cls = isUp ? "stats-delta-bad"  : "stats-delta-good";
@@ -514,7 +520,7 @@ function DeltaBadge({ current, previous, mode = "neutral", pointsMode = false, p
   if (Math.abs(diff) < 0.05) return <div className="stats-delta stats-delta-flat">No change vs prior period</div>;
   const isUp = diff > 0;
   const arrow = isUp ? "▲" : "▼";
-  const label = `${arrow} ${Math.abs(diff).toFixed(precision)}${pointsMode ? "pp" : "%"} vs prior period`;
+  const label = `${arrow} ${Math.abs(diff).toFixed(precision)}${pointsMode ? " pts" : "%"} vs prior period`;
   let cls = "stats-delta-neutral";
   if (mode === "goodUp")   cls = isUp ? "stats-delta-good" : "stats-delta-bad";
   if (mode === "goodDown") cls = isUp ? "stats-delta-bad"  : "stats-delta-good";
@@ -548,16 +554,20 @@ function buildTrendChartData(waterLevel) {
   return {
     labels,
     datasets: [
-      { label: "High",    data: waterLevel.series.map(s => s.high), borderColor: "#ef4444", backgroundColor: "transparent", tension: 0.2, pointRadius: 2, borderWidth: 2 },
-      { label: "Average", data: waterLevel.series.map(s => s.avg),  borderColor: "#38bdf8", backgroundColor: "transparent", tension: 0.2, pointRadius: 2, borderWidth: 2 },
-      { label: "Low",     data: waterLevel.series.map(s => s.low),  borderColor: "#e2e8f0", backgroundColor: "transparent", tension: 0.2, pointRadius: 2, borderWidth: 2 },
+      { label: "High",    data: waterLevel.series.map(s => s.high), borderColor: "#a78bfa", backgroundColor: "transparent", tension: 0.2, pointRadius: 2, borderWidth: 2 },
+      { label: "Average", data: waterLevel.series.map(s => s.avg),  borderColor: "#2dd4bf", backgroundColor: "transparent", tension: 0.2, pointRadius: 2, borderWidth: 2 },
+      { label: "Low",     data: waterLevel.series.map(s => s.low),  borderColor: "#94a3b8", backgroundColor: "transparent", tension: 0.2, pointRadius: 2, borderWidth: 2 },
     ],
   };
 }
 
-function TrendChart({ waterLevel }) {
+function TrendChart({ waterLevel, unitPref, thresholds }) {
   const chartRef = useRef(null);
   const wrapRef  = useRef(null);
+  const options  = useMemo(
+    () => buildTrendChartOptions(waterLevel, unitPref, thresholds),
+    [waterLevel, unitPref, thresholds.warning, thresholds.danger]
+  );
 
   // Data changed (new bucket, new range) — the chart instance is reused
   // now (no more `key` remount below), so just re-layout it once the new
@@ -585,30 +595,89 @@ function TrendChart({ waterLevel }) {
       <Line
         ref={chartRef}
         data={buildTrendChartData(waterLevel)}
-        options={TREND_CHART_OPTIONS}
+        options={options}
       />
     </div>
   );
 }
 
-const TREND_CHART_OPTIONS = {
-  responsive: true,
-  maintainAspectRatio: false,
-  plugins: {
-    legend: { display: false },
-    tooltip: {
-      backgroundColor: "#202024", titleColor: "#fff", bodyColor: "#9aa0a8",
-      borderColor: "rgba(255,255,255,0.12)", borderWidth: 1,
-      callbacks: { label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y ?? "—"} cm` },
-    },
-  },
-  scales: {
-    y: { grid: { color: "rgba(255,255,255,0.05)" }, ticks: { color: "#7e92b4", font: { size: 10 } } },
-    x: { grid: { color: "rgba(255,255,255,0.04)" }, ticks: { color: "#64748b", font: { size: 9 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 12 } },
-  },
-};
+const TREND_STEP_CM = { cm: 50, m: 50, ft: 30.48, in: 25.4 };
 
-function StatisticsPage({ userRole, token, manualFews }) {
+function buildTrendChartOptions(waterLevel, unitPref, thresholds) {
+  const warn   = thresholds.warning;
+  const danger = thresholds.danger;
+  const highs  = waterLevel.series.map(s => s.high).filter(v => v != null);
+  const dataMax = highs.length ? Math.max(...highs) : 0;
+
+  // Warning line is always shown. Critical only once the data has reached Warning.
+  const showCritical = dataMax >= warn;
+  const rawTop = showCritical
+    ? Math.max(danger * 1.1, dataMax * 1.1)
+    : Math.max(warn * 1.15, dataMax * 1.1);
+  const yMax = Math.ceil(rawTop / 50) * 50;
+  const fmt  = (v) => formatWaterLevel(v, unitPref);
+
+  const lineLabel = (text, color) => ({
+    display: true, content: text, position: "start",
+    backgroundColor: "rgba(23,23,26,0.85)", color,
+    font: { size: 11, weight: "600" }, padding: 4,
+  });
+
+  const annotations = {
+    lineWarning: {
+      type: "line", yMin: warn, yMax: warn,
+      borderColor: "rgba(249,115,22,0.80)", borderWidth: 2, borderDash: [4, 4],
+      label: lineLabel(`Warning ${fmt(warn)}`, "#f97316"),
+    },
+  };
+  if (showCritical) {
+    annotations.lineCritical = {
+      type: "line", yMin: danger, yMax: danger,
+      borderColor: "rgba(239,68,68,0.80)", borderWidth: 2, borderDash: [4, 4],
+      label: lineLabel(`Critical ${fmt(danger)}`, "#ef4444"),
+    };
+  }
+
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: { display: false },
+      annotation: { annotations },
+      tooltip: {
+        backgroundColor: "#202024", titleColor: "#fff", bodyColor: "#9aa0a8",
+        borderColor: "rgba(255,255,255,0.12)", borderWidth: 1,
+        callbacks: {
+          label: (ctx) => ` ${ctx.dataset.label}: ${ctx.parsed.y == null ? "—" : fmt(ctx.parsed.y)}`,
+        },
+      },
+    },
+    scales: {
+      y: {
+        min: 0, max: yMax,
+        grid: { color: "rgba(255,255,255,0.05)" },
+        ticks: {
+          color: "#7e92b4", font: { size: 11 },
+          stepSize: TREND_STEP_CM[unitPref] || 50,
+          callback: (v) => fmt(v),
+        },
+      },
+      x: {
+        grid: { color: "rgba(255,255,255,0.04)" },
+        ticks: { color: "#64748b", font: { size: 11 }, maxRotation: 0, autoSkip: true, maxTicksLimit: 12 },
+      },
+    },
+  };
+}
+
+const BREAKDOWN_SEGS = [
+  { key: "base_pct",     label: "Base",     color: "#e2e8f0" },
+  { key: "normal_pct",   label: "Normal",   color: "#fde047" },
+  { key: "warning_pct",  label: "Warning",  color: "#f97316" },
+  { key: "critical_pct", label: "Critical", color: "#ef4444" },
+];
+
+function StatisticsPage({ userRole, token, manualFews, unitPref, thresholds }) {
   const [preset, setPreset]         = useState("30d");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo]     = useState("");
@@ -682,8 +751,15 @@ function StatisticsPage({ userRole, token, manualFews }) {
   const current  = summarize(waterLevel, statusBreakdown, uptime);
   const previous = summarize(prevWaterLevel, prevStatusBreakdown, prevUptime);
 
+  // Same status logic as the Dashboard chart dots
+  const peakColor = current?.peak == null ? undefined
+    : current.peak > thresholds.danger  ? "#ef4444"
+    : current.peak > thresholds.warning ? "#f97316"
+    : current.peak < getBaselineCutoff(thresholds) ? "#e2e8f0"
+    : "#fde047";
+
   return (
-    <div className="page-body">
+    <div className={`page-body ${loading && waterLevel ? "stats-updating" : ""}`}>
       <div className="page-card stats-controls-card">
         <div className="stats-date-controls">
           {[
@@ -698,14 +774,20 @@ function StatisticsPage({ userRole, token, manualFews }) {
           <DateRangeFilter
             from={customFrom}
             to={customTo}
+            emptyLabel="Custom range"
             onChange={(v) => { setCustomFrom(v.from); setCustomTo(v.to); setPreset("custom"); }}
           />
         </div>
+        {hasValidRange && shadow && (
+          <div className="stats-compare-note">
+            Showing {fmtBucketLabel(range.from, "day")} – {fmtBucketLabel(range.to, "day")} · Compared with {fmtBucketLabel(shadow.from, "day")} – {fmtBucketLabel(shadow.to, "day")}{loading && waterLevel ? " · Updating…" : ""}
+          </div>
+        )}
       </div>
 
       {preset === "custom" && !hasValidRange ? (
         <div className="page-card"><div className="page-card-sub" style={{ marginBottom: 0 }}>Pick a custom date range to view statistics.</div></div>
-      ) : loading ? (
+      ) : loading && !waterLevel ? (
         <div className="page-card"><div className="page-card-sub" style={{ marginBottom: 0 }}>Loading statistics…</div></div>
       ) : error ? (
         <div className="page-card"><div className="settings-error">⚠️ Failed to load statistics — check your connection and try refreshing.</div></div>
@@ -714,12 +796,12 @@ function StatisticsPage({ userRole, token, manualFews }) {
           <div className="stats-summary-grid">
             <div className="stats-card">
               <div className="stats-card-label">Average Water Level</div>
-              <div className="stats-card-value">{current?.avg != null ? `${current.avg} cm` : "—"}</div>
+              <div className="stats-card-value">{current?.avg != null ? formatWaterLevel(current.avg, unitPref) : "—"}</div>
               <DeltaBadge current={current?.avg} previous={previous?.avg} mode="neutral" />
             </div>
             <div className="stats-card">
               <div className="stats-card-label">Peak Reading</div>
-              <div className="stats-card-value">{current?.peak != null ? `${current.peak} cm` : "—"}</div>
+              <div className="stats-card-value" style={{ color: peakColor }}>{current?.peak != null ? formatWaterLevel(current.peak, unitPref) : "—"}</div>
               <DeltaBadge current={current?.peak} previous={previous?.peak} mode="neutral" />
             </div>
             <div className="stats-card">
@@ -738,15 +820,15 @@ function StatisticsPage({ userRole, token, manualFews }) {
             <div className="card-header stats-header-grid">
               <h2>Water Level Trend</h2>
               <div className="wl-legend-row">
-                <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#ef4444" }} />High</span>
-                <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#38bdf8" }} />Average</span>
-                <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#e2e8f0" }} />Low</span>
+                <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#a78bfa" }} />High</span>
+                <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#2dd4bf" }} />Average</span>
+                <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#94a3b8" }} />Low</span>
               </div>
               <span className="card-tag">By {waterLevel?.bucket || "—"}</span>
             </div>
             {waterLevel?.series?.length ? (
               <div className="stats-chart-wrap">
-                <TrendChart waterLevel={waterLevel} />
+                <TrendChart waterLevel={waterLevel} unitPref={unitPref} thresholds={thresholds} />
               </div>
             ) : (
               <div className="stats-chart-empty">No water level data for this range.</div>
@@ -766,18 +848,27 @@ function StatisticsPage({ userRole, token, manualFews }) {
               </div>
               {statusBreakdown?.length ? (
                 <div className="stats-breakdown-list">
-                  {statusBreakdown.map(w => (
-                    <div key={w.week_start} className="stats-breakdown-row">
-                      <span className="stats-breakdown-week">{fmtBucketLabel(w.week_start, "week")}</span>
-                      <div className="stats-breakdown-bar">
-                        {w.base_pct > 0     && <div style={{ width: `${w.base_pct}%`,     background: "#e2e8f0" }} title={`Base: ${w.base_pct}%`} />}
-                        {w.normal_pct > 0   && <div style={{ width: `${w.normal_pct}%`,   background: "#fde047" }} title={`Normal: ${w.normal_pct}%`} />}
-                        {w.warning_pct > 0  && <div style={{ width: `${w.warning_pct}%`,  background: "#f97316" }} title={`Warning: ${w.warning_pct}%`} />}
-                        {w.critical_pct > 0 && <div style={{ width: `${w.critical_pct}%`, background: "#ef4444" }} title={`Critical: ${w.critical_pct}%`} />}
+                  {statusBreakdown.map(w => {
+                    const top = BREAKDOWN_SEGS.reduce((best, s) => (w[s.key] > w[best.key] ? s : best), BREAKDOWN_SEGS[0]);
+                    return (
+                      <div key={w.week_start} className="stats-breakdown-row">
+                        <span className="stats-breakdown-week">{fmtBucketLabel(w.week_start < range.from ? range.from : w.week_start, "week")}</span>
+                        <div className="stats-breakdown-bar">
+                          {BREAKDOWN_SEGS.map(s => w[s.key] > 0 && (
+                            <div key={s.key} className="stats-breakdown-seg"
+                              style={{ width: `${w[s.key]}%`, background: s.color }}
+                              title={`${s.label}: ${w[s.key]}%`}>
+                              {w[s.key] >= 12 ? `${Math.round(w[s.key])}%` : ""}
+                            </div>
+                          ))}
+                        </div>
+                        <span className="stats-breakdown-count">
+                          <strong style={{ color: top.color }}>{Math.round(w[top.key])}% {top.label}</strong>
+                          <span>{w.total_readings} readings</span>
+                        </span>
                       </div>
-                      <span className="stats-breakdown-count">{w.total_readings} readings</span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               ) : (
                 <div className="stats-chart-empty">No status data for this range.</div>
@@ -798,9 +889,9 @@ function StatisticsPage({ userRole, token, manualFews }) {
                 return (
                   <div className="stats-donut-row">
                     <svg viewBox="0 0 100 100" className="stats-donut-svg">
-                      <circle cx="50" cy="50" r="40" fill="none" stroke="var(--bg-raised)" strokeWidth="14" />
+                      <circle cx="50" cy="50" r="40" fill="none" stroke="#64748b" strokeWidth="14" />
                       <circle
-                        cx="50" cy="50" r="40" fill="none" stroke="#22c55e" strokeWidth="14"
+                        cx="50" cy="50" r="40" fill="none" stroke="#38bdf8" strokeWidth="14"
                         strokeDasharray={`${dashLength} ${circumference}`}
                         strokeLinecap="round"
                         transform="rotate(-90 50 50)"
@@ -810,11 +901,11 @@ function StatisticsPage({ userRole, token, manualFews }) {
                     </svg>
                     <div className="stats-donut-legend">
                       <div className="stats-donut-legend-row">
-                        <span className="stats-donut-dot" style={{ background: "#22c55e" }} />
+                        <span className="stats-donut-dot" style={{ background: "#38bdf8" }} />
                         Serviceable <strong>{serviceable}</strong>
                       </div>
                       <div className="stats-donut-legend-row">
-                        <span className="stats-donut-dot" style={{ background: "var(--bg-raised)", border: "1px solid var(--border)" }} />
+                        <span className="stats-donut-dot" style={{ background: "#64748b" }} />
                         Unserviceable <strong>{total - serviceable}</strong>
                       </div>
                     </div>
@@ -2820,7 +2911,7 @@ function FilterDropdown({ label, options, value, onChange }) {
 }
 
 // ─── DATE RANGE FILTER ────────────────────────────────────────────────────────
-function DateRangeFilter({ from, to, onChange }) {
+function DateRangeFilter({ from, to, onChange, emptyLabel = "All Dates" }) {
   const [open, setOpen] = useState(false);
   const ref = useRef();
   const today = new Date();
@@ -2862,7 +2953,7 @@ function DateRangeFilter({ from, to, onChange }) {
 
   const hasFilter = from || to;
   const isSingle  = from && to && from === to;
-  let displayLabel = "All Dates";
+  let displayLabel = emptyLabel;
   if (isSingle) displayLabel = fmt(from);
   else if (from && to) displayLabel = `${fmt(from)} — ${fmt(to)}`;
 
@@ -5213,7 +5304,7 @@ const waterChartOptions = useMemo(() => ({
             </div>
           )}
 
-        {activeNav === "Statistics"  && <StatisticsPage userRole={user.role} token={token} manualFews={manualFews} />}
+        {activeNav === "Statistics"  && <StatisticsPage userRole={user.role} token={token} manualFews={manualFews} unitPref={user.unit_preference} thresholds={thresholds} />}
         {activeNav === "UnitControl" && <UnitControlPage allFews={allFews} manualFews={manualFews} fews1Connected={isHardwareOnline} userRole={user.role} userName={user.name} unitPreference={user.unit_preference} addLog={addLog} token={token} onThresholdSaved={(t) => setThresholds(t)} onManualUnitSaved={(updated) => setManualFews(prev => prev.map(m => m.device_id === updated.device_id ? updated : m))} />}
         {activeNav === "Logs"        && <LogsPage token={token} userRole={user.role} showToast={showToast} />}
         {activeNav === "Settings"    && <SettingsPage
