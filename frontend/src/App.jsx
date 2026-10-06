@@ -43,7 +43,6 @@ const CARTO_KEY = import.meta.env.VITE_CARTO_KEY || "";
 const CARTO_ATTR  = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
 const STADIA_ATTR = '&copy; <a href="https://stadiamaps.com/" target="_blank" rel="noopener noreferrer">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/" target="_blank" rel="noopener noreferrer">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 const STAMEN_ATTR = '&copy; <a href="https://stadiamaps.com/" target="_blank" rel="noopener noreferrer">Stadia Maps</a> &copy; <a href="https://stamen.com/" target="_blank" rel="noopener noreferrer">Stamen Design</a> &copy; <a href="https://openmaptiles.org/" target="_blank" rel="noopener noreferrer">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
-const HOT_ATTR    = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Tiles style by <a href="https://www.hotosm.org/" target="_blank" rel="noopener noreferrer">Humanitarian OpenStreetMap Team</a> hosted by <a href="https://openstreetmap.fr/" target="_blank" rel="noopener noreferrer">OpenStreetMap France</a>';
 const OSM_ATTR    = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
 const BASE_MAPS = {
@@ -76,11 +75,13 @@ const BASE_MAPS = {
     attribution: STAMEN_ATTR,
     layers: [{ url: "https://tiles.stadiamaps.com/tiles/stamen_terrain/{z}/{x}/{y}@2x.png" }],
   },
-  humanitarian: {
-    label: "Humanitarian", sub: "Roads and buildings", isLight: true, maxZoom: 20,
-    swatch: ["#f2efe9", "#a8d4e6", "#e8a8a0"],
-    attribution: HOT_ATTR,
-    layers: [{ url: "https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png" }],
+  positron: {
+    label: "Positron", sub: "Pale grey, quiet", isLight: true, maxZoom: 20,
+    swatch: ["#e9ebec", "#cfd6da", "#ffffff"],
+    attribution: CARTO_ATTR,
+    layers: [
+      { url: `https://basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}@2x.png?key=${CARTO_KEY}` },
+    ],
   },
   // Only used when there is no CARTO key (keeps the old plain-OSM fallback)
   osm: {
@@ -92,8 +93,8 @@ const BASE_MAPS = {
 };
 
 const BASE_MAP_ORDER = CARTO_KEY
-  ? ["light", "dark", "bright", "terrain", "humanitarian"]
-  : ["osm", "bright", "terrain", "humanitarian"];
+  ? ["light", "dark", "bright", "terrain", "positron"]
+  : ["osm", "bright", "terrain"];
 const DEFAULT_BASE_MAP = CARTO_KEY ? "dark" : "osm";
 
 // A saved id that isn't available here (e.g. "dark" without a CARTO key) falls back to the default
@@ -5561,7 +5562,7 @@ const waterChartOptions = useMemo(() => ({
                     <button className="map-ctrl-btn" onClick={handleFsCenter} title="Center map" aria-label="Center map">
                       <CenterIcon />
                     </button>
-                    <MapSwitcher value={baseMapId} onChange={setBaseMapId} />
+                    <MapSwitcher value={baseMapId} onChange={handleBaseMapChange} />
                     <button className="map-ctrl-btn" onClick={closeFullscreen} title="Exit fullscreen" aria-label="Exit fullscreen">
                       <CollapseIcon />
                     </button>

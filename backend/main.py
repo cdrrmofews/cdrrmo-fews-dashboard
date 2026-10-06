@@ -462,7 +462,7 @@ def update_display_prefs(req: UpdateDisplayPrefsRequest, user=Depends(get_curren
         release_db(conn)
 
 # Base-map choice for the dashboard / fullscreen map (one per user)
-VALID_MAP_PREFS = {"light", "dark", "bright", "terrain", "humanitarian", "osm"}
+VALID_MAP_PREFS = {"light", "dark", "bright", "terrain", "positron", "osm"}
 
 class UpdateMapPrefRequest(BaseModel):
     map_preference: str

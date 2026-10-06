@@ -37,15 +37,73 @@ L.Icon.Default.mergeOptions({
 const API_BASE = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
 const CARTO_KEY = import.meta.env.VITE_CARTO_KEY || "";
-const MAP_TILE_URL = CARTO_KEY
-  ? `https://basemaps.cartocdn.com/rastertiles/dark_nolabels/{z}/{x}/{y}@2x.png?key=${CARTO_KEY}`
-  : "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png";
-// Labels-only layer drawn on top of the dark base. Needs the CARTO key;
-// without it the app stays on plain OpenStreetMap tiles, which have no separate labels.
-const MAP_LABELS_URL = CARTO_KEY
-  ? `https://basemaps.cartocdn.com/rastertiles/dark_only_labels/{z}/{x}/{y}@2x.png?key=${CARTO_KEY}`
-  : "";
-const MAP_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+
+// ─── BASE MAPS ────────────────────────────────────────────────────────────────
+// One entry per base map. To add another later (e.g. Satellite), add one entry
+// here and its id to BASE_MAP_ORDER; nothing else needs to change.
+//   isLight -> markers / attribution / container switch to light-map styling
+//   layers  -> drawn bottom to top; `className` is where CSS filters attach
+//   swatch  -> 3 colors for the mini thumbnail in the switcher panel
+const CARTO_ATTR  = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+const STADIA_ATTR = '&copy; <a href="https://stadiamaps.com/" target="_blank" rel="noopener noreferrer">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/" target="_blank" rel="noopener noreferrer">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+const STAMEN_ATTR = '&copy; <a href="https://stadiamaps.com/" target="_blank" rel="noopener noreferrer">Stadia Maps</a> &copy; <a href="https://stamen.com/" target="_blank" rel="noopener noreferrer">Stamen Design</a> &copy; <a href="https://openmaptiles.org/" target="_blank" rel="noopener noreferrer">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+const HOT_ATTR    = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Tiles style by <a href="https://www.hotosm.org/" target="_blank" rel="noopener noreferrer">Humanitarian OpenStreetMap Team</a> hosted by <a href="https://openstreetmap.fr/" target="_blank" rel="noopener noreferrer">OpenStreetMap France</a>';
+const OSM_ATTR    = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
+
+const BASE_MAPS = {
+  light: {
+    label: "Light", sub: "Detailed, white streets", isLight: true, maxZoom: 20,
+    swatch: ["#f2efe9", "#aad3df", "#ffffff"],
+    attribution: CARTO_ATTR,
+    layers: [
+      { url: `https://basemaps.cartocdn.com/rastertiles/voyager_labels_under/{z}/{x}/{y}@2x.png?key=${CARTO_KEY}` },
+    ],
+  },
+  dark: {
+    label: "Dark", sub: "Default · low glare", isLight: false, maxZoom: 20,
+    swatch: ["#1b1d21", "#14253a", "#34383f"],
+    attribution: CARTO_ATTR,
+    layers: [
+      { url: `https://basemaps.cartocdn.com/rastertiles/dark_nolabels/{z}/{x}/{y}@2x.png?key=${CARTO_KEY}`, className: "fews-tiles" },
+      { url: `https://basemaps.cartocdn.com/rastertiles/dark_only_labels/{z}/{x}/{y}@2x.png?key=${CARTO_KEY}`, className: "fews-labels", zIndex: 2 },
+    ],
+  },
+  bright: {
+    label: "OSM Bright", sub: "Colorful street map", isLight: true, maxZoom: 20,
+    swatch: ["#f8f4f0", "#9fd1ee", "#ffd27a"],
+    attribution: STADIA_ATTR,
+    layers: [{ url: "https://tiles.stadiamaps.com/tiles/osm_bright/{z}/{x}/{y}@2x.png" }],
+  },
+  terrain: {
+    label: "Terrain", sub: "Hills and land cover", isLight: true, maxZoom: 20,
+    swatch: ["#d9e4bd", "#a8cde0", "#c8a97a"],
+    attribution: STAMEN_ATTR,
+    layers: [{ url: "https://tiles.stadiamaps.com/tiles/stamen_terrain/{z}/{x}/{y}@2x.png" }],
+  },
+  humanitarian: {
+    label: "Humanitarian", sub: "Roads and buildings", isLight: true, maxZoom: 20,
+    swatch: ["#f2efe9", "#a8d4e6", "#e8a8a0"],
+    attribution: HOT_ATTR,
+    layers: [{ url: "https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png" }],
+  },
+  // Only used when there is no CARTO key (keeps the old plain-OSM fallback)
+  osm: {
+    label: "OpenStreetMap", sub: "Standard", isLight: true, maxZoom: 19,
+    swatch: ["#f2efe9", "#aad3df", "#ffffff"],
+    attribution: OSM_ATTR,
+    layers: [{ url: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" }],
+  },
+};
+
+const BASE_MAP_ORDER = CARTO_KEY
+  ? ["light", "dark", "bright", "terrain", "humanitarian"]
+  : ["osm", "bright", "terrain", "humanitarian"];
+const DEFAULT_BASE_MAP = CARTO_KEY ? "dark" : "osm";
+
+// A saved id that isn't available here (e.g. "dark" without a CARTO key) falls back to the default
+function resolveBaseMap(id) {
+  return BASE_MAP_ORDER.includes(id) ? id : DEFAULT_BASE_MAP;
+}
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -82,7 +140,7 @@ function usePullToRefresh(onRefresh) {
     if (!indicator) return;
 
     const onTouchStart = (e) => {
-      if (e.target?.closest?.(".map-fullscreen-overlay")) return;
+      if (e.target?.closest?.(".map-fullscreen-overlay, .msw-panel")) return;
       if (window.scrollY === 0 || document.documentElement.scrollTop === 0) {
         startYRef.current = e.touches[0].clientY;
         pullingRef.current = true;
@@ -223,6 +281,7 @@ function normalizeUser(parsed) {
       sms_enabled: false,
       push_enabled: true, audio_enabled: true, banner_enabled: true, ticker_enabled: true,
       unit_preference: "cm",
+      map_preference: "dark",
       initials: "?",
     };
   }
@@ -243,6 +302,7 @@ function normalizeUser(parsed) {
     banner_enabled:   parsed.banner_enabled   ?? true,
     ticker_enabled:   parsed.ticker_enabled   ?? true,
     unit_preference:  parsed.unit_preference  || "cm",
+    map_preference:   parsed.map_preference   || "dark",
     initials,
   };
 }
@@ -1636,6 +1696,131 @@ function MapResizeWatcher() {
     };
   }, [map]);
   return null;
+}
+
+// Draws the layers of the chosen base map. Each layer has its own key, so
+// switching swaps tile layers without remounting the MapContainer (the view
+// doesn't jump). A TileLayer's className / attribution / maxZoom can't be
+// changed in place, which is why we swap instead of updating props.
+function BaseMapLayers({ mapId }) {
+  const cfg = BASE_MAPS[mapId] || BASE_MAPS[DEFAULT_BASE_MAP];
+  return (
+    <>
+      {cfg.layers.map((layer, i) => (
+        <TileLayer
+          key={`${mapId}-${i}`}
+          url={layer.url}
+          className={layer.className}
+          zIndex={layer.zIndex}
+          maxZoom={cfg.maxZoom}
+          attribution={i === 0 ? cfg.attribution : undefined}
+        />
+      ))}
+    </>
+  );
+}
+
+// Layers button + "Base map" panel. The panel is portaled to <body> (same
+// pattern as CustomDatePicker / MuDropdown) so .map-wrap's overflow:hidden and
+// the short phone map card can't clip it. It opens upward from the button.
+const LayersIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M12 4l-8 4l8 4l8 -4l-8 -4"/>
+    <path d="M4 12l8 4l8 -4"/>
+    <path d="M4 16l8 4l8 -4"/>
+  </svg>
+);
+
+function MapSwitcher({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos]   = useState({ left: 8, bottom: 60, width: 260, maxHeight: 320 });
+  const btnRef   = useRef(null);
+  const panelRef = useRef(null);
+
+  const toggle = () => {
+    if (!open && btnRef.current) {
+      const r     = btnRef.current.getBoundingClientRect();
+      const width = isMobileViewport() ? Math.min(300, window.innerWidth - 16) : 260;
+      setPos({
+        left:      Math.max(8, Math.min(r.left, window.innerWidth - width - 8)),
+        bottom:    window.innerHeight - r.top + 8,
+        width,
+        maxHeight: Math.max(140, r.top - 16), // scrolls inside if the space above is tight
+      });
+    }
+    setOpen(o => !o);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => {
+      if (btnRef.current?.contains(e.target) || panelRef.current?.contains(e.target)) return;
+      setOpen(false);
+    };
+    const onScroll = (e) => {
+      if (panelRef.current?.contains(e.target)) return; // scrolling inside the panel is fine
+      setOpen(false);
+    };
+    const onResize = () => setOpen(false);
+    document.addEventListener("pointerdown", onDown);
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onResize);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [open]);
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        className={`map-ctrl-btn ${open ? "map-ctrl-btn-active" : ""}`}
+        onClick={toggle}
+        title="Base map"
+        aria-label="Base map"
+        aria-expanded={open}
+      >
+        <LayersIcon />
+      </button>
+      {open && createPortal(
+        <div
+          ref={panelRef}
+          className="msw-panel"
+          role="dialog"
+          aria-label="Base map"
+          style={{ position: "fixed", left: pos.left, bottom: pos.bottom, width: pos.width, maxHeight: pos.maxHeight }}
+        >
+          <div className="msw-title">Base map</div>
+          <div className="msw-list">
+            {BASE_MAP_ORDER.map(id => {
+              const m = BASE_MAPS[id];
+              return (
+                <button
+                  key={id}
+                  type="button"
+                  className={`msw-opt ${id === value ? "msw-opt-selected" : ""}`}
+                  onClick={() => { onChange(id); setOpen(false); }}
+                >
+                  <span className="msw-swatch" style={{ background: m.swatch[0] }}>
+                    <span className="msw-swatch-water" style={{ background: m.swatch[1] }} />
+                    <span className="msw-swatch-road"  style={{ background: m.swatch[2] }} />
+                  </span>
+                  <span className="msw-opt-text">
+                    <span className="msw-opt-name">{m.label}</span>
+                    <span className="msw-opt-sub">{m.sub}</span>
+                  </span>
+                </button>
+              );
+            })}
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
+  );
 }
 
 const CenterIcon = () => (
@@ -3661,6 +3846,7 @@ export default function App() {
     return () => clearInterval(id);
   }, [fetchManualUnits]);
   const pollUnitsNowRef = useRef(null);
+  const mapSavedAtRef = useRef(0); // when the user last picked a map (guards against the profile poll flipping it back)
   const [sirenLoading, setSirenLoading] = useState({});
   
   const activeNavRef = useRef(activeNav);
@@ -3859,6 +4045,10 @@ export default function App() {
                 banner_enabled:   me.notif_banner_enabled,
                 ticker_enabled:   me.notif_ticker_enabled,
                 unit_preference:  me.unit_preference,
+                // keep a choice made in the last 20s; otherwise take the saved one
+                map_preference:   Date.now() - mapSavedAtRef.current > 20000
+                                    ? (me.map_preference || prev.map_preference)
+                                    : prev.map_preference,
               });
               getStorage().setItem("user", JSON.stringify(merged));
               return merged;
@@ -4315,6 +4505,33 @@ export default function App() {
 
     const [sirenConfirm, setSirenConfirm] = useState(null);
     const [fullscreenMap, setFullscreenMap] = useState(false);
+    // One shared base-map choice for the dashboard map and the fullscreen map.
+    // Lives here because the fullscreen map is only mounted while it's open.
+    const [baseMapId, setBaseMapId] = useState(() => resolveBaseMap(user.map_preference));
+    const baseMapIsLight = BASE_MAPS[baseMapId]?.isLight ?? false;
+
+    // Follow the saved preference: covers login, logout (normalizeUser({}) gives
+    // the default again), and a change made on another device via the profile poll.
+    useEffect(() => { setBaseMapId(resolveBaseMap(user.map_preference)); }, [user.map_preference]);
+
+    const handleBaseMapChange = (id) => {
+      if (!BASE_MAPS[id]) return;
+      mapSavedAtRef.current = Date.now();
+      setBaseMapId(id);
+      setUser(prev => {
+        const next = normalizeUser({ ...prev, map_preference: id });
+        getStorage().setItem("user", JSON.stringify(next));
+        return next;
+      });
+      if (!token) return;
+      authFetch(`${API_BASE}/users/me/map`, {
+        method:  "PUT",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body:    JSON.stringify({ map_preference: id }),
+      })
+        .then(res => { if (!res.ok) showToast("Couldn't save your map choice. Try again."); })
+        .catch(err => { if (err?.message !== "Unauthorized") showToast("Couldn't save your map choice. Try again."); });
+    };
     const [fsSelectedFEWS, setFsSelectedFEWS] = useState(null);
     const [fsDrawerOpen, setFsDrawerOpen] = useState(() => !isMobileViewport());
     const fsMapRef = useRef(null);
@@ -4789,11 +5006,12 @@ const waterChartOptions = useMemo(() => ({
                   <h2>FEWS Locations</h2>
                   <span className="card-tag">Batangas City</span>
                 </div>
-                <div className="map-wrap">
+                <div className={`map-wrap ${baseMapIsLight ? "map-is-light" : ""}`}>
                   <div className="map-ctrl-group">
                     <button className="map-ctrl-btn" onClick={handleDashCenter} title="Center map" aria-label="Center map">
                       <CenterIcon />
                     </button>
+                    <MapSwitcher value={baseMapId} onChange={handleBaseMapChange} />
                     <button className="map-ctrl-btn" onClick={() => setFullscreenMap(true)} title="Fullscreen map" aria-label="Fullscreen map">
                       <ExpandIcon />
                     </button>
@@ -4803,11 +5021,7 @@ const waterChartOptions = useMemo(() => ({
                     boundsOptions={{ padding: [20, 20] }}
                     style={{ height:"100%", width:"100%", borderRadius:"10px" }}
                     scrollWheelZoom={true}>
-                    <TileLayer
-                      className={CARTO_KEY ? "fews-tiles" : undefined}
-                      attribution={MAP_ATTRIBUTION}
-                      url={MAP_TILE_URL} />
-                    {MAP_LABELS_URL && <TileLayer className="fews-labels" url={MAP_LABELS_URL} zIndex={2} />}
+                    <BaseMapLayers mapId={baseMapId} />
                     <MapRefSetter mapRef={dashMapRef} />
                     <MapResizeWatcher />
                     <FlyToStation fews={selectedStation} />
@@ -4823,7 +5037,8 @@ const waterChartOptions = useMemo(() => ({
                         : (isManualServiceable ? "#38bdf8" : "#64748b");
                       const isBaseLive = isActuallyLive && displayStatus === "base";
                       const popupTextColor = markerColor;
-                      const markerBorderColor = isBaseLive ? "#94a3b8" : "white";
+                      // Light base maps: dark ring so Normal (yellow) and Base markers don't vanish
+                      const markerBorderColor = baseMapIsLight ? "#1e293b" : (isBaseLive ? "#94a3b8" : "white");
                       const showPulse = isActuallyLive || isManualServiceable;
                       const icon = L.divIcon({
                         className: "",
@@ -5278,15 +5493,14 @@ const waterChartOptions = useMemo(() => ({
           {fullscreenMap && (
             <div className="map-fullscreen-overlay">
               <div className="map-fullscreen-box">
-                <div className={`map-fullscreen-inner ${fsDrawerOpen ? "fs-drawer-open" : ""}`}>
+                <div className={`map-fullscreen-inner ${fsDrawerOpen ? "fs-drawer-open" : ""} ${baseMapIsLight ? "map-is-light" : ""}`}>
                   <MapContainer
                     bounds={CITY_DEFAULT_BOUNDS}
                     boundsOptions={{ paddingTopLeft: [20, 20], paddingBottomRight: [(fsDrawerOpen && !isMobileViewport()) ? FS_DRAWER_PAD : 20, 20] }}
                     style={{ height:"100%", width:"100%" }}
                     scrollWheelZoom={true}
                     minZoom={3}>
-                    <TileLayer className={CARTO_KEY ? "fews-tiles" : undefined} attribution={MAP_ATTRIBUTION} url={MAP_TILE_URL} />
-                    {MAP_LABELS_URL && <TileLayer className="fews-labels" url={MAP_LABELS_URL} zIndex={2} />}
+                    <BaseMapLayers mapId={baseMapId} />
                     <MapRefSetter mapRef={fsMapRef} />
                     {allFews.map(f => {
                       const isManualServiceable = !f.isLive && f.manualStatus === "serviceable";
@@ -5296,7 +5510,9 @@ const waterChartOptions = useMemo(() => ({
                       const markerColor = f.isLive
                         ? (isActuallyLive ? cfg.color : "#64748b")
                         : (isManualServiceable ? "#38bdf8" : "#64748b");
-                      const markerBorderColor = (isActuallyLive && displayStatus === "base") ? "#94a3b8" : "white";
+                      const markerBorderColor = baseMapIsLight
+                        ? "#1e293b"
+                        : ((isActuallyLive && displayStatus === "base") ? "#94a3b8" : "white");
                       const showPulse = isActuallyLive || isManualServiceable;
                       const isFsSel = fsSelectedFEWS === f.id;
                       const statusWord = f.isLive
@@ -5349,6 +5565,7 @@ const waterChartOptions = useMemo(() => ({
                     <button className="map-ctrl-btn" onClick={handleFsCenter} title="Center map" aria-label="Center map">
                       <CenterIcon />
                     </button>
+                    <MapSwitcher value={baseMapId} onChange={setBaseMapId} />
                     <button className="map-ctrl-btn" onClick={closeFullscreen} title="Exit fullscreen" aria-label="Exit fullscreen">
                       <CollapseIcon />
                     </button>
@@ -9031,7 +9248,7 @@ div.leaflet-container {
 /* Status pill — bottom left, right of the two buttons */
 .map-fs-pill {
   position: absolute;
-  left:   calc(var(--fs-gap) + 88px + env(safe-area-inset-left, 0px)); /* 2 buttons (36px each) + 2 gaps (8px) */
+  left:   calc(var(--fs-gap) + 132px + env(safe-area-inset-left, 0px)); /* 3 buttons (36px each) + gaps (8px) */
   bottom: calc(var(--fs-gap) + env(safe-area-inset-bottom, 0px));
   z-index: 1000;
   height: 36px;
@@ -9141,10 +9358,84 @@ div.leaflet-container {
   }
 }
 
-/* Very narrow phones: no room for the pill between the buttons and the toggle */
-@media (max-width: 340px) {
+/* Narrow phones: no room for the pill between the three buttons and the toggle */
+@media (max-width: 480px) {
   .map-fs-pill { display: none; }
 }
+
+/* ── Base map switcher ── */
+.map-ctrl-btn-active {
+  background: #202024;
+  color: var(--blue);
+  border-color: rgba(56, 189, 248, 0.45);
+}
+
+.msw-panel {
+  z-index: 10001; /* above the fullscreen map (9999) and modals (10000) */
+  background: rgba(23, 23, 26, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  padding: 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  animation: cdp-fade 0.12s ease;
+}
+
+.msw-title {
+  font-size: 10px; font-weight: 700; color: var(--text-3);
+  letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 2px 4px 8px;
+}
+
+.msw-list { display: flex; flex-direction: column; gap: 4px; }
+
+.msw-opt {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  cursor: pointer; text-align: left;
+  font-family: var(--font);
+  transition: background 0.15s, border-color 0.15s;
+}
+.msw-opt:hover { background: var(--bg-raised); }
+.msw-opt-selected { background: rgba(56, 189, 248, 0.10); border-color: rgba(56, 189, 248, 0.45); }
+
+/* Mini thumbnail drawn with 3 colors, no tile requests */
+.msw-swatch {
+  position: relative;
+  width: 44px; height: 32px;
+  border-radius: 7px; overflow: hidden; flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+.msw-swatch-water { position: absolute; left: 0; bottom: 0; width: 55%; height: 45%; border-top-right-radius: 14px; }
+.msw-swatch-road  { position: absolute; left: -10%; top: 38%; width: 130%; height: 3px; transform: rotate(-22deg); }
+
+.msw-opt-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.msw-opt-name { font-size: 12px; font-weight: 600; color: var(--text-1); }
+.msw-opt-selected .msw-opt-name { color: var(--blue); }
+.msw-opt-sub  { font-size: 10px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Phone: compact 2-column grid, names only */
+@media (max-width: 768px) {
+  .msw-panel { padding: 8px; }
+  .msw-list  { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .msw-opt   { padding: 5px; gap: 8px; }
+  .msw-swatch { width: 32px; height: 26px; }
+  .msw-opt-name { font-size: 11px; }
+  .msw-opt-sub  { display: none; }
+}
+
+/* ── Light base maps (class is set on .map-wrap / .map-fullscreen-inner) ── */
+.map-is-light .leaflet-container { background: #e8e4dc; } /* gaps while tiles load */
+.map-is-light .leaflet-control-attribution {
+  background: rgba(255, 255, 255, 0.82) !important;
+  color: #334155 !important;
+}
+.map-is-light .leaflet-control-attribution a { color: #0369a1 !important; }
+.map-is-light .fs-dot-sel { outline-color: rgba(30, 41, 59, 0.65); }
 
 =========================================
 FILE: frontend/src/index.css
@@ -9223,6 +9514,7 @@ export default function Login({ onLogin }) {
         banner_enabled:   data.notif_banner_enabled ?? true,
         ticker_enabled:   data.notif_ticker_enabled ?? true,
         unit_preference:  data.unit_preference      ?? "cm",
+        map_preference:   data.map_preference       ?? "dark",
       });
       const storage = rememberMe ? localStorage : sessionStorage;
       storage.setItem("token",      data.token);
