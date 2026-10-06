@@ -3,6 +3,7 @@ from mqtt_bridge import start_bridge_thread
 from fastapi.middleware.cors import CORSMiddleware
 
 import jwt
+from pydantic import BaseModel
 
 from database import get_db, release_db, init_db
 from auth import hash_password, verify_password, create_token, decode_token
@@ -148,7 +149,8 @@ def startup():
                 ADD COLUMN IF NOT EXISTS notif_audio_enabled  BOOLEAN DEFAULT TRUE,
                 ADD COLUMN IF NOT EXISTS notif_banner_enabled BOOLEAN DEFAULT TRUE,
                 ADD COLUMN IF NOT EXISTS notif_ticker_enabled BOOLEAN DEFAULT TRUE,
-                ADD COLUMN IF NOT EXISTS unit_preference       TEXT DEFAULT 'cm'
+                ADD COLUMN IF NOT EXISTS unit_preference       TEXT DEFAULT 'cm',
+                ADD COLUMN IF NOT EXISTS map_preference        TEXT DEFAULT 'dark'
             """)
             cur.execute("""
                 ALTER TABLE push_subscriptions
@@ -250,6 +252,7 @@ def login(request: Request, req: LoginRequest):
             "notif_banner_enabled": user.get("notif_banner_enabled", True),
             "notif_ticker_enabled": user.get("notif_ticker_enabled", True),
             "unit_preference":      user.get("unit_preference", "cm"),
+            "map_preference":       user.get("map_preference") or "dark",
         }
     finally:
         cur.close()
@@ -448,6 +451,33 @@ def update_display_prefs(req: UpdateDisplayPrefsRequest, user=Depends(get_curren
         cur.execute(
             "UPDATE users SET unit_preference = %s WHERE id = %s RETURNING id, unit_preference",
             (req.unit_preference, user_id)
+        )
+        conn.commit()
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="User not found")
+        return row
+    finally:
+        cur.close()
+        release_db(conn)
+
+# Base-map choice for the dashboard / fullscreen map (one per user)
+VALID_MAP_PREFS = {"light", "dark", "bright", "terrain", "humanitarian", "osm"}
+
+class UpdateMapPrefRequest(BaseModel):
+    map_preference: str
+
+@app.put("/users/me/map")
+def update_map_pref(req: UpdateMapPrefRequest, user=Depends(get_current_user)):
+    if req.map_preference not in VALID_MAP_PREFS:
+        raise HTTPException(status_code=400, detail="Invalid map preference.")
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        user_id = int(user["sub"])
+        cur.execute(
+            "UPDATE users SET map_preference = %s WHERE id = %s RETURNING id, map_preference",
+            (req.map_preference, user_id)
         )
         conn.commit()
         row = cur.fetchone()
@@ -973,7 +1003,7 @@ def list_users(user=Depends(get_current_user)):
         cur.execute("""
             SELECT id, name, email, role, department, photo, phone, sms_enabled, created_at,
                    notif_push_enabled, notif_audio_enabled, notif_banner_enabled, notif_ticker_enabled,
-                   unit_preference
+                   unit_preference, map_preference
             FROM users ORDER BY id
         """)
         return cur.fetchall()

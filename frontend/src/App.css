@@ -3645,7 +3645,7 @@ div.leaflet-container {
 /* Status pill — bottom left, right of the two buttons */
 .map-fs-pill {
   position: absolute;
-  left:   calc(var(--fs-gap) + 88px + env(safe-area-inset-left, 0px)); /* 2 buttons (36px each) + 2 gaps (8px) */
+  left:   calc(var(--fs-gap) + 132px + env(safe-area-inset-left, 0px)); /* 3 buttons (36px each) + gaps (8px) */
   bottom: calc(var(--fs-gap) + env(safe-area-inset-bottom, 0px));
   z-index: 1000;
   height: 36px;
@@ -3755,7 +3755,81 @@ div.leaflet-container {
   }
 }
 
-/* Very narrow phones: no room for the pill between the buttons and the toggle */
-@media (max-width: 340px) {
+/* Narrow phones: no room for the pill between the three buttons and the toggle */
+@media (max-width: 480px) {
   .map-fs-pill { display: none; }
 }
+
+/* ── Base map switcher ── */
+.map-ctrl-btn-active {
+  background: #202024;
+  color: var(--blue);
+  border-color: rgba(56, 189, 248, 0.45);
+}
+
+.msw-panel {
+  z-index: 10001; /* above the fullscreen map (9999) and modals (10000) */
+  background: rgba(23, 23, 26, 0.97);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.6);
+  padding: 10px;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  animation: cdp-fade 0.12s ease;
+}
+
+.msw-title {
+  font-size: 10px; font-weight: 700; color: var(--text-3);
+  letter-spacing: 0.08em; text-transform: uppercase;
+  padding: 2px 4px 8px;
+}
+
+.msw-list { display: flex; flex-direction: column; gap: 4px; }
+
+.msw-opt {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 10px;
+  cursor: pointer; text-align: left;
+  font-family: var(--font);
+  transition: background 0.15s, border-color 0.15s;
+}
+.msw-opt:hover { background: var(--bg-raised); }
+.msw-opt-selected { background: rgba(56, 189, 248, 0.10); border-color: rgba(56, 189, 248, 0.45); }
+
+/* Mini thumbnail drawn with 3 colors, no tile requests */
+.msw-swatch {
+  position: relative;
+  width: 44px; height: 32px;
+  border-radius: 7px; overflow: hidden; flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+}
+.msw-swatch-water { position: absolute; left: 0; bottom: 0; width: 55%; height: 45%; border-top-right-radius: 14px; }
+.msw-swatch-road  { position: absolute; left: -10%; top: 38%; width: 130%; height: 3px; transform: rotate(-22deg); }
+
+.msw-opt-text { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.msw-opt-name { font-size: 12px; font-weight: 600; color: var(--text-1); }
+.msw-opt-selected .msw-opt-name { color: var(--blue); }
+.msw-opt-sub  { font-size: 10px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* Phone: compact 2-column grid, names only */
+@media (max-width: 768px) {
+  .msw-panel { padding: 8px; }
+  .msw-list  { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+  .msw-opt   { padding: 5px; gap: 8px; }
+  .msw-swatch { width: 32px; height: 26px; }
+  .msw-opt-name { font-size: 11px; }
+  .msw-opt-sub  { display: none; }
+}
+
+/* ── Light base maps (class is set on .map-wrap / .map-fullscreen-inner) ── */
+.map-is-light .leaflet-container { background: #e8e4dc; } /* gaps while tiles load */
+.map-is-light .leaflet-control-attribution {
+  background: rgba(255, 255, 255, 0.82) !important;
+  color: #334155 !important;
+}
+.map-is-light .leaflet-control-attribution a { color: #0369a1 !important; }
+.map-is-light .fs-dot-sel { outline-color: rgba(30, 41, 59, 0.65); }

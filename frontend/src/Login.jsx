@@ -56,6 +56,7 @@ export default function Login({ onLogin }) {
         banner_enabled:   data.notif_banner_enabled ?? true,
         ticker_enabled:   data.notif_ticker_enabled ?? true,
         unit_preference:  data.unit_preference      ?? "cm",
+        map_preference:   data.map_preference       ?? "dark",
       });
       const storage = rememberMe ? localStorage : sessionStorage;
       storage.setItem("token",      data.token);
