@@ -3890,6 +3890,18 @@ div.leaflet-container {
   filter: hue-rotate(200deg);
 }
 
+/* Active fault: the server draws red (Active) and black (Potentially active) lines.
+   Dark base maps (default): invert turns black to white and red to cyan, then
+   hue-rotate moves the cyan to magenta so it is not the blue of the manual station
+   dots. Light base maps: black is already visible, so only the red is moved to
+   purple. First guess, tune by eye. */
+.fews-fault {
+  filter: invert(1) hue-rotate(120deg);
+}
+.map-is-light .fews-fault {
+  filter: hue-rotate(280deg);
+}
+
 /* "Overlay is on" dot on the layers button */
 .map-ctrl-btn { position: relative; }
 .msw-dot {

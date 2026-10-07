@@ -168,8 +168,26 @@ const HAZARD_OVERLAYS = {
       { label: "Debris flow zone",  range: "", color: "repeating-linear-gradient(45deg, #64748b 0 2px, transparent 2px 4px)" },
     ],
   },
+  fault: {
+    label: "Active fault (PHIVOLCS)", sub: "Mapped fault lines",
+    url: "https://ulap-hazards.georisk.gov.ph/arcgis/services/PHIVOLCSPublic/ActiveFault/MapServer/WMSServer",
+    layers: "0",
+    opacity: 1,
+    className: "fews-fault", // CSS moves the server's red / black lines away from Critical and off the dark base
+    attribution: 'Active faults: <a href="https://www.phivolcs.dost.gov.ph/" target="_blank" rel="noopener noreferrer">PHIVOLCS</a> via <a href="https://hazardhunter.georisk.gov.ph/" target="_blank" rel="noopener noreferrer">GeoRisk PH</a>',
+    source: "Source: PHIVOLCS via GeoRisk PH. Static map, not live.",
+    legendTitle: "Mapped fault lines, not live",
+    note: "Mapped faults only, not a full earthquake risk map. Line colors are shifted here so they are not mistaken for the status colors. Line symbols are on HazardHunterPH.",
+    dot: "#a3e635",
+    // Swatches are short lines. color = light base maps, darkColor = dark base maps.
+    // First estimates of what the CSS filters produce; compare against the live map
+    classes: [
+      { label: "Active fault",         range: "", color: "linear-gradient(transparent 4px, #a21caf 4px, #a21caf 6px, transparent 6px)", darkColor: "linear-gradient(transparent 4px, #ff4df0 4px, #ff4df0 6px, transparent 6px)" },
+      { label: "Potentially active",   range: "", color: "linear-gradient(transparent 4px, #0f172a 4px, #0f172a 6px, transparent 6px)", darkColor: "linear-gradient(transparent 4px, #ffffff 4px, #ffffff 6px, transparent 6px)" },
+    ],
+  },
 };
-const HAZARD_OVERLAY_ORDER = ["flood", "surge", "landslide"];
+const HAZARD_OVERLAY_ORDER = ["flood", "surge", "landslide", "fault"];
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
