@@ -6,7 +6,7 @@ import "./App.css";
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Line } from "react-chartjs-2";
 import { createPortal } from "react-dom";
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, WMSTileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import {
@@ -47,7 +47,6 @@ const CARTO_KEY = import.meta.env.VITE_CARTO_KEY || "";
 const CARTO_ATTR  = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
 const STADIA_ATTR = '&copy; <a href="https://stadiamaps.com/" target="_blank" rel="noopener noreferrer">Stadia Maps</a> &copy; <a href="https://openmaptiles.org/" target="_blank" rel="noopener noreferrer">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 const STAMEN_ATTR = '&copy; <a href="https://stadiamaps.com/" target="_blank" rel="noopener noreferrer">Stadia Maps</a> &copy; <a href="https://stamen.com/" target="_blank" rel="noopener noreferrer">Stamen Design</a> &copy; <a href="https://openmaptiles.org/" target="_blank" rel="noopener noreferrer">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
-const HOT_ATTR    = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, Tiles style by <a href="https://www.hotosm.org/" target="_blank" rel="noopener noreferrer">Humanitarian OpenStreetMap Team</a> hosted by <a href="https://openstreetmap.fr/" target="_blank" rel="noopener noreferrer">OpenStreetMap France</a>';
 const OSM_ATTR    = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors';
 
 const BASE_MAPS = {
@@ -80,11 +79,13 @@ const BASE_MAPS = {
     attribution: STAMEN_ATTR,
     layers: [{ url: "https://tiles.stadiamaps.com/tiles/stamen_terrain/{z}/{x}/{y}@2x.png" }],
   },
-  humanitarian: {
-    label: "Humanitarian", sub: "Roads and buildings", isLight: true, maxZoom: 20,
-    swatch: ["#f2efe9", "#a8d4e6", "#e8a8a0"],
-    attribution: HOT_ATTR,
-    layers: [{ url: "https://{s}.tile.openstreetmap.fr/hot/{z}/{x}/{y}.png" }],
+  positron: {
+    label: "Positron", sub: "Pale grey, quiet", isLight: true, maxZoom: 20,
+    swatch: ["#e9ebec", "#cfd6da", "#ffffff"],
+    attribution: CARTO_ATTR,
+    layers: [
+      { url: `https://basemaps.cartocdn.com/rastertiles/light_all/{z}/{x}/{y}@2x.png?key=${CARTO_KEY}` },
+    ],
   },
   // Only used when there is no CARTO key (keeps the old plain-OSM fallback)
   osm: {
@@ -96,14 +97,62 @@ const BASE_MAPS = {
 };
 
 const BASE_MAP_ORDER = CARTO_KEY
-  ? ["light", "dark", "bright", "terrain", "humanitarian"]
-  : ["osm", "bright", "terrain", "humanitarian"];
+  ? ["light", "dark", "bright", "terrain", "positron"]
+  : ["osm", "bright", "terrain"];
 const DEFAULT_BASE_MAP = CARTO_KEY ? "dark" : "osm";
 
 // A saved id that isn't available here (e.g. "dark" without a CARTO key) falls back to the default
 function resolveBaseMap(id) {
   return BASE_MAP_ORDER.includes(id) ? id : DEFAULT_BASE_MAP;
 }
+
+// ─── HAZARD OVERLAYS (Phase 2) ───────────────────────────────────────────────
+// Government susceptibility maps drawn over the base map, one at a time.
+// These are NOT live flooding. `color: null` leaves the legend swatch blank
+// until the real server colors have been checked on the first test.
+const MGB_FLOOD_ATTR = 'Flood susceptibility: <a href="https://mgb.gov.ph/" target="_blank" rel="noopener noreferrer">MGB-DENR</a> via <a href="https://hazardhunter.georisk.gov.ph/" target="_blank" rel="noopener noreferrer">GeoRisk PH</a>';
+
+const HAZARD_OVERLAYS = {
+  flood: {
+    label: "Flood (MGB)", sub: "Flood susceptibility",
+    url: "https://ulap-hazards.georisk.gov.ph/arcgis/services/MGBPublic/Flood/MapServer/WMSServer",
+    layers: "0",
+    opacity: 0.6,
+    attribution: MGB_FLOOD_ATTR,
+    source: "Source: MGB-DENR via GeoRisk PH. Static map, not live.",
+    legendTitle: "Susceptibility, not live flooding",
+    note: "Classes combine flood height and how long flooding lasts. Definitions are on HazardHunterPH.",
+    dot: "#a855f7",
+    // Swatch colors are estimated from the server legend; compare against the live map
+    classes: [
+      { label: "Low",       range: "", color: "#E0D0FF" },
+      { label: "Moderate",  range: "", color: "#AA44FF" },
+      { label: "High",      range: "", color: "#5200FF" },
+      { label: "Very High", range: "", color: "#002673" },
+    ],
+  },
+  surge: {
+    label: "Storm surge (PAGASA)", sub: "3 m scenario",
+    url: "https://ulap-hazards.georisk.gov.ph/arcgis/services/PAGASAPublic/StormSurge/MapServer/WMSServer",
+    layers: "0",
+    opacity: 0.7,
+    className: "fews-surge", // CSS recolors the server's yellow/orange/red to teal
+    attribution: 'Storm surge: <a href="https://www.pagasa.dost.gov.ph/" target="_blank" rel="noopener noreferrer">PAGASA</a> via <a href="https://hazardhunter.georisk.gov.ph/" target="_blank" rel="noopener noreferrer">GeoRisk PH</a>',
+    source: "Source: PAGASA via GeoRisk PH. Static scenario, not live.",
+    legendTitle: "3 m surge scenario, not live",
+    note: "Shown in teal here so it is not mistaken for the status colors. Darker means higher surge.",
+    noteDark: "Shown in teal here so it is not mistaken for the status colors. Brighter means higher surge.",
+    dot: "#2dd4bf",
+    // color = light base maps, darkColor = dark base maps. First estimates of what the
+    // CSS filters produce; compare against the live map
+    classes: [
+      { label: "Prone",         range: "0.1 to 1 m", color: "#5eead4", darkColor: "#1f6f69" },
+      { label: "Highly prone",  range: "1 to 2 m",   color: "#14b8a6", darkColor: "#3fb5a8" },
+      { label: "Very prone",    range: "over 2 m",   color: "#0f766e", darkColor: "#99f6e4" },
+    ],
+  },
+};
+const HAZARD_OVERLAY_ORDER = ["flood", "surge"];
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -1711,12 +1760,37 @@ function BaseMapLayers({ mapId }) {
           key={`${mapId}-${i}`}
           url={layer.url}
           className={layer.className}
-          zIndex={layer.zIndex}
+          zIndex={layer.zIndex ?? 1}
           maxZoom={cfg.maxZoom}
           attribution={i === 0 ? cfg.attribution : undefined}
         />
       ))}
     </>
+  );
+}
+
+// Hazard overlay (WMS) drawn above the base map and below the station markers.
+// The MGB server only speaks EPSG:4326 / CRS:84, hence the crs option. If the
+// government server is slow or down, only this layer fails; the base map and
+// markers keep working.
+function HazardOverlayLayer({ overlayId }) {
+  const cfg = HAZARD_OVERLAYS[overlayId];
+  if (!cfg) return null;
+  return (
+    <WMSTileLayer
+      key={overlayId}
+      url={cfg.url}
+      layers={cfg.layers}
+      format="image/png"
+      transparent={true}
+      version="1.3.0"
+      crs={L.CRS.EPSG4326}
+      opacity={cfg.opacity}
+      className={cfg.className}
+      zIndex={3}
+      maxZoom={20}
+      attribution={cfg.attribution}
+    />
   );
 }
 
@@ -1731,7 +1805,7 @@ const LayersIcon = () => (
   </svg>
 );
 
-function MapSwitcher({ value, onChange }) {
+function MapSwitcher({ value, onChange, overlay = null, onOverlayChange = null }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos]   = useState({ left: 8, bottom: 60, width: 260, maxHeight: 320 });
   const btnRef   = useRef(null);
@@ -1784,6 +1858,9 @@ function MapSwitcher({ value, onChange }) {
         aria-expanded={open}
       >
         <LayersIcon />
+        {overlay && HAZARD_OVERLAYS[overlay] && (
+          <span className="msw-dot" style={{ background: HAZARD_OVERLAYS[overlay].dot }} aria-hidden="true" />
+        )}
       </button>
       {open && createPortal(
         <div
@@ -1816,6 +1893,57 @@ function MapSwitcher({ value, onChange }) {
               );
             })}
           </div>
+          {onOverlayChange && (
+            <>
+              <div className="msw-divider" />
+              <div className="msw-title">Hazard overlay</div>
+              <div className="msw-list">
+                <button
+                  type="button"
+                  className={`msw-opt ${!overlay ? "msw-opt-selected" : ""}`}
+                  onClick={() => onOverlayChange(null)}
+                >
+                  <span className="msw-opt-text">
+                    <span className="msw-opt-name">None</span>
+                  </span>
+                </button>
+                {HAZARD_OVERLAY_ORDER.map(id => {
+                  const o = HAZARD_OVERLAYS[id];
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      className={`msw-opt ${id === overlay ? "msw-opt-selected" : ""}`}
+                      onClick={() => onOverlayChange(id)}
+                    >
+                      <span className="msw-opt-text">
+                        <span className="msw-opt-name">{o.label}</span>
+                        <span className="msw-opt-sub">{o.sub}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              {overlay && HAZARD_OVERLAYS[overlay] && (
+                <div className="msw-legend">
+                  <div className="msw-legend-title">{HAZARD_OVERLAYS[overlay].legendTitle}</div>
+                  {HAZARD_OVERLAYS[overlay].classes.map(c => (
+                    <div key={c.label} className="msw-legend-row">
+                      <span className="msw-legend-swatch" style={(c.color || c.darkColor) ? { background: (!BASE_MAPS[value]?.isLight && c.darkColor) || c.color } : undefined} />
+                      <span className="msw-legend-name">{c.label}</span>
+                      {c.range && <span className="msw-legend-range">{c.range}</span>}
+                    </div>
+                  ))}
+                  <div className="msw-legend-src">{(!BASE_MAPS[value]?.isLight && HAZARD_OVERLAYS[overlay].noteDark) || HAZARD_OVERLAYS[overlay].note}</div>
+                  <div className="msw-legend-src">{HAZARD_OVERLAYS[overlay].source}</div>
+                </div>
+              )}
+              <div className="msw-links">
+                <a className="msw-link" href="https://hazardhunter.georisk.gov.ph/" target="_blank" rel="noopener noreferrer">HazardHunterPH ↗</a>
+                <a className="msw-link" href="https://www.panahon.gov.ph/" target="_blank" rel="noopener noreferrer">PANaHON ↗</a>
+              </div>
+            </>
+          )}
         </div>,
         document.body
       )}
@@ -4509,6 +4637,10 @@ export default function App() {
     // Lives here because the fullscreen map is only mounted while it's open.
     const [baseMapId, setBaseMapId] = useState(() => resolveBaseMap(user.map_preference));
     const baseMapIsLight = BASE_MAPS[baseMapId]?.isLight ?? false;
+    // Hazard overlay on top of the base map (null = none). Not saved; resets on reload.
+    const [overlayId, setOverlayId] = useState(null);
+    // Any logout (button, expired token, or another tab) turns the overlay off
+    useEffect(() => { if (!isLoggedIn) setOverlayId(null); }, [isLoggedIn]);
 
     // Follow the saved preference: covers login, logout (normalizeUser({}) gives
     // the default again), and a change made on another device via the profile poll.
@@ -5011,7 +5143,7 @@ const waterChartOptions = useMemo(() => ({
                     <button className="map-ctrl-btn" onClick={handleDashCenter} title="Center map" aria-label="Center map">
                       <CenterIcon />
                     </button>
-                    <MapSwitcher value={baseMapId} onChange={handleBaseMapChange} />
+                    <MapSwitcher value={baseMapId} onChange={handleBaseMapChange} overlay={overlayId} onOverlayChange={setOverlayId} />
                     <button className="map-ctrl-btn" onClick={() => setFullscreenMap(true)} title="Fullscreen map" aria-label="Fullscreen map">
                       <ExpandIcon />
                     </button>
@@ -5022,6 +5154,7 @@ const waterChartOptions = useMemo(() => ({
                     style={{ height:"100%", width:"100%", borderRadius:"10px" }}
                     scrollWheelZoom={true}>
                     <BaseMapLayers mapId={baseMapId} />
+                    <HazardOverlayLayer overlayId={overlayId} />
                     <MapRefSetter mapRef={dashMapRef} />
                     <MapResizeWatcher />
                     <FlyToStation fews={selectedStation} />
@@ -5501,6 +5634,7 @@ const waterChartOptions = useMemo(() => ({
                     scrollWheelZoom={true}
                     minZoom={3}>
                     <BaseMapLayers mapId={baseMapId} />
+                    <HazardOverlayLayer overlayId={overlayId} />
                     <MapRefSetter mapRef={fsMapRef} />
                     {allFews.map(f => {
                       const isManualServiceable = !f.isLive && f.manualStatus === "serviceable";
@@ -5565,7 +5699,7 @@ const waterChartOptions = useMemo(() => ({
                     <button className="map-ctrl-btn" onClick={handleFsCenter} title="Center map" aria-label="Center map">
                       <CenterIcon />
                     </button>
-                    <MapSwitcher value={baseMapId} onChange={setBaseMapId} />
+                    <MapSwitcher value={baseMapId} onChange={handleBaseMapChange} overlay={overlayId} onOverlayChange={setOverlayId} />
                     <button className="map-ctrl-btn" onClick={closeFullscreen} title="Exit fullscreen" aria-label="Exit fullscreen">
                       <CollapseIcon />
                     </button>
@@ -9418,6 +9552,37 @@ div.leaflet-container {
 .msw-opt-selected .msw-opt-name { color: var(--blue); }
 .msw-opt-sub  { font-size: 10px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* Hazard overlay section */
+.msw-divider { height: 1px; background: rgba(255, 255, 255, 0.10); margin: 10px 0 8px; }
+
+.msw-legend {
+  margin-top: 8px;
+  padding: 8px 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.10);
+  border-radius: 10px;
+}
+.msw-legend-title { font-size: 10px; font-weight: 700; color: var(--text-2); margin-bottom: 6px; }
+.msw-legend-row   { display: flex; align-items: center; gap: 8px; padding: 2px 0; font-size: 11px; }
+.msw-legend-swatch {
+  width: 14px; height: 10px; border-radius: 3px; flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+}
+.msw-legend-name  { color: var(--text-1); font-weight: 600; }
+.msw-legend-range { margin-left: auto; color: var(--text-3); font-family: var(--mono); font-size: 10px; }
+.msw-legend-src   { margin-top: 6px; font-size: 9px; color: var(--text-3); line-height: 1.4; }
+
+.msw-links { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 10px; }
+.msw-link {
+  font-size: 10px; font-weight: 600; color: var(--text-2); text-decoration: none;
+  padding: 5px 9px;
+  background: var(--bg-raised);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.msw-link:hover { color: var(--text-1); border-color: rgba(255, 255, 255, 0.22); }
+
 /* Phone: compact 2-column grid, names only */
 @media (max-width: 768px) {
   .msw-panel { padding: 8px; }
@@ -9436,6 +9601,33 @@ div.leaflet-container {
 }
 .map-is-light .leaflet-control-attribution a { color: #0369a1 !important; }
 .map-is-light .fs-dot-sel { outline-color: rgba(30, 41, 59, 0.65); }
+
+/* Storm surge overlay: the server draws yellow/orange/red (our status colors).
+   Strip the color to grey, then tint teal. Lightness is kept, so the red
+   (highest) class ends up the darkest. First guess; tune on Dark and Terrain. */
+/* Default = dark base maps: flip the order so the highest class is the brightest.
+   Grey, invert, then lift the darkest values so the lowest class stays visible,
+   then tint teal. */
+.fews-surge {
+  filter: grayscale(1) invert(1) contrast(0.6) brightness(1.6) sepia(1) hue-rotate(135deg) saturate(2.5);
+}
+/* Light base maps keep the first version: darker means higher surge */
+.map-is-light .fews-surge {
+  filter: grayscale(1) sepia(1) hue-rotate(135deg) saturate(2.5) brightness(1.15);
+}
+
+/* "Overlay is on" dot on the layers button */
+.map-ctrl-btn { position: relative; }
+.msw-dot {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid #17171a;
+  pointer-events: none;
+}
 
 =========================================
 FILE: frontend/src/index.css

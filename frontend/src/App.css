@@ -3864,3 +3864,41 @@ div.leaflet-container {
 }
 .map-is-light .leaflet-control-attribution a { color: #0369a1 !important; }
 .map-is-light .fs-dot-sel { outline-color: rgba(30, 41, 59, 0.65); }
+
+/* Storm surge overlay: the server draws yellow/orange/red (our status colors).
+   Strip the color to grey, then tint teal. Lightness is kept, so the red
+   (highest) class ends up the darkest. First guess; tune on Dark and Terrain. */
+/* Default = dark base maps: flip the order so the highest class is the brightest.
+   Grey, invert, then lift the darkest values so the lowest class stays visible,
+   then tint teal. */
+.fews-surge {
+  filter: grayscale(1) invert(1) contrast(0.6) brightness(1.6) sepia(1) hue-rotate(135deg) saturate(2.5);
+}
+/* Light base maps keep the first version: darker means higher surge */
+.map-is-light .fews-surge {
+  filter: grayscale(1) sepia(1) hue-rotate(135deg) saturate(2.5) brightness(1.15);
+}
+
+/* Rain-induced landslide: the server draws brown / red / green / yellow, which clash
+   with the status colors. Default = dark base maps (lifted, because the brown is very
+   dark); light maps get their own angle so the result stays off the Terrain green.
+   First guess, tune by eye. */
+.fews-landslide {
+  filter: hue-rotate(130deg) brightness(1.25) saturate(1.2);
+}
+.map-is-light .fews-landslide {
+  filter: hue-rotate(200deg);
+}
+
+/* "Overlay is on" dot on the layers button */
+.map-ctrl-btn { position: relative; }
+.msw-dot {
+  position: absolute;
+  top: -3px;
+  right: -3px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  border: 1.5px solid #17171a;
+  pointer-events: none;
+}

@@ -116,15 +116,60 @@ const HAZARD_OVERLAYS = {
     opacity: 0.6,
     attribution: MGB_FLOOD_ATTR,
     source: "Source: MGB-DENR via GeoRisk PH. Static map, not live.",
+    legendTitle: "Susceptibility, not live flooding",
+    note: "Classes combine flood height and how long flooding lasts. Definitions are on HazardHunterPH.",
+    dot: "#a855f7",
+    // Swatch colors are estimated from the server legend; compare against the live map
     classes: [
-      { label: "Low",       range: "up to 0.5 m", color: null },
-      { label: "Moderate",  range: "0.5 to 1 m",  color: null },
-      { label: "High",      range: "1 to 2 m",    color: null },
-      { label: "Very High", range: "over 2 m",    color: null },
+      { label: "Low",       range: "", color: "#E0D0FF" },
+      { label: "Moderate",  range: "", color: "#AA44FF" },
+      { label: "High",      range: "", color: "#5200FF" },
+      { label: "Very High", range: "", color: "#002673" },
+    ],
+  },
+  surge: {
+    label: "Storm surge (PAGASA)", sub: "3 m scenario",
+    url: "https://ulap-hazards.georisk.gov.ph/arcgis/services/PAGASAPublic/StormSurge/MapServer/WMSServer",
+    layers: "0",
+    opacity: 0.7,
+    className: "fews-surge", // CSS recolors the server's yellow/orange/red to teal
+    attribution: 'Storm surge: <a href="https://www.pagasa.dost.gov.ph/" target="_blank" rel="noopener noreferrer">PAGASA</a> via <a href="https://hazardhunter.georisk.gov.ph/" target="_blank" rel="noopener noreferrer">GeoRisk PH</a>',
+    source: "Source: PAGASA via GeoRisk PH. Static scenario, not live.",
+    legendTitle: "3 m surge scenario, not live",
+    note: "Shown in teal here so it is not mistaken for the status colors. Darker means higher surge.",
+    noteDark: "Shown in teal here so it is not mistaken for the status colors. Brighter means higher surge.",
+    dot: "#2dd4bf",
+    // color = light base maps, darkColor = dark base maps. First estimates of what the
+    // CSS filters produce; compare against the live map
+    classes: [
+      { label: "Prone",         range: "0.1 to 1 m", color: "#5eead4", darkColor: "#1f6f69" },
+      { label: "Highly prone",  range: "1 to 2 m",   color: "#14b8a6", darkColor: "#3fb5a8" },
+      { label: "Very prone",    range: "over 2 m",   color: "#0f766e", darkColor: "#99f6e4" },
+    ],
+  },
+  landslide: {
+    label: "Landslide (MGB)", sub: "2012 data, not live",
+    url: "https://ulap-hazards.georisk.gov.ph/arcgis/services/MGBPublic/RainInducedLandslide/MapServer/WMSServer",
+    layers: "0",
+    opacity: 0.6,
+    className: "fews-landslide", // CSS shifts the server's brown/red/green/yellow away from the status colors
+    attribution: 'Landslide susceptibility: <a href="https://mgb.gov.ph/" target="_blank" rel="noopener noreferrer">MGB-DENR</a> via <a href="https://hazardhunter.georisk.gov.ph/" target="_blank" rel="noopener noreferrer">GeoRisk PH</a>',
+    source: "Source: MGB-DENR via GeoRisk PH. 2012 data, not live.",
+    legendTitle: "Rain-induced landslide susceptibility, 2012 data, not live",
+    note: "Colors are shifted here so they are not mistaken for the status colors, so they differ from HazardHunterPH. Debris flow zone = Debris Flow / Possible Accumulation Zone.",
+    dot: "#f472b6",
+    // color = light base maps, darkColor = dark base maps. First estimates of what the
+    // CSS filters produce; compare against the live map. Debris flow is a hatched swatch.
+    classes: [
+      { label: "Low",               range: "", color: "#FFC3FF", darkColor: "#37FFFF" },
+      { label: "Moderate",          range: "", color: "#F958E6", darkColor: "#64A6FF" },
+      { label: "High",              range: "", color: "#00549D", darkColor: "#008400" },
+      { label: "Very High",         range: "", color: "#2E539E", darkColor: "#00855E" },
+      { label: "Debris flow zone",  range: "", color: "repeating-linear-gradient(45deg, #64748b 0 2px, transparent 2px 4px)" },
     ],
   },
 };
-const HAZARD_OVERLAY_ORDER = ["flood"];
+const HAZARD_OVERLAY_ORDER = ["flood", "surge", "landslide"];
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -1732,7 +1777,7 @@ function BaseMapLayers({ mapId }) {
           key={`${mapId}-${i}`}
           url={layer.url}
           className={layer.className}
-          zIndex={layer.zIndex}
+          zIndex={layer.zIndex ?? 1}
           maxZoom={cfg.maxZoom}
           attribution={i === 0 ? cfg.attribution : undefined}
         />
@@ -1758,6 +1803,7 @@ function HazardOverlayLayer({ overlayId }) {
       version="1.3.0"
       crs={L.CRS.EPSG4326}
       opacity={cfg.opacity}
+      className={cfg.className}
       zIndex={3}
       maxZoom={20}
       attribution={cfg.attribution}
@@ -1829,6 +1875,9 @@ function MapSwitcher({ value, onChange, overlay = null, onOverlayChange = null }
         aria-expanded={open}
       >
         <LayersIcon />
+        {overlay && HAZARD_OVERLAYS[overlay] && (
+          <span className="msw-dot" style={{ background: HAZARD_OVERLAYS[overlay].dot }} aria-hidden="true" />
+        )}
       </button>
       {open && createPortal(
         <div
@@ -1894,14 +1943,15 @@ function MapSwitcher({ value, onChange, overlay = null, onOverlayChange = null }
               </div>
               {overlay && HAZARD_OVERLAYS[overlay] && (
                 <div className="msw-legend">
-                  <div className="msw-legend-title">Susceptibility, not live flooding</div>
+                  <div className="msw-legend-title">{HAZARD_OVERLAYS[overlay].legendTitle}</div>
                   {HAZARD_OVERLAYS[overlay].classes.map(c => (
                     <div key={c.label} className="msw-legend-row">
-                      <span className="msw-legend-swatch" style={c.color ? { background: c.color } : undefined} />
+                      <span className="msw-legend-swatch" style={(c.color || c.darkColor) ? { background: (!BASE_MAPS[value]?.isLight && c.darkColor) || c.color } : undefined} />
                       <span className="msw-legend-name">{c.label}</span>
-                      <span className="msw-legend-range">{c.range}</span>
+                      {c.range && <span className="msw-legend-range">{c.range}</span>}
                     </div>
                   ))}
+                  <div className="msw-legend-src">{(!BASE_MAPS[value]?.isLight && HAZARD_OVERLAYS[overlay].noteDark) || HAZARD_OVERLAYS[overlay].note}</div>
                   <div className="msw-legend-src">{HAZARD_OVERLAYS[overlay].source}</div>
                 </div>
               )}
@@ -4606,6 +4656,8 @@ export default function App() {
     const baseMapIsLight = BASE_MAPS[baseMapId]?.isLight ?? false;
     // Hazard overlay on top of the base map (null = none). Not saved; resets on reload.
     const [overlayId, setOverlayId] = useState(null);
+    // Any logout (button, expired token, or another tab) turns the overlay off
+    useEffect(() => { if (!isLoggedIn) setOverlayId(null); }, [isLoggedIn]);
 
     // Follow the saved preference: covers login, logout (normalizeUser({}) gives
     // the default again), and a change made on another device via the profile poll.
