@@ -2,7 +2,7 @@ import "./App.css";
 import React, { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Line } from "react-chartjs-2";
 import { createPortal } from "react-dom";
-import { MapContainer, TileLayer, Marker, Popup, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, WMSTileLayer, Marker, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import {
@@ -101,6 +101,30 @@ const DEFAULT_BASE_MAP = CARTO_KEY ? "dark" : "osm";
 function resolveBaseMap(id) {
   return BASE_MAP_ORDER.includes(id) ? id : DEFAULT_BASE_MAP;
 }
+
+// ─── HAZARD OVERLAYS (Phase 2) ───────────────────────────────────────────────
+// Government susceptibility maps drawn over the base map, one at a time.
+// These are NOT live flooding. `color: null` leaves the legend swatch blank
+// until the real server colors have been checked on the first test.
+const MGB_FLOOD_ATTR = 'Flood susceptibility: <a href="https://mgb.gov.ph/" target="_blank" rel="noopener noreferrer">MGB-DENR</a> via <a href="https://hazardhunter.georisk.gov.ph/" target="_blank" rel="noopener noreferrer">GeoRisk PH</a>';
+
+const HAZARD_OVERLAYS = {
+  flood: {
+    label: "Flood (MGB)", sub: "Flood susceptibility",
+    url: "https://ulap-hazards.georisk.gov.ph/arcgis/services/MGBPublic/Flood/MapServer/WMSServer",
+    layers: "0",
+    opacity: 0.6,
+    attribution: MGB_FLOOD_ATTR,
+    source: "Source: MGB-DENR via GeoRisk PH. Static map, not live.",
+    classes: [
+      { label: "Low",       range: "up to 0.5 m", color: null },
+      { label: "Moderate",  range: "0.5 to 1 m",  color: null },
+      { label: "High",      range: "1 to 2 m",    color: null },
+      { label: "Very High", range: "over 2 m",    color: null },
+    ],
+  },
+};
+const HAZARD_OVERLAY_ORDER = ["flood"];
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -1717,6 +1741,30 @@ function BaseMapLayers({ mapId }) {
   );
 }
 
+// Hazard overlay (WMS) drawn above the base map and below the station markers.
+// The MGB server only speaks EPSG:4326 / CRS:84, hence the crs option. If the
+// government server is slow or down, only this layer fails; the base map and
+// markers keep working.
+function HazardOverlayLayer({ overlayId }) {
+  const cfg = HAZARD_OVERLAYS[overlayId];
+  if (!cfg) return null;
+  return (
+    <WMSTileLayer
+      key={overlayId}
+      url={cfg.url}
+      layers={cfg.layers}
+      format="image/png"
+      transparent={true}
+      version="1.3.0"
+      crs={L.CRS.EPSG4326}
+      opacity={cfg.opacity}
+      zIndex={3}
+      maxZoom={20}
+      attribution={cfg.attribution}
+    />
+  );
+}
+
 // Layers button + "Base map" panel. The panel is portaled to <body> (same
 // pattern as CustomDatePicker / MuDropdown) so .map-wrap's overflow:hidden and
 // the short phone map card can't clip it. It opens upward from the button.
@@ -1728,7 +1776,7 @@ const LayersIcon = () => (
   </svg>
 );
 
-function MapSwitcher({ value, onChange }) {
+function MapSwitcher({ value, onChange, overlay = null, onOverlayChange = null }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos]   = useState({ left: 8, bottom: 60, width: 260, maxHeight: 320 });
   const btnRef   = useRef(null);
@@ -1813,6 +1861,56 @@ function MapSwitcher({ value, onChange }) {
               );
             })}
           </div>
+          {onOverlayChange && (
+            <>
+              <div className="msw-divider" />
+              <div className="msw-title">Hazard overlay</div>
+              <div className="msw-list">
+                <button
+                  type="button"
+                  className={`msw-opt ${!overlay ? "msw-opt-selected" : ""}`}
+                  onClick={() => onOverlayChange(null)}
+                >
+                  <span className="msw-opt-text">
+                    <span className="msw-opt-name">None</span>
+                  </span>
+                </button>
+                {HAZARD_OVERLAY_ORDER.map(id => {
+                  const o = HAZARD_OVERLAYS[id];
+                  return (
+                    <button
+                      key={id}
+                      type="button"
+                      className={`msw-opt ${id === overlay ? "msw-opt-selected" : ""}`}
+                      onClick={() => onOverlayChange(id)}
+                    >
+                      <span className="msw-opt-text">
+                        <span className="msw-opt-name">{o.label}</span>
+                        <span className="msw-opt-sub">{o.sub}</span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+              {overlay && HAZARD_OVERLAYS[overlay] && (
+                <div className="msw-legend">
+                  <div className="msw-legend-title">Susceptibility, not live flooding</div>
+                  {HAZARD_OVERLAYS[overlay].classes.map(c => (
+                    <div key={c.label} className="msw-legend-row">
+                      <span className="msw-legend-swatch" style={c.color ? { background: c.color } : undefined} />
+                      <span className="msw-legend-name">{c.label}</span>
+                      <span className="msw-legend-range">{c.range}</span>
+                    </div>
+                  ))}
+                  <div className="msw-legend-src">{HAZARD_OVERLAYS[overlay].source}</div>
+                </div>
+              )}
+              <div className="msw-links">
+                <a className="msw-link" href="https://hazardhunter.georisk.gov.ph/" target="_blank" rel="noopener noreferrer">HazardHunterPH ↗</a>
+                <a className="msw-link" href="https://www.panahon.gov.ph/" target="_blank" rel="noopener noreferrer">PANaHON ↗</a>
+              </div>
+            </>
+          )}
         </div>,
         document.body
       )}
@@ -4506,6 +4604,8 @@ export default function App() {
     // Lives here because the fullscreen map is only mounted while it's open.
     const [baseMapId, setBaseMapId] = useState(() => resolveBaseMap(user.map_preference));
     const baseMapIsLight = BASE_MAPS[baseMapId]?.isLight ?? false;
+    // Hazard overlay on top of the base map (null = none). Not saved; resets on reload.
+    const [overlayId, setOverlayId] = useState(null);
 
     // Follow the saved preference: covers login, logout (normalizeUser({}) gives
     // the default again), and a change made on another device via the profile poll.
@@ -5008,7 +5108,7 @@ const waterChartOptions = useMemo(() => ({
                     <button className="map-ctrl-btn" onClick={handleDashCenter} title="Center map" aria-label="Center map">
                       <CenterIcon />
                     </button>
-                    <MapSwitcher value={baseMapId} onChange={handleBaseMapChange} />
+                    <MapSwitcher value={baseMapId} onChange={handleBaseMapChange} overlay={overlayId} onOverlayChange={setOverlayId} />
                     <button className="map-ctrl-btn" onClick={() => setFullscreenMap(true)} title="Fullscreen map" aria-label="Fullscreen map">
                       <ExpandIcon />
                     </button>
@@ -5019,6 +5119,7 @@ const waterChartOptions = useMemo(() => ({
                     style={{ height:"100%", width:"100%", borderRadius:"10px" }}
                     scrollWheelZoom={true}>
                     <BaseMapLayers mapId={baseMapId} />
+                    <HazardOverlayLayer overlayId={overlayId} />
                     <MapRefSetter mapRef={dashMapRef} />
                     <MapResizeWatcher />
                     <FlyToStation fews={selectedStation} />
@@ -5498,6 +5599,7 @@ const waterChartOptions = useMemo(() => ({
                     scrollWheelZoom={true}
                     minZoom={3}>
                     <BaseMapLayers mapId={baseMapId} />
+                    <HazardOverlayLayer overlayId={overlayId} />
                     <MapRefSetter mapRef={fsMapRef} />
                     {allFews.map(f => {
                       const isManualServiceable = !f.isLive && f.manualStatus === "serviceable";
@@ -5562,7 +5664,7 @@ const waterChartOptions = useMemo(() => ({
                     <button className="map-ctrl-btn" onClick={handleFsCenter} title="Center map" aria-label="Center map">
                       <CenterIcon />
                     </button>
-                    <MapSwitcher value={baseMapId} onChange={handleBaseMapChange} />
+                    <MapSwitcher value={baseMapId} onChange={handleBaseMapChange} overlay={overlayId} onOverlayChange={setOverlayId} />
                     <button className="map-ctrl-btn" onClick={closeFullscreen} title="Exit fullscreen" aria-label="Exit fullscreen">
                       <CollapseIcon />
                     </button>
