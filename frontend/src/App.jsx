@@ -186,8 +186,29 @@ const HAZARD_OVERLAYS = {
       { label: "Potentially active",   range: "", color: "linear-gradient(transparent 4px, #0f172a 4px, #0f172a 6px, transparent 6px)", darkColor: "linear-gradient(transparent 4px, #ffffff 4px, #ffffff 6px, transparent 6px)" },
     ],
   },
+  liquefaction: {
+    label: "Liquefaction (PHIVOLCS)", sub: "2018 data, not live",
+    kind: "arcgis", // no WMS on this service: tiles come from the ArcGIS export endpoint (see ArcGisExportLayer)
+    url: "https://ulap-hazards.georisk.gov.ph/arcgis/rest/services/PHIVOLCSPublic/Liquefaction/MapServer/export",
+    opacity: 0.6,
+    className: "fews-liq", // CSS moves the server's red / purple / yellow / orange off the status colors
+    attribution: 'Liquefaction: <a href="https://www.phivolcs.dost.gov.ph/" target="_blank" rel="noopener noreferrer">PHIVOLCS</a> via <a href="https://hazardhunter.georisk.gov.ph/" target="_blank" rel="noopener noreferrer">GeoRisk PH</a>',
+    source: "Source: PHIVOLCS via GeoRisk PH. 2018 data, not live.",
+    legendTitle: "Liquefaction susceptibility, 2018 data, not live",
+    note: "The server uses two naming scales that share these colors, so a color can carry either name. Colors are shifted here so they are not mistaken for the status colors, so they differ from HazardHunterPH. Orange is its own class, not a step between the others.",
+    dot: "#818cf8",
+    // One row per server color (the two naming scales reuse the same colors).
+    // color = light base maps, darkColor = dark base maps. First estimates of what the
+    // CSS filters produce; compare against the live map
+    classes: [
+      { label: "High potential",       range: "Highly susceptible",     color: "#005daf", darkColor: "#006fd1" },
+      { label: "Moderate potential",   range: "Moderately susceptible", color: "#007400", darkColor: "#008b00" },
+      { label: "Low potential",        range: "Least susceptible",      color: "#ffc2ff", darkColor: "#ffe8ff" },
+      { label: "Generally susceptible", range: "",                      color: "#a1a1ff", darkColor: "#c2c2ff" },
+    ],
+  },
 };
-const HAZARD_OVERLAY_ORDER = ["flood", "surge", "landslide", "fault"];
+const HAZARD_OVERLAY_ORDER = ["flood", "surge", "landslide", "fault", "liquefaction"];
 class ErrorBoundary extends React.Component {
   constructor(props) {
     super(props);
@@ -1804,13 +1825,42 @@ function BaseMapLayers({ mapId }) {
   );
 }
 
-// Hazard overlay (WMS) drawn above the base map and below the station markers.
-// The MGB server only speaks EPSG:4326 / CRS:84, hence the crs option. If the
+// Hazard overlay (WMS) drawn above the base map and below the station markers.// Overlay for services with no WMS (liquefaction). Plain Leaflet, no new library: a
+// TileLayer whose getTileUrl builds an ArcGIS export?bbox=... request per tile, in
+// EPSG:3857 (the CRS the map already uses). Requests double-size images on retina
+// screens so the overlay stays sharp. If the server is slow or down, only this layer fails.
+function ArcGisExportLayer({ cfg }) {
+  const map = useMap();
+  useEffect(() => {
+    const Layer = L.TileLayer.extend({
+      getTileUrl(coords) {
+        const b  = this._tileCoordsToBounds(coords);
+        const sw = L.CRS.EPSG3857.project(b.getSouthWest());
+        const ne = L.CRS.EPSG3857.project(b.getNorthEast());
+        const px = this.getTileSize().x * (L.Browser.retina ? 2 : 1);
+        return `${cfg.url}?bbox=${sw.x},${sw.y},${ne.x},${ne.y}&bboxSR=3857&imageSR=3857&size=${px},${px}&format=png32&transparent=true&f=image`;
+      },
+    });
+    const layer = new Layer("", {
+      opacity: cfg.opacity,
+      className: cfg.className,
+      zIndex: 3,
+      maxZoom: 20,
+      attribution: cfg.attribution,
+    });
+    layer.addTo(map);
+    return () => { map.removeLayer(layer); };
+  }, [map, cfg]);
+  return null;
+}
+
+// Hazard overlay (WMS) drawn above the base map and below the station markers.// The MGB server only speaks EPSG:4326 / CRS:84, hence the crs option. If the
 // government server is slow or down, only this layer fails; the base map and
 // markers keep working.
 function HazardOverlayLayer({ overlayId }) {
   const cfg = HAZARD_OVERLAYS[overlayId];
   if (!cfg) return null;
+  if (cfg.kind === "arcgis") return <ArcGisExportLayer key={overlayId} cfg={cfg} />;
   return (
     <WMSTileLayer
       key={overlayId}
@@ -1840,7 +1890,20 @@ const LayersIcon = () => (
   </svg>
 );
 
-function MapSwitcher({ value, onChange, overlay = null, onOverlayChange = null }) {
+// Where a map panel opens: above its button and, on desktop, never taller than the map it
+// sits in, so it can't cover the topbar. It scrolls inside itself if the space is tight.
+function getMapPanelPos(btn, width) {
+  const r   = btn.getBoundingClientRect();
+  const box = isMobileViewport() ? null : btn.closest(".map-wrap, .map-fullscreen-inner")?.getBoundingClientRect();
+  return {
+    left:      Math.max(8, Math.min(r.left, window.innerWidth - width - 8)),
+    bottom:    window.innerHeight - r.top + 8,
+    width,
+    maxHeight: Math.max(140, r.top - (box ? box.top : 0) - 16),
+  };
+}
+
+function MapSwitcher({ value, onChange }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos]   = useState({ left: 8, bottom: 60, width: 260, maxHeight: 320 });
   const btnRef   = useRef(null);
@@ -1848,14 +1911,8 @@ function MapSwitcher({ value, onChange, overlay = null, onOverlayChange = null }
 
   const toggle = () => {
     if (!open && btnRef.current) {
-      const r     = btnRef.current.getBoundingClientRect();
       const width = isMobileViewport() ? Math.min(300, window.innerWidth - 16) : 260;
-      setPos({
-        left:      Math.max(8, Math.min(r.left, window.innerWidth - width - 8)),
-        bottom:    window.innerHeight - r.top + 8,
-        width,
-        maxHeight: Math.max(140, r.top - 16), // scrolls inside if the space above is tight
-      });
+      setPos(getMapPanelPos(btnRef.current, width));
     }
     setOpen(o => !o);
   };
@@ -1893,9 +1950,6 @@ function MapSwitcher({ value, onChange, overlay = null, onOverlayChange = null }
         aria-expanded={open}
       >
         <LayersIcon />
-        {overlay && HAZARD_OVERLAYS[overlay] && (
-          <span className="msw-dot" style={{ background: HAZARD_OVERLAYS[overlay].dot }} aria-hidden="true" />
-        )}
       </button>
       {open && createPortal(
         <div
@@ -1928,61 +1982,166 @@ function MapSwitcher({ value, onChange, overlay = null, onOverlayChange = null }
               );
             })}
           </div>
-          {onOverlayChange && (
-            <>
-              <div className="msw-divider" />
-              <div className="msw-title">Hazard overlay</div>
-              <div className="msw-list">
-                <button
-                  type="button"
-                  className={`msw-opt ${!overlay ? "msw-opt-selected" : ""}`}
-                  onClick={() => onOverlayChange(null)}
-                >
-                  <span className="msw-opt-text">
-                    <span className="msw-opt-name">None</span>
-                  </span>
-                </button>
-                {HAZARD_OVERLAY_ORDER.map(id => {
-                  const o = HAZARD_OVERLAYS[id];
-                  return (
-                    <button
-                      key={id}
-                      type="button"
-                      className={`msw-opt ${id === overlay ? "msw-opt-selected" : ""}`}
-                      onClick={() => onOverlayChange(id)}
-                    >
-                      <span className="msw-opt-text">
-                        <span className="msw-opt-name">{o.label}</span>
-                        <span className="msw-opt-sub">{o.sub}</span>
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-              {overlay && HAZARD_OVERLAYS[overlay] && (
-                <div className="msw-legend">
-                  <div className="msw-legend-title">{HAZARD_OVERLAYS[overlay].legendTitle}</div>
-                  {HAZARD_OVERLAYS[overlay].classes.map(c => (
-                    <div key={c.label} className="msw-legend-row">
-                      <span className="msw-legend-swatch" style={(c.color || c.darkColor) ? { background: (!BASE_MAPS[value]?.isLight && c.darkColor) || c.color } : undefined} />
-                      <span className="msw-legend-name">{c.label}</span>
-                      {c.range && <span className="msw-legend-range">{c.range}</span>}
-                    </div>
-                  ))}
-                  <div className="msw-legend-src">{(!BASE_MAPS[value]?.isLight && HAZARD_OVERLAYS[overlay].noteDark) || HAZARD_OVERLAYS[overlay].note}</div>
-                  <div className="msw-legend-src">{HAZARD_OVERLAYS[overlay].source}</div>
-                </div>
-              )}
-              <div className="msw-links">
-                <a className="msw-link" href="https://hazardhunter.georisk.gov.ph/" target="_blank" rel="noopener noreferrer">HazardHunterPH ↗</a>
-                <a className="msw-link" href="https://www.panahon.gov.ph/" target="_blank" rel="noopener noreferrer">PANaHON ↗</a>
-              </div>
-            </>
-          )}
         </div>,
         document.body
       )}
     </>
+  );
+}
+
+const HazardIcon = () => (
+  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    <path d="M12 9v4"/>
+    <path d="M10.363 3.591l-8.106 13.534a1.914 1.914 0 0 0 1.636 2.871h16.214a1.914 1.914 0 0 0 1.636 -2.87l-8.106 -13.536a1.914 1.914 0 0 0 -3.274 0z"/>
+    <path d="M12 16h.01"/>
+  </svg>
+);
+
+// Hazard button + panel. Same portal pattern as MapSwitcher. With an overlay on, the list
+// folds into the chosen row (+ "Change") and the legend sits right under it.
+function HazardSwitcher({ value, overlay, onOverlayChange, showLegend = true }) {
+  const [open, setOpen]         = useState(false);
+  const [listOpen, setListOpen] = useState(false);
+  const [pos, setPos]           = useState({ left: 8, bottom: 60, width: 260, maxHeight: 320 });
+  const btnRef   = useRef(null);
+  const panelRef = useRef(null);
+
+  const cfg      = overlay ? HAZARD_OVERLAYS[overlay] : null;
+  const showList = !showLegend || listOpen || !cfg;
+  const isLight  = !!BASE_MAPS[value]?.isLight;
+
+  const toggle = () => {
+    if (!open && btnRef.current) {
+      const width = isMobileViewport() ? Math.min(300, window.innerWidth - 16) : 260;
+      setPos(getMapPanelPos(btnRef.current, width));
+      setListOpen(false);
+    }
+    setOpen(o => !o);
+  };
+
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e) => {
+      if (btnRef.current?.contains(e.target) || panelRef.current?.contains(e.target)) return;
+      setOpen(false);
+    };
+    const onScroll = (e) => {
+      if (panelRef.current?.contains(e.target)) return; // scrolling inside the panel is fine
+      setOpen(false);
+    };
+    const onResize = () => setOpen(false);
+    document.addEventListener("pointerdown", onDown);
+    window.addEventListener("scroll", onScroll, true);
+    window.addEventListener("resize", onResize);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      window.removeEventListener("scroll", onScroll, true);
+      window.removeEventListener("resize", onResize);
+    };
+  }, [open]);
+
+  const pick = (id) => { onOverlayChange(id); setListOpen(false); if (!showLegend) setOpen(false); };
+
+  return (
+    <>
+      <button
+        ref={btnRef}
+        type="button"
+        className={`map-ctrl-btn ${open ? "map-ctrl-btn-active" : ""}`}
+        onClick={toggle}
+        title="Hazard overlay"
+        aria-label="Hazard overlay"
+        aria-expanded={open}
+      >
+        <HazardIcon />
+        {cfg && <span className="msw-dot" style={{ background: cfg.dot }} aria-hidden="true" />}
+      </button>
+      {open && createPortal(
+        <div
+          ref={panelRef}
+          className="msw-panel"
+          role="dialog"
+          aria-label="Hazard overlay"
+          style={{ position: "fixed", left: pos.left, bottom: pos.bottom, width: pos.width, maxHeight: pos.maxHeight }}
+        >
+          <div className="msw-title">Hazard overlay</div>
+          {showList ? (
+            <div className="msw-list">
+              <button type="button" className={`msw-opt ${!overlay ? "msw-opt-selected" : ""}`} onClick={() => pick(null)}>
+                <span className="msw-opt-text">
+                  <span className="msw-opt-name">None</span>
+                </span>
+              </button>
+              {HAZARD_OVERLAY_ORDER.map(id => {
+                const o = HAZARD_OVERLAYS[id];
+                return (
+                  <button key={id} type="button" className={`msw-opt ${id === overlay ? "msw-opt-selected" : ""}`} onClick={() => pick(id)}>
+                    <span className="msw-opt-text">
+                      <span className="msw-opt-name">{o.label}</span>
+                      <span className="msw-opt-sub">{o.sub}</span>
+                    </span>
+                  </button>
+                );
+              })}
+            </div>
+          ) : (
+            <button type="button" className="msw-opt msw-opt-selected" onClick={() => setListOpen(true)}>
+              <span className="msw-opt-text">
+                <span className="msw-opt-name">{cfg.label}</span>
+                <span className="msw-opt-sub">{cfg.sub}</span>
+              </span>
+              <span className="msw-change">
+                Change
+                <svg width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true">
+                  <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </span>
+            </button>
+          )}
+          {cfg && !showList && (
+            <div className="msw-legend">
+              <div className="msw-legend-title">{cfg.legendTitle}</div>
+              {cfg.classes.map(c => (
+                <div key={c.label} className="msw-legend-row">
+                  <span className="msw-legend-swatch" style={(c.color || c.darkColor) ? { background: (!isLight && c.darkColor) || c.color } : undefined} />
+                  <span className="msw-legend-name">{c.label}</span>
+                  {c.range && <span className="msw-legend-range">{c.range}</span>}
+                </div>
+              ))}
+              <div className="msw-legend-src">{(!isLight && cfg.noteDark) || cfg.note}</div>
+              <div className="msw-legend-src">{cfg.source}</div>
+            </div>
+          )}
+          <div className="msw-links">
+            <a className="msw-link" href="https://hazardhunter.georisk.gov.ph/" target="_blank" rel="noopener noreferrer">HazardHunterPH ↗</a>
+            <a className="msw-link" href="https://www.panahon.gov.ph/" target="_blank" rel="noopener noreferrer">PANaHON ↗</a>
+          </div>
+        </div>,
+        document.body
+      )}
+    </>
+  );
+}
+
+// Legend card for the fullscreen map: the chosen overlay's legend, above the bottom-left
+// buttons. Everything comes from HAZARD_OVERLAYS, so it changes with the overlay and is
+// gone when none is chosen. Hidden on phones for now (see .hz-legend-card in App.css).
+function HazardLegendCard({ overlay, isLight }) {
+  const cfg = overlay ? HAZARD_OVERLAYS[overlay] : null;
+  if (!cfg) return null;
+  return (
+    <div className="hz-legend-card" role="group" aria-label={cfg.legendTitle}>
+      <div className="hz-legend-title">{cfg.legendTitle}</div>
+      {cfg.classes.map(c => (
+        <div key={c.label} className="msw-legend-row">
+          <span className="msw-legend-swatch" style={(c.color || c.darkColor) ? { background: (!isLight && c.darkColor) || c.color } : undefined} />
+          <span className="msw-legend-name">{c.label}</span>
+          {c.range && <span className="msw-legend-range">{c.range}</span>}
+        </div>
+      ))}
+      <div className="msw-legend-src">{(!isLight && cfg.noteDark) || cfg.note}</div>
+      <div className="msw-legend-src">{cfg.source}</div>
+    </div>
   );
 }
 
@@ -5178,7 +5337,8 @@ const waterChartOptions = useMemo(() => ({
                     <button className="map-ctrl-btn" onClick={handleDashCenter} title="Center map" aria-label="Center map">
                       <CenterIcon />
                     </button>
-                    <MapSwitcher value={baseMapId} onChange={handleBaseMapChange} overlay={overlayId} onOverlayChange={setOverlayId} />
+                    <MapSwitcher value={baseMapId} onChange={handleBaseMapChange} />
+                    <HazardSwitcher value={baseMapId} overlay={overlayId} onOverlayChange={setOverlayId} />
                     <button className="map-ctrl-btn" onClick={() => setFullscreenMap(true)} title="Fullscreen map" aria-label="Fullscreen map">
                       <ExpandIcon />
                     </button>
@@ -5729,12 +5889,15 @@ const waterChartOptions = useMemo(() => ({
                     onToggleSiren={toggleSiren}
                   />
 
+                  <HazardLegendCard overlay={overlayId} isLight={baseMapIsLight} />
+
                   {/* Map controls — bottom left */}
                   <div className="map-ctrl-group map-ctrl-group-fs">
                     <button className="map-ctrl-btn" onClick={handleFsCenter} title="Center map" aria-label="Center map">
                       <CenterIcon />
                     </button>
-                    <MapSwitcher value={baseMapId} onChange={handleBaseMapChange} overlay={overlayId} onOverlayChange={setOverlayId} />
+                    <MapSwitcher value={baseMapId} onChange={handleBaseMapChange} />
+                    <HazardSwitcher value={baseMapId} overlay={overlayId} onOverlayChange={setOverlayId} showLegend={false} />
                     <button className="map-ctrl-btn" onClick={closeFullscreen} title="Exit fullscreen" aria-label="Exit fullscreen">
                       <CollapseIcon />
                     </button>

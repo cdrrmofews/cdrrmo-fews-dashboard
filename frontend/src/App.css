@@ -3645,7 +3645,7 @@ div.leaflet-container {
 /* Status pill — bottom left, right of the two buttons */
 .map-fs-pill {
   position: absolute;
-  left:   calc(var(--fs-gap) + 132px + env(safe-area-inset-left, 0px)); /* 3 buttons (36px each) + gaps (8px) */
+  left:   calc(var(--fs-gap) + 176px + env(safe-area-inset-left, 0px)); /* 4 buttons (36px each) + gaps (8px) */
   bottom: calc(var(--fs-gap) + env(safe-area-inset-bottom, 0px));
   z-index: 1000;
   height: 36px;
@@ -3815,6 +3815,18 @@ div.leaflet-container {
 .msw-opt-selected .msw-opt-name { color: var(--blue); }
 .msw-opt-sub  { font-size: 10px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* "Change" on the folded hazard row */
+.msw-change {
+  margin-left: auto;
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--blue);
+}
+
 /* Hazard overlay section */
 .msw-divider { height: 1px; background: rgba(255, 255, 255, 0.10); margin: 10px 0 8px; }
 
@@ -3902,6 +3914,17 @@ div.leaflet-container {
   filter: hue-rotate(280deg);
 }
 
+/* Liquefaction: the server draws red / purple / yellow / orange. A 200 degree rotation
+   gives blue / green / pink / lavender, clear of the status colors. Dark base maps
+   (default) get a small lift because the green and blue come out dark. First guess,
+   tune by eye. */
+.fews-liq {
+  filter: hue-rotate(200deg) brightness(1.2);
+}
+.map-is-light .fews-liq {
+  filter: hue-rotate(200deg);
+}
+
 /* "Overlay is on" dot on the layers button */
 .map-ctrl-btn { position: relative; }
 .msw-dot {
@@ -3913,4 +3936,30 @@ div.leaflet-container {
   border-radius: 50%;
   border: 1.5px solid #17171a;
   pointer-events: none;
+}
+
+/* Fullscreen map: legend card for the chosen hazard overlay, above the bottom-left buttons.
+   Solid card first (version A). If it feels heavy, lower the background alpha to about 0.6
+   and add backdrop-filter: blur(6px). pointer-events: none so the map can still be dragged
+   through it. */
+.hz-legend-card {
+  position: absolute;
+  left:   calc(var(--fs-gap) + env(safe-area-inset-left, 0px));
+  bottom: calc(var(--fs-gap) + 44px + env(safe-area-inset-bottom, 0px)); /* button (36px) + gap (8px) */
+  z-index: 1000;
+  width: 260px;
+  max-width: calc(100vw - 2 * var(--fs-gap));
+  padding: 10px 12px;
+  background: rgba(23, 23, 26, 0.88);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 12px;
+  pointer-events: none;
+}
+.hz-legend-title { font-size: 11px; font-weight: 600; color: var(--text-1); line-height: 1.35; margin-bottom: 6px; }
+.hz-legend-card .msw-legend-range,
+.hz-legend-card .msw-legend-src { font-size: 11px; }
+
+/* Phone: the bottom sheet would sit on top of it, so it stays off until the phone pass */
+@media (max-width: 768px) {
+  .hz-legend-card { display: none; }
 }
