@@ -2937,6 +2937,14 @@ div.leaflet-container {
   color: var(--text-3) !important;
 }
 
+/* Credits stay (the tile providers require them) but sit quietly; full strength on hover */
+.leaflet-control-attribution {
+  font-size: 8px !important;
+  opacity: 0.4;
+  transition: opacity 0.2s;
+}
+.leaflet-control-attribution:hover { opacity: 1; }
+
 .map-fullscreen-inner .leaflet-control-zoom {
   z-index: 1200;
 }
@@ -3659,6 +3667,31 @@ div.leaflet-container {
 }
 .map-fs-pill-dot { width: 8px; height: 8px; border-radius: 50%; margin-right: 2px; flex-shrink: 0; }
 
+/* Fullscreen map title, top left. White on dark maps; near-black with a soft haze on light maps. */
+.map-fs-title {
+  position: absolute;
+  top:  calc(var(--fs-gap) + env(safe-area-inset-top, 0px));
+  left: calc(var(--fs-gap) + env(safe-area-inset-left, 0px));
+  z-index: 1000;
+  font-family: var(--font);
+  font-size: 26px;
+  font-weight: 1000;
+  letter-spacing: -0.01em;
+  line-height: 1.2;
+  color: #ffffff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.5);
+  pointer-events: none; /* the map can still be dragged through it */
+}
+.map-is-light .map-fs-title {
+  color: #0f172a;
+  text-shadow: 0 0 10px rgba(255, 255, 255, 0.85);
+}
+
+/* Phone: hidden until the phone pass */
+@media (max-width: 768px) {
+  .map-fs-title { display: none; }
+}
+
 /* ── Batch 4: phone bottom sheet ── */
 .fs-dr-handle   { display: none; }
 .fs-dr-collapse { display: none; }
@@ -3815,6 +3848,22 @@ div.leaflet-container {
 .msw-opt-selected .msw-opt-name { color: var(--blue); }
 .msw-opt-sub  { font-size: 10px; color: var(--text-3); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
+/* Hazard rows: color dot = the same color as the dot on the hazard button */
+.msw-hz-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; margin: 0 2px; }
+.msw-hz-dot-none { border: 1.5px solid var(--text-3); }
+
+/* Fullscreen legend card steps out of the way while either map panel is open */
+/* The card comes back only after a short delay, so switching from one panel to the other
+   (a brief moment with no panel open) doesn't flash it */
+.hz-legend-card { transition: visibility 0s linear 0.35s; }
+body:has(.msw-panel) .hz-legend-card { visibility: hidden; transition-delay: 0s; }
+
+/* Wide screens and the EOC wall: slightly larger panel text */
+@media (min-width: 1440px) {
+  .msw-panel .msw-opt-name { font-size: 13px; }
+  .msw-panel .msw-opt-sub  { font-size: 11px; }
+}
+
 /* "Change" on the folded hazard row */
 .msw-change {
   margin-left: auto;
@@ -3870,11 +3919,11 @@ div.leaflet-container {
 
 /* ── Light base maps (class is set on .map-wrap / .map-fullscreen-inner) ── */
 .map-is-light .leaflet-container { background: #e8e4dc; } /* gaps while tiles load */
-.map-is-light .leaflet-control-attribution {
+.map-fullscreen-inner.map-is-light .leaflet-control-attribution {
   background: rgba(255, 255, 255, 0.82) !important;
   color: #334155 !important;
 }
-.map-is-light .leaflet-control-attribution a { color: #0369a1 !important; }
+.map-fullscreen-inner.map-is-light .leaflet-control-attribution a { color: #0369a1 !important; }
 .map-is-light .fs-dot-sel { outline-color: rgba(30, 41, 59, 0.65); }
 
 /* Storm surge overlay: the server draws yellow/orange/red (our status colors).
@@ -3956,10 +4005,151 @@ div.leaflet-container {
   pointer-events: none;
 }
 .hz-legend-title { font-size: 11px; font-weight: 600; color: var(--text-1); line-height: 1.35; margin-bottom: 6px; }
+
+/* Dashboard map: a small card (title and colored rows), bottom-left above the buttons */
+.map-wrap .hz-legend-card {
+  left: 8px;
+  bottom: 44px; /* button (28px) + gaps (8px each) */
+  width: 130px; /* card's left edge (8px) to the Fullscreen button's right edge: 4 buttons x 28px + 3 gaps x 6px */
+  padding: 8px;
+}
+.map-wrap .hz-legend-card .msw-legend-row { gap: 6px; }
+.hz-legend-short {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+  font-size: 10px;
+  line-height: 1.35;
+  color: var(--text-3);
+}
+.hz-legend-short-src {
+  margin-top: 5px;
+  font-size: 9px;
+  line-height: 1.35;
+  color: var(--text-3);
+  opacity: 0.85;
+}
+
+/* Legend rows (both maps): swatch on the left, the second name under the first, same left edge */
+.hz-legend-card .msw-legend-row { align-items: flex-start; padding: 2px 0; }
+.hz-legend-card .msw-legend-swatch { margin-top: 3px; }
+.hz-legend-text { display: flex; flex-direction: column; min-width: 0; }
+.hz-legend-range { font-size: 10px; line-height: 1.3; color: var(--text-3); }
 .hz-legend-card .msw-legend-range,
 .hz-legend-card .msw-legend-src { font-size: 11px; }
 
 /* Phone: the bottom sheet would sit on top of it, so it stays off until the phone pass */
 @media (max-width: 768px) {
   .hz-legend-card { display: none; }
+}
+
+/* ── Light base maps: soft frosted chrome (the station drawer stays dark for now) ── */
+.map-fullscreen-inner.map-is-light .map-ctrl-btn,
+.map-is-light .fs-dr-toggle,
+.map-is-light .map-fs-pill,
+.map-fullscreen-inner.map-is-light .hz-legend-card {
+  background: rgba(255, 255, 255, 0.88);
+  border-color: rgba(15, 23, 42, 0.12);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.14);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.map-fullscreen-inner.map-is-light .map-ctrl-btn,
+.map-is-light .fs-dr-toggle { color: #475569; }
+.map-fullscreen-inner.map-is-light .map-ctrl-btn:hover,
+.map-is-light .fs-dr-toggle:hover { background: #ffffff; color: #0f172a; }
+.map-fullscreen-inner.map-is-light .map-ctrl-btn.map-ctrl-btn-active { background: #ffffff; color: #0369a1; border-color: rgba(3, 105, 161, 0.45); }
+.map-is-light .map-fs-pill { color: #0f172a; }
+.map-fullscreen-inner.map-is-light .msw-dot { border-color: #ffffff; }
+
+/* Station labels on light maps: frosted white like the buttons. The status word gets its
+   deeper color in JSX. No blur here: 19 labels inside a moving map pane would be costly. */
+.map-is-light .fs-lb {
+  background: rgba(255, 255, 255, 0.92);
+  border-color: rgba(15, 23, 42, 0.12);
+  color: #0f172a;
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.14);
+}
+.map-is-light .fs-lb-sel { border-color: #0f172a; }
+
+/* Legend card text on light maps */
+.map-fullscreen-inner.map-is-light .hz-legend-title,
+.map-fullscreen-inner.map-is-light .hz-legend-card .msw-legend-name { color: #0f172a; }
+.map-fullscreen-inner.map-is-light .hz-legend-card .hz-legend-range,
+.map-fullscreen-inner.map-is-light .hz-legend-card .msw-legend-src { color: #475569; }
+.map-fullscreen-inner.map-is-light .hz-legend-card .msw-legend-swatch { border-color: rgba(15, 23, 42, 0.4); }
+
+/* Base map and hazard panels on light maps (class set in JSX: they are portaled to body) */
+.msw-panel-light {
+  background: rgba(255, 255, 255, 0.94);
+  border-color: rgba(15, 23, 42, 0.12);
+  box-shadow: 0 12px 40px rgba(15, 23, 42, 0.18);
+}
+.msw-panel-light .msw-title { color: #64748b; }
+.msw-panel-light .msw-opt:hover { background: rgba(15, 23, 42, 0.06); }
+.msw-panel-light .msw-opt-selected,
+.msw-panel-light .msw-opt-selected:hover { background: rgba(3, 105, 161, 0.10); border-color: rgba(3, 105, 161, 0.45); }
+.msw-panel-light .msw-opt-name { color: #0f172a; }
+.msw-panel-light .msw-opt-selected .msw-opt-name,
+.msw-panel-light .msw-change { color: #0369a1; }
+.msw-panel-light .msw-opt-sub { color: #64748b; }
+.msw-panel-light .msw-hz-dot-none { border-color: #64748b; }
+.msw-panel-light .msw-swatch { border-color: rgba(15, 23, 42, 0.25); }
+.msw-panel-light .msw-legend { background: rgba(15, 23, 42, 0.04); border-color: rgba(15, 23, 42, 0.12); }
+.msw-panel-light .msw-legend-title { color: #334155; }
+.msw-panel-light .msw-legend-name { color: #0f172a; }
+.msw-panel-light .msw-legend-range,
+.msw-panel-light .msw-legend-src { color: #64748b; }
+.msw-panel-light .msw-legend-swatch { border-color: rgba(15, 23, 42, 0.4); }
+.msw-panel-light .msw-link { background: rgba(15, 23, 42, 0.05); color: #334155; border-color: rgba(15, 23, 42, 0.12); }
+.msw-panel-light .msw-link:hover { color: #0f172a; border-color: rgba(15, 23, 42, 0.3); }
+
+/* ── Station drawer on light base maps ── */
+/* Re-points the shared variables, so most of the drawer recolors itself */
+.fs-drawer-light {
+  --text-1: #0f172a;
+  --text-2: #475569;
+  --text-3: #64748b;
+  --border: rgba(15, 23, 42, 0.12);
+  --bg-raised: rgba(15, 23, 42, 0.06);
+  --bg-card: #ffffff;
+  --blue: #0369a1;
+  background: rgba(255, 255, 255, 0.96);
+  border-color: rgba(15, 23, 42, 0.12);
+  box-shadow: 0 8px 32px rgba(15, 23, 42, 0.22);
+}
+
+/* Status badges and the hero number keep the dark look: yellow and #e2e8f0 would vanish on white.
+   The badge colors are inline in the JSX, hence !important. */
+/* Soft tinted chips on light maps. Same hue as on dark maps, deeper shade for white.
+   !important because the chip colors are inline in the JSX. */
+.fs-drawer-light .fs-dr-badge-live   { background: #dcf5e4 !important; color: #15803d !important; }
+.fs-drawer-light .fs-dr-badge-ok     { background: #dff3fd !important; color: #0369a1 !important; }
+.fs-drawer-light .fs-dr-badge-no,
+.fs-drawer-light .fs-dr-badge-wait,
+.fs-drawer-light .fs-dr-badge-manual { background: #e8ecf1 !important; color: #475569 !important; }
+.fs-drawer-light .fs-dr-dot { box-shadow: 0 0 0 1.5px rgba(15, 23, 42, 0.45); }
+.fs-drawer-light .fs-dr-hero {
+  --text-1: #e8eaed;
+  --text-2: #9aa0a8;
+  --text-3: #7b828c;
+  background: #17171a;
+  margin: 12px 14px 4px;
+  border-radius: 12px;
+  border-bottom: none;
+}
+.fs-drawer-light .fs-dr-btn:hover { border-color: rgba(15, 23, 42, 0.3); }
+.fs-drawer-light .fs-dr-handle span { background: rgba(15, 23, 42, 0.25); }
+
+/* Dashboard map panels: smaller (desktop only; phones keep their own sizing).
+   Text stays 12px / 10px, the 1440px+ bump is switched off here. */
+@media (min-width: 769px) {
+  .msw-panel-compact { padding: 8px; }
+  .msw-panel-compact .msw-title { padding: 0 4px 6px; }
+  .msw-panel-compact .msw-list { gap: 2px; }
+  .msw-panel-compact .msw-opt { padding: 4px 6px; gap: 8px; }
+  .msw-panel-compact .msw-swatch { width: 34px; height: 24px; border-radius: 6px; }
+  .msw-panel-compact .msw-opt-name { font-size: 12px; }
+  .msw-panel-compact .msw-opt-sub { font-size: 10px; }
+  .msw-panel-compact .msw-links { margin-top: 6px; }
 }

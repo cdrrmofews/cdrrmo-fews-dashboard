@@ -110,7 +110,7 @@ const MGB_FLOOD_ATTR = 'Flood susceptibility: <a href="https://mgb.gov.ph/" targ
 
 const HAZARD_OVERLAYS = {
   flood: {
-    label: "Flood (MGB)", sub: "Flood susceptibility",
+    label: "Flood", sub: "MGB · susceptibility, not live",
     url: "https://ulap-hazards.georisk.gov.ph/arcgis/services/MGBPublic/Flood/MapServer/WMSServer",
     layers: "0",
     opacity: 0.6,
@@ -118,6 +118,7 @@ const HAZARD_OVERLAYS = {
     source: "Source: MGB-DENR via GeoRisk PH. Static map, not live.",
     legendTitle: "Susceptibility, not live flooding",
     note: "Each class combines how deep the flood gets and how long it lasts. Example: High = 1 to 2 m and/or more than 3 days. Other classes are on HazardHunterPH.",
+    shortNote: "Each class combines how deep the flood gets and how long it lasts. High = 1 to 2 m and/or more than 3 days.",
     dot: "#a855f7",
     // Swatch colors are estimated from the server legend; compare against the live map
     classes: [
@@ -128,7 +129,7 @@ const HAZARD_OVERLAYS = {
     ],
   },
   surge: {
-    label: "Storm surge (PAGASA)", sub: "3 m scenario",
+    label: "Storm surge", sub: "PAGASA · 3 m scenario, not live",
     url: "https://ulap-hazards.georisk.gov.ph/arcgis/services/PAGASAPublic/StormSurge/MapServer/WMSServer",
     layers: "0",
     opacity: 0.7,
@@ -138,6 +139,8 @@ const HAZARD_OVERLAYS = {
     legendTitle: "3 m surge scenario, not live",
     note: "Shown in teal here so it is not mistaken for the status colors. Darker means higher surge.",
     noteDark: "Shown in teal here so it is not mistaken for the status colors. Brighter means higher surge.",
+    shortNote: "Shown in teal so it is not mistaken for the status colors. Darker means higher surge.",
+    shortNoteDark: "Shown in teal so it is not mistaken for the status colors. Brighter means higher surge.",
     dot: "#2dd4bf",
     // color = light base maps, darkColor = dark base maps. First estimates of what the
     // CSS filters produce; compare against the live map
@@ -148,7 +151,7 @@ const HAZARD_OVERLAYS = {
     ],
   },
   landslide: {
-    label: "Landslide (MGB)", sub: "2012 data, not live",
+    label: "Landslide", sub: "MGB · 2012 data, not live",
     url: "https://ulap-hazards.georisk.gov.ph/arcgis/services/MGBPublic/RainInducedLandslide/MapServer/WMSServer",
     layers: "0",
     opacity: 0.6,
@@ -157,6 +160,7 @@ const HAZARD_OVERLAYS = {
     source: "Source: MGB-DENR via GeoRisk PH. 2012 data, not live.",
     legendTitle: "Rain-induced landslide susceptibility, 2012 data, not live",
     note: "Colors are shifted here so they are not mistaken for the status colors, so they differ from HazardHunterPH. Debris flow zone = Debris Flow / Possible Accumulation Zone.",
+    shortNote: "Colors are shifted, so they differ from HazardHunterPH.",
     dot: "#f472b6",
     // color = light base maps, darkColor = dark base maps. First estimates of what the
     // CSS filters produce; compare against the live map. Debris flow is a hatched swatch.
@@ -169,7 +173,7 @@ const HAZARD_OVERLAYS = {
     ],
   },
   fault: {
-    label: "Active fault (PHIVOLCS)", sub: "Mapped fault lines",
+    label: "Active fault", sub: "PHIVOLCS · mapped faults, not live",
     url: "https://ulap-hazards.georisk.gov.ph/arcgis/services/PHIVOLCSPublic/ActiveFault/MapServer/WMSServer",
     layers: "0",
     opacity: 1,
@@ -178,6 +182,7 @@ const HAZARD_OVERLAYS = {
     source: "Source: PHIVOLCS via GeoRisk PH. Static map, not live.",
     legendTitle: "Mapped fault lines, not live",
     note: "Mapped faults only, not a full earthquake risk map. Line colors are shifted here so they are not mistaken for the status colors. Line symbols are on HazardHunterPH.",
+    shortNote: "Mapped faults only, not a full earthquake risk map. Line colors are shifted so they are not mistaken for the status colors.",
     dot: "#a3e635",
     // Swatches are short lines. color = light base maps, darkColor = dark base maps.
     // First estimates of what the CSS filters produce; compare against the live map
@@ -187,7 +192,7 @@ const HAZARD_OVERLAYS = {
     ],
   },
   liquefaction: {
-    label: "Liquefaction (PHIVOLCS)", sub: "2018 data, not live",
+    label: "Liquefaction", sub: "PHIVOLCS · 2018 data, not live",
     kind: "arcgis", // no WMS on this service: tiles come from the ArcGIS export endpoint (see ArcGisExportLayer)
     url: "https://ulap-hazards.georisk.gov.ph/arcgis/rest/services/PHIVOLCSPublic/Liquefaction/MapServer/export",
     opacity: 0.6,
@@ -1771,6 +1776,13 @@ function OpenAllPopups({ fewsList, markerRefs, active }) {
   return null;
 }
 
+// Drops the "Leaflet" label and flag from the attribution box. The data and tile credits stay.
+function HideLeafletPrefix() {
+  const map = useMap();
+  useEffect(() => { map.attributionControl?.setPrefix(false); }, [map]);
+  return null;
+}
+
 // Hands the Leaflet map instance to a ref so buttons outside <MapContainer> can drive it
 function MapRefSetter({ mapRef }) {
   const map = useMap();
@@ -1895,23 +1907,26 @@ const LayersIcon = () => (
 function getMapPanelPos(btn, width) {
   const r   = btn.getBoundingClientRect();
   const box = isMobileViewport() ? null : btn.closest(".map-wrap, .map-fullscreen-inner")?.getBoundingClientRect();
+  // both panels line up with the left edge of the button group, not with their own button
+  const grp = btn.closest(".map-ctrl-group")?.getBoundingClientRect();
   return {
-    left:      Math.max(8, Math.min(r.left, window.innerWidth - width - 8)),
+    left:      Math.max(8, Math.min(grp ? grp.left : r.left, window.innerWidth - width - 8)),
     bottom:    window.innerHeight - r.top + 8,
     width,
     maxHeight: Math.max(140, r.top - (box ? box.top : 0) - 16),
   };
 }
 
-function MapSwitcher({ value, onChange }) {
+function MapSwitcher({ value, onChange, lightPanel = false, compact = false }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos]   = useState({ left: 8, bottom: 60, width: 260, maxHeight: 320 });
+  const isLight = lightPanel && !!BASE_MAPS[value]?.isLight;
   const btnRef   = useRef(null);
   const panelRef = useRef(null);
 
   const toggle = () => {
     if (!open && btnRef.current) {
-      const width = isMobileViewport() ? Math.min(300, window.innerWidth - 16) : 260;
+      const width = isMobileViewport() ? Math.min(300, window.innerWidth - 16) : (compact ? 220 : 260);
       setPos(getMapPanelPos(btnRef.current, width));
     }
     setOpen(o => !o);
@@ -1954,7 +1969,7 @@ function MapSwitcher({ value, onChange }) {
       {open && createPortal(
         <div
           ref={panelRef}
-          className="msw-panel"
+          className={`msw-panel ${isLight ? "msw-panel-light" : ""} ${compact ? "msw-panel-compact" : ""}`}
           role="dialog"
           aria-label="Base map"
           style={{ position: "fixed", left: pos.left, bottom: pos.bottom, width: pos.width, maxHeight: pos.maxHeight }}
@@ -1999,7 +2014,7 @@ const HazardIcon = () => (
 
 // Hazard button + panel. Same portal pattern as MapSwitcher. With an overlay on, the list
 // folds into the chosen row (+ "Change") and the legend sits right under it.
-function HazardSwitcher({ value, overlay, onOverlayChange, showLegend = true }) {
+function HazardSwitcher({ value, overlay, onOverlayChange, showLegend = true, lightPanel = false, compact = false }) {
   const [open, setOpen]         = useState(false);
   const [listOpen, setListOpen] = useState(false);
   const [pos, setPos]           = useState({ left: 8, bottom: 60, width: 260, maxHeight: 320 });
@@ -2012,7 +2027,7 @@ function HazardSwitcher({ value, overlay, onOverlayChange, showLegend = true }) 
 
   const toggle = () => {
     if (!open && btnRef.current) {
-      const width = isMobileViewport() ? Math.min(300, window.innerWidth - 16) : 260;
+      const width = isMobileViewport() ? Math.min(300, window.innerWidth - 16) : (compact ? 220 : 260);
       setPos(getMapPanelPos(btnRef.current, width));
       setListOpen(false);
     }
@@ -2059,7 +2074,7 @@ function HazardSwitcher({ value, overlay, onOverlayChange, showLegend = true }) 
       {open && createPortal(
         <div
           ref={panelRef}
-          className="msw-panel"
+          className={`msw-panel ${lightPanel && isLight ? "msw-panel-light" : ""} ${compact ? "msw-panel-compact" : ""}`}
           role="dialog"
           aria-label="Hazard overlay"
           style={{ position: "fixed", left: pos.left, bottom: pos.bottom, width: pos.width, maxHeight: pos.maxHeight }}
@@ -2068,6 +2083,7 @@ function HazardSwitcher({ value, overlay, onOverlayChange, showLegend = true }) 
           {showList ? (
             <div className="msw-list">
               <button type="button" className={`msw-opt ${!overlay ? "msw-opt-selected" : ""}`} onClick={() => pick(null)}>
+                <span className="msw-hz-dot msw-hz-dot-none" aria-hidden="true" />
                 <span className="msw-opt-text">
                   <span className="msw-opt-name">None</span>
                 </span>
@@ -2076,6 +2092,7 @@ function HazardSwitcher({ value, overlay, onOverlayChange, showLegend = true }) 
                 const o = HAZARD_OVERLAYS[id];
                 return (
                   <button key={id} type="button" className={`msw-opt ${id === overlay ? "msw-opt-selected" : ""}`} onClick={() => pick(id)}>
+                    <span className="msw-hz-dot" style={{ background: o.dot }} aria-hidden="true" />
                     <span className="msw-opt-text">
                       <span className="msw-opt-name">{o.label}</span>
                       <span className="msw-opt-sub">{o.sub}</span>
@@ -2086,9 +2103,9 @@ function HazardSwitcher({ value, overlay, onOverlayChange, showLegend = true }) 
             </div>
           ) : (
             <button type="button" className="msw-opt msw-opt-selected" onClick={() => setListOpen(true)}>
+              <span className="msw-hz-dot" style={{ background: cfg.dot }} aria-hidden="true" />
               <span className="msw-opt-text">
                 <span className="msw-opt-name">{cfg.label}</span>
-                <span className="msw-opt-sub">{cfg.sub}</span>
               </span>
               <span className="msw-change">
                 Change
@@ -2126,7 +2143,7 @@ function HazardSwitcher({ value, overlay, onOverlayChange, showLegend = true }) 
 // Legend card for the fullscreen map: the chosen overlay's legend, above the bottom-left
 // buttons. Everything comes from HAZARD_OVERLAYS, so it changes with the overlay and is
 // gone when none is chosen. Hidden on phones for now (see .hz-legend-card in App.css).
-function HazardLegendCard({ overlay, isLight }) {
+function HazardLegendCard({ overlay, isLight, compact = false }) {
   const cfg = overlay ? HAZARD_OVERLAYS[overlay] : null;
   if (!cfg) return null;
   return (
@@ -2135,12 +2152,16 @@ function HazardLegendCard({ overlay, isLight }) {
       {cfg.classes.map(c => (
         <div key={c.label} className="msw-legend-row">
           <span className="msw-legend-swatch" style={(c.color || c.darkColor) ? { background: (!isLight && c.darkColor) || c.color } : undefined} />
-          <span className="msw-legend-name">{c.label}</span>
-          {c.range && <span className="msw-legend-range">{c.range}</span>}
+          <span className="hz-legend-text">
+            <span className="msw-legend-name">{c.label}</span>
+            {c.range && <span className="hz-legend-range">{c.range}</span>}
+          </span>
         </div>
       ))}
-      <div className="msw-legend-src">{(!isLight && cfg.noteDark) || cfg.note}</div>
-      <div className="msw-legend-src">{cfg.source}</div>
+      {!compact && <div className="msw-legend-src">{(!isLight && cfg.noteDark) || cfg.note}</div>}
+      {!compact && <div className="msw-legend-src">{cfg.source}</div>}
+      {compact && cfg.shortNote && <div className="hz-legend-short">{(!isLight && cfg.shortNoteDark) || cfg.shortNote}</div>}
+      {compact && <div className="hz-legend-short-src">{cfg.source}</div>}
     </div>
   );
 }
@@ -2207,7 +2228,7 @@ function cleanText(s) {
 function FsDrawer({
   open, onToggle, stations, selectedId, onSelect, onBack,
   isHardwareOnline, thresholds, unitPref, todayStats, lastUpdatedStr,
-  fews1Info, sirens, sirenLoading, canSiren, onToggleSiren,
+  fews1Info, sirens, sirenLoading, canSiren, onToggleSiren, isLight,
 }) {
   const [query, setQuery]   = useState("");
   const [copied, setCopied] = useState(false);
@@ -2233,6 +2254,7 @@ function FsDrawer({
       const cfg = STATUS_CONFIG[ds] || STATUS_CONFIG.safe;
       return {
         online, cfg,
+        kind:       online ? "live" : "wait",
         dot:        online ? cfg.color : "#64748b",
         badge:      online ? "LIVE" : "WAITING",
         badgeColor: online ? "#22c55e" : "#94a3b8",
@@ -2242,6 +2264,7 @@ function FsDrawer({
     const ok = f.manualStatus === "serviceable";
     return {
       online: false, cfg: null,
+      kind:       ok ? "ok" : "no",
       dot:        ok ? "#38bdf8" : "#64748b",
       badge:      ok ? "SERVICEABLE" : "UNSERVICEABLE",
       badgeColor: ok ? "#38bdf8" : "#9aa0a8",
@@ -2258,7 +2281,7 @@ function FsDrawer({
           <span className="fs-dr-row-name">{f.name}</span>
           <span className="fs-dr-row-loc">{f.location || "—"}</span>
         </span>
-        <span className="fs-dr-badge" style={{ color: p.badgeColor, background: p.badgeBg }}>{p.badge}</span>
+        <span className={`fs-dr-badge fs-dr-badge-${p.kind}`} style={{ color: p.badgeColor, background: p.badgeBg }}>{p.badge}</span>
       </button>
     );
   };
@@ -2327,7 +2350,7 @@ function FsDrawer({
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><polyline points="15 18 9 12 15 6"/></svg>
           </button>
           <span className="fs-dr-title">{f.name}</span>
-          <span className="fs-dr-badge" style={{
+          <span className={`fs-dr-badge fs-dr-badge-${f.isLive ? p.kind : "manual"}`} style={{
             marginLeft: "auto",
             color:      f.isLive ? p.badgeColor : "var(--text-2)",
             background: f.isLive ? p.badgeBg    : "rgba(255,255,255,0.06)",
@@ -2446,7 +2469,7 @@ function FsDrawer({
         </svg>
       </button>
       {open && (
-        <aside className="fs-drawer">
+        <aside className={`fs-drawer ${isLight ? "fs-drawer-light" : ""}`}>
           <button type="button" className="fs-dr-handle" onClick={onToggle} aria-label="Hide station panel">
             <span />
           </button>
@@ -5333,12 +5356,13 @@ const waterChartOptions = useMemo(() => ({
                   <span className="card-tag">Batangas City</span>
                 </div>
                 <div className={`map-wrap ${baseMapIsLight ? "map-is-light" : ""}`}>
+                  <HazardLegendCard overlay={overlayId} isLight={baseMapIsLight} compact />
                   <div className="map-ctrl-group">
+                    <MapSwitcher value={baseMapId} onChange={handleBaseMapChange} compact />
+                    <HazardSwitcher value={baseMapId} overlay={overlayId} onOverlayChange={setOverlayId} showLegend={false} compact />
                     <button className="map-ctrl-btn" onClick={handleDashCenter} title="Center map" aria-label="Center map">
                       <CenterIcon />
                     </button>
-                    <MapSwitcher value={baseMapId} onChange={handleBaseMapChange} />
-                    <HazardSwitcher value={baseMapId} overlay={overlayId} onOverlayChange={setOverlayId} />
                     <button className="map-ctrl-btn" onClick={() => setFullscreenMap(true)} title="Fullscreen map" aria-label="Fullscreen map">
                       <ExpandIcon />
                     </button>
@@ -5352,6 +5376,7 @@ const waterChartOptions = useMemo(() => ({
                     <BaseMapLayers mapId={baseMapId} />
                     <HazardOverlayLayer overlayId={overlayId} />
                     <MapRefSetter mapRef={dashMapRef} />
+                    <HideLeafletPrefix />
                     <MapResizeWatcher />
                     <FlyToStation fews={selectedStation} />
                     <OpenPopup fews={selectedStation} markerRefs={markerRefs} />
@@ -5833,6 +5858,7 @@ const waterChartOptions = useMemo(() => ({
                     <BaseMapLayers mapId={baseMapId} />
                     <HazardOverlayLayer overlayId={overlayId} />
                     <MapRefSetter mapRef={fsMapRef} />
+                    <HideLeafletPrefix />
                     {allFews.map(f => {
                       const isManualServiceable = !f.isLive && f.manualStatus === "serviceable";
                       const isActuallyLive = f.isLive && isHardwareOnline;
@@ -5849,9 +5875,13 @@ const waterChartOptions = useMemo(() => ({
                       const statusWord = f.isLive
                         ? (isActuallyLive ? "LIVE" : "WAITING")
                         : (isManualServiceable ? "SERVICEABLE" : "UNSERVICEABLE");
-                      const statusColor = f.isLive
-                        ? (isActuallyLive ? "#22c55e" : "#94a3b8")
-                        : (isManualServiceable ? "#38bdf8" : "#9aa0a8");
+                      const statusColor = baseMapIsLight
+                        ? (f.isLive
+                            ? (isActuallyLive ? "#15803d" : "#475569")
+                            : (isManualServiceable ? "#0369a1" : "#475569"))
+                        : (f.isLive
+                            ? (isActuallyLive ? "#22c55e" : "#94a3b8")
+                            : (isManualServiceable ? "#38bdf8" : "#9aa0a8"));
                       const icon = makeFsLabelIcon({
                         name: f.name, statusWord, statusColor,
                         markerColor, markerBorderColor, showPulse, isSel: isFsSel,
@@ -5863,6 +5893,9 @@ const waterChartOptions = useMemo(() => ({
                       );
                     })}
                   </MapContainer>
+
+                  {/* Map title — top left (the zoom buttons that used to sit here are gone) */}
+                  <div className="map-fs-title">FEWS Map</div>
 
                   {/* Status pill — bottom left, next to the buttons */}
                   <div className="map-fs-pill">
@@ -5889,17 +5922,18 @@ const waterChartOptions = useMemo(() => ({
                     sirenLoading={sirenLoading}
                     canSiren={can(user.role, "sirenControl")}
                     onToggleSiren={toggleSiren}
+                    isLight={baseMapIsLight}
                   />
 
                   <HazardLegendCard overlay={overlayId} isLight={baseMapIsLight} />
 
                   {/* Map controls — bottom left */}
                   <div className="map-ctrl-group map-ctrl-group-fs">
+                    <MapSwitcher value={baseMapId} onChange={handleBaseMapChange} lightPanel />
+                    <HazardSwitcher value={baseMapId} overlay={overlayId} onOverlayChange={setOverlayId} showLegend={false} lightPanel />
                     <button className="map-ctrl-btn" onClick={handleFsCenter} title="Center map" aria-label="Center map">
                       <CenterIcon />
                     </button>
-                    <MapSwitcher value={baseMapId} onChange={handleBaseMapChange} />
-                    <HazardSwitcher value={baseMapId} overlay={overlayId} onOverlayChange={setOverlayId} showLegend={false} />
                     <button className="map-ctrl-btn" onClick={closeFullscreen} title="Exit fullscreen" aria-label="Exit fullscreen">
                       <CollapseIcon />
                     </button>
