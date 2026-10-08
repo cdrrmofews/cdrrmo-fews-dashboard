@@ -117,7 +117,7 @@ const HAZARD_OVERLAYS = {
     attribution: MGB_FLOOD_ATTR,
     source: "Source: MGB-DENR via GeoRisk PH. Static map, not live.",
     legendTitle: "Susceptibility, not live flooding",
-    note: "Classes combine flood height and how long flooding lasts. Definitions are on HazardHunterPH.",
+    note: "Each class combines how deep the flood gets and how long it lasts. Example: High = 1 to 2 m and/or more than 3 days. Other classes are on HazardHunterPH.",
     dot: "#a855f7",
     // Swatch colors are estimated from the server legend; compare against the live map
     classes: [
@@ -195,7 +195,7 @@ const HAZARD_OVERLAYS = {
     attribution: 'Liquefaction: <a href="https://www.phivolcs.dost.gov.ph/" target="_blank" rel="noopener noreferrer">PHIVOLCS</a> via <a href="https://hazardhunter.georisk.gov.ph/" target="_blank" rel="noopener noreferrer">GeoRisk PH</a>',
     source: "Source: PHIVOLCS via GeoRisk PH. 2018 data, not live.",
     legendTitle: "Liquefaction susceptibility, 2018 data, not live",
-    note: "The server uses two naming scales that share these colors, so a color can carry either name. Colors are shifted here so they are not mistaken for the status colors, so they differ from HazardHunterPH. Orange is its own class, not a step between the others.",
+    note: "The server uses two naming scales that share these colors, so a color can carry either name. Colors are shifted here so they are not mistaken for the status colors, so they differ from HazardHunterPH.",
     dot: "#818cf8",
     // One row per server color (the two naming scales reuse the same colors).
     // color = light base maps, darkColor = dark base maps. First estimates of what the
@@ -5347,6 +5347,7 @@ const waterChartOptions = useMemo(() => ({
                     bounds={DASH_DEFAULT_BOUNDS}
                     boundsOptions={{ padding: [20, 20] }}
                     style={{ height:"100%", width:"100%", borderRadius:"10px" }}
+                    zoomControl={false}
                     scrollWheelZoom={true}>
                     <BaseMapLayers mapId={baseMapId} />
                     <HazardOverlayLayer overlayId={overlayId} />
@@ -5826,6 +5827,7 @@ const waterChartOptions = useMemo(() => ({
                     bounds={CITY_DEFAULT_BOUNDS}
                     boundsOptions={{ paddingTopLeft: [20, 20], paddingBottomRight: [(fsDrawerOpen && !isMobileViewport()) ? FS_DRAWER_PAD : 20, 20] }}
                     style={{ height:"100%", width:"100%" }}
+                    zoomControl={false}
                     scrollWheelZoom={true}
                     minZoom={3}>
                     <BaseMapLayers mapId={baseMapId} />

@@ -3947,10 +3947,10 @@ div.leaflet-container {
   left:   calc(var(--fs-gap) + env(safe-area-inset-left, 0px));
   bottom: calc(var(--fs-gap) + 44px + env(safe-area-inset-bottom, 0px)); /* button (36px) + gap (8px) */
   z-index: 1000;
-  width: 260px;
+  width: 366px; /* lines up with the right edge of the status pill */
   max-width: calc(100vw - 2 * var(--fs-gap));
   padding: 10px 12px;
-  background: rgba(23, 23, 26, 0.88);
+  background: rgba(23, 23, 26, 0.94);
   border: 1px solid rgba(255, 255, 255, 0.14);
   border-radius: 12px;
   pointer-events: none;
