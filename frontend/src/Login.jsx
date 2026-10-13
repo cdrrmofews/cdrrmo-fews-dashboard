@@ -9,6 +9,7 @@ export default function Login({ onLogin }) {
   const [error,      setError]      = useState("");
   const [loading,    setLoading]    = useState(false);
   const [showPw, setShowPw] = useState(false);
+  const [caps,   setCaps]   = useState(false);
 
   const handlePwRevealStart = useCallback((e) => {
     e.preventDefault();
@@ -32,6 +33,10 @@ export default function Login({ onLogin }) {
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ username: username.trim(), password, remember_me: rememberMe }),
       });
+      if (res.status === 429) {
+        setError("Too many sign-in attempts. Wait a minute, then try again.");
+        return;
+      }
       const data = await res.json();
       if (!res.ok) {
         if (res.status >= 500) {
@@ -82,14 +87,17 @@ export default function Login({ onLogin }) {
         </div>
         <div className="login-form">
           <div className="login-field">
-            <label className="login-label">Email</label>
+            <label className="login-label">Email or name</label>
             <input
               className="login-input"
               type="text"
               placeholder="you@cdrrmo.gov.ph"
               value={username}
-              onChange={e => setUsername(e.target.value)}
+              onChange={e => { setUsername(e.target.value); if (error) setError(""); }}
               onKeyDown={handleKey}
+              autoComplete="username"
+              autoCapitalize="none"
+              spellCheck={false}
               autoFocus
             />
           </div>
@@ -101,8 +109,11 @@ export default function Login({ onLogin }) {
                 type={showPw ? "text" : "password"}
                 placeholder="••••••••"
                 value={password}
-                onChange={e => setPassword(e.target.value)}
-                onKeyDown={handleKey}
+                onChange={e => { setPassword(e.target.value); if (error) setError(""); }}
+                onKeyDown={e => { setCaps(!!e.getModifierState?.("CapsLock")); handleKey(e); }}
+                onKeyUp={e => setCaps(!!e.getModifierState?.("CapsLock"))}
+                onBlur={() => setCaps(false)}
+                autoComplete="current-password"
               />
               <button
                 type="button"
@@ -111,6 +122,7 @@ export default function Login({ onLogin }) {
                 onPointerUp={handlePwRevealEnd}
                 onPointerLeave={handlePwRevealEnd}
                 aria-label={showPw ? "Hide password" : "Show password"}
+                title="Hold to show password"
                 tabIndex={-1}
               >
                 {showPw ? (
@@ -133,38 +145,38 @@ export default function Login({ onLogin }) {
                 )}
               </button>
             </div>
+            {error && <div className="login-error" style={{ marginTop: "6px" }} role="alert">{error}</div>}
           </div>
-          <div style={{ display:"flex", alignItems:"center", gap:8 }}>
-            <div
-              onClick={() => setRememberMe(r => !r)}
-              style={{
-                width: 16, height: 16, borderRadius: 4, flexShrink: 0,
-                border: `1.5px solid ${rememberMe ? "var(--blue)" : "rgba(255,255,255,0.15)"}`,
-                background: rememberMe ? "var(--blue)" : "transparent",
-                cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center",
-                transition: "all 0.15s",
-              }}
-            >
-              {rememberMe && (
-                <svg width="9" height="7" viewBox="0 0 9 7" fill="none">
-                  <path d="M1 3.5L3.5 6L8 1" stroke="#000" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              )}
+          <div className="login-remember">
+            <div className="login-remember-row">
+              <button
+                type="button"
+                role="checkbox"
+                aria-checked={rememberMe}
+                aria-label="Remember me"
+                className={`login-check ${rememberMe ? "login-check-on" : ""}`}
+                onClick={() => setRememberMe(r => !r)}
+              >
+                {rememberMe && (
+                  <svg width="9" height="7" viewBox="0 0 9 7" fill="none" aria-hidden="true">
+                    <path d="M1 3.5L3.5 6L8 1" stroke="#000" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                )}
+              </button>
+              <label className="login-remember-label" onClick={() => setRememberMe(r => !r)}>Remember me</label>
             </div>
-            <label
-              onClick={() => setRememberMe(r => !r)}
-              style={{ fontSize:12, color:"var(--text-3)", cursor:"pointer", userSelect:"none" }}
-            >
-              Remember me
-            </label>
+            <div className="login-remember-hint">Keeps you signed in on this device. Avoid on shared computers.</div>
           </div>
-          {error && <div className="login-error">{error}</div>}
+
+          {!error && caps && <div className="login-hint-caps">Caps Lock is on</div>}
           <button
             className={`login-btn ${loading ? "login-btn-loading" : ""}`}
             onClick={handleLogin}
             disabled={loading}
           >
-            {loading ? "Signing in…" : "Sign In"}
+            {loading
+              ? <><span className="btn-spinner" style={{ borderColor: "rgba(0,0,0,0.2)", borderTopColor: "#000", marginRight: 8 }} />Signing in…</>
+              : "Sign In"}
           </button>
         </div>
         <div className="login-footer">CDRRMO · Batangas City · v2.0</div>

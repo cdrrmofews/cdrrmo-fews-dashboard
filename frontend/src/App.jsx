@@ -102,10 +102,10 @@ function resolveBaseMap(id) {
   return BASE_MAP_ORDER.includes(id) ? id : DEFAULT_BASE_MAP;
 }
 
-// ─── HAZARD OVERLAYS (Phase 2) ───────────────────────────────────────────────
+// ─── HAZARD OVERLAYS ─────────────────────────────────────────────────────────
 // Government susceptibility maps drawn over the base map, one at a time.
-// These are NOT live flooding. `color: null` leaves the legend swatch blank
-// until the real server colors have been checked on the first test.
+// These are NOT live flooding. The legend colors in `classes` are estimates of what
+// the CSS filters produce (see App.css), so compare them against the live map.
 const MGB_FLOOD_ATTR = 'Flood susceptibility: <a href="https://mgb.gov.ph/" target="_blank" rel="noopener noreferrer">MGB-DENR</a> via <a href="https://hazardhunter.georisk.gov.ph/" target="_blank" rel="noopener noreferrer">GeoRisk PH</a>';
 
 const HAZARD_OVERLAYS = {
@@ -443,6 +443,20 @@ const BASELINE_CM = 100;
 
 function getBaselineCutoff(thresholds) {
   return Math.min(BASELINE_CM, thresholds.warning);
+}
+
+// Centered name inside a status band. Hidden when the band is under 100 cm tall
+// (only Normal can get that thin, when Warning is set to 100).
+const ZONE_LABEL_MIN_CM = 100;
+function zoneLabel(content, color, yMin, yMax) {
+  return {
+    display: yMax - yMin >= ZONE_LABEL_MIN_CM,
+    content,
+    position: "center",
+    color,
+    backgroundColor: "transparent",
+    font: { family: "'DM Sans', sans-serif", size: 10, weight: "500" },
+  };
 }
 
 // Only downgrades a live, "safe" reading into "base" when it's below the
@@ -1194,9 +1208,9 @@ function LogsPage({ token, userRole, showToast }) {
 
   const stationOptions = [
     { value: "All",         label: "All Stations" },
-    { value: "System",      label: "System"       },
-    { value: "FEWS 1",      label: "Fews 1"       },
-    { value: "Manual FEWS", label: "Manual Fews"  },
+    { value: "System",      label: "SYSTEM"       },
+    { value: "FEWS 1",      label: "FEWS 1"       },
+    { value: "Manual FEWS", label: "MANUAL FEWS"  },
   ];
 
   const typeOptions = [
@@ -1205,6 +1219,19 @@ function LogsPage({ token, userRole, showToast }) {
   ];
 
   const hasFilters = debouncedSearch || filterStation !== "All" || filterType !== "All" || filterDateRange.from || filterDateRange.to;
+
+  // Quick date presets (days = how many days back from today; "Last 7 days" includes today)
+  const datePresets = [
+    { key: "today", label: "Today",        days: 0  },
+    { key: "7d",    label: "Last 7 days",  days: 6  },
+    { key: "30d",   label: "Last 30 days", days: 29 },
+  ];
+  const presetRange = (days) => {
+    const to = new Date();
+    const from = new Date();
+    from.setDate(from.getDate() - days);
+    return { from: toLocalIso(from), to: toLocalIso(to) };
+  };
 
   const activeFilters = {
     search:    debouncedSearch,
@@ -1219,7 +1246,11 @@ function LogsPage({ token, userRole, showToast }) {
       <div className="page-card" style={{ gap: 12 }}>
         <div className="logs-filters-row">
           <div className="logs-search-wrap">
-            <span className="logs-search-icon">🔍</span>
+            <span className="logs-search-icon">
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                <circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+              </svg>
+            </span>
             <input
               className="logs-search-input"
               placeholder="Search logs…"
@@ -1230,6 +1261,17 @@ function LogsPage({ token, userRole, showToast }) {
               <button className="logs-search-clear" onClick={() => setSearch("")}>✕</button>
             )}
           </div>
+          {datePresets.map(p => {
+            const r = presetRange(p.days);
+            const active = filterDateRange.from === r.from && filterDateRange.to === r.to;
+            return (
+              <button key={p.key} type="button"
+                className={`stats-preset-btn ${active ? "stats-preset-active" : ""}`}
+                onClick={() => setFilterDateRange(active ? { from: "", to: "" } : r)}>
+                {p.label}
+              </button>
+            );
+          })}
           <FilterDropdown label="All Stations" options={stationOptions} value={filterStation} onChange={v => setFilterStation(v)} />
           <FilterDropdown label="All Types"    options={typeOptions}    value={filterType}    onChange={v => setFilterType(v)}    />
           <DateRangeFilter
@@ -1258,7 +1300,7 @@ function LogsPage({ token, userRole, showToast }) {
             const cfg = LOG_TYPE_CFG[t];
             return (
               <div key={t} className="logs-stat-item">
-                <span className="logs-stat-count" style={{ color: cfg.color }}>{counts[t] ?? 0}</span>
+                <span className="logs-stat-count" style={{ color: (counts[t] ?? 0) > 0 ? cfg.color : "var(--text-3)" }}>{counts[t] ?? 0}</span>
                 <span className="logs-stat-label">
                   <span className="stat-label-full">{cfg.label}</span>
                   <span className="stat-label-abbr">{cfg.mobileLabel}</span>
@@ -1316,7 +1358,11 @@ function LogsPage({ token, userRole, showToast }) {
                     <span className="type-badge-abbr">{cfg.mobileLabel}</span>
                   </span>
                 </span>
-                <span className="logs-col-msg" style={{ color: READING_TYPES.includes(l.type) || isFlaggedActivity ? cfg.color : "var(--text-2)" }}>
+                <span className="logs-col-msg" style={{
+                  color: isFlaggedActivity || (READING_TYPES.includes(l.type) && l.type !== "baseline")
+                    ? cfg.color
+                    : (l.type === "baseline" ? "var(--text-2)" : "var(--text-1)"),
+                }}>
                   {l.msg}
                 </span>
               </div>
@@ -1748,39 +1794,34 @@ function OpenPopup({ fews, markerRefs }) {
 // Covers FEWS 1 plus manual stations 2–14 and 16–18, all clustered
 // around Batangas City proper. Deliberately excludes FEWS 15 (Talahib
 // Pandayan), which sits ~15km south and would force an extreme zoom-out
-// if included — its popup just opens off-screen until the user pans out.
+// if included — it stays off-screen until the user pans out.
 const CITY_DEFAULT_BOUNDS = [[13.744, 121.050], [13.766, 121.082]];
 
 // FEWS 1 close-up — the dashboard map's home view (also used by its center button)
 const DASH_DEFAULT_BOUNDS = [[13.760466, 121.066331], [13.764466, 121.070331]];
-
-function OpenAllPopups({ fewsList, markerRefs, active }) {
-  const map = useMap();
-  useEffect(() => {
-    if (!active) return;
-    if (fewsList.length === 0) return;
-
-    // Single upfront pan, same as before — autoPan={false} on the popups
-    // means none of them can trigger their own pan, so this is safe
-    // regardless of which bounds we fit to.
-    map.fitBounds(CITY_DEFAULT_BOUNDS, { padding: [20, 20] });
-
-    const t = setTimeout(() => {
-      fewsList.forEach(f => {
-        const markerRef = markerRefs.current[f.id];
-        if (markerRef) markerRef.openPopup();
-      });
-    }, 700);
-    return () => clearTimeout(t);
-  }, [active]); // eslint-disable-line react-hooks/exhaustive-deps
-  return null;
-}
 
 // Drops the "Leaflet" label and flag from the attribution box. The data and tile credits stay.
 function HideLeafletPrefix() {
   const map = useMap();
   useEffect(() => { map.attributionControl?.setPrefix(false); }, [map]);
   return null;
+}
+
+// Counts tile loads and failures for one hazard overlay. After each finished load it reports
+// "unavailable" only when at least one tile failed and not a single tile arrived, so one stray
+// failed tile while panning does not trigger it. The handlers object is stable (useMemo []).
+function useTileHealth(onStatus) {
+  const cbRef = useRef(onStatus);
+  cbRef.current = onStatus;
+  return useMemo(() => {
+    let ok = 0, bad = 0;
+    return {
+      loading:   () => { ok = 0; bad = 0; },
+      tileload:  () => { ok += 1; },
+      tileerror: () => { bad += 1; },
+      load:      () => { if (cbRef.current) cbRef.current(bad > 0 && ok === 0); },
+    };
+  }, []);
 }
 
 // Hands the Leaflet map instance to a ref so buttons outside <MapContainer> can drive it
@@ -1837,11 +1878,11 @@ function BaseMapLayers({ mapId }) {
   );
 }
 
-// Hazard overlay (WMS) drawn above the base map and below the station markers.// Overlay for services with no WMS (liquefaction). Plain Leaflet, no new library: a
+// Overlay for services with no WMS (liquefaction). Plain Leaflet, no new library: a
 // TileLayer whose getTileUrl builds an ArcGIS export?bbox=... request per tile, in
 // EPSG:3857 (the CRS the map already uses). Requests double-size images on retina
 // screens so the overlay stays sharp. If the server is slow or down, only this layer fails.
-function ArcGisExportLayer({ cfg }) {
+function ArcGisExportLayer({ cfg, health }) {
   const map = useMap();
   useEffect(() => {
     const Layer = L.TileLayer.extend({
@@ -1860,19 +1901,22 @@ function ArcGisExportLayer({ cfg }) {
       maxZoom: 20,
       attribution: cfg.attribution,
     });
+    if (health) layer.on(health);
     layer.addTo(map);
     return () => { map.removeLayer(layer); };
-  }, [map, cfg]);
+  }, [map, cfg, health]);
   return null;
 }
 
-// Hazard overlay (WMS) drawn above the base map and below the station markers.// The MGB server only speaks EPSG:4326 / CRS:84, hence the crs option. If the
+// Hazard overlay (WMS) drawn above the base map and below the station markers.
+// The MGB server only speaks EPSG:4326 / CRS:84, hence the crs option. If the
 // government server is slow or down, only this layer fails; the base map and
 // markers keep working.
-function HazardOverlayLayer({ overlayId }) {
+function HazardOverlayLayer({ overlayId, onStatus }) {
+  const health = useTileHealth(onStatus);
   const cfg = HAZARD_OVERLAYS[overlayId];
   if (!cfg) return null;
-  if (cfg.kind === "arcgis") return <ArcGisExportLayer key={overlayId} cfg={cfg} />;
+  if (cfg.kind === "arcgis") return <ArcGisExportLayer key={overlayId} cfg={cfg} health={health} />;
   return (
     <WMSTileLayer
       key={overlayId}
@@ -1887,6 +1931,7 @@ function HazardOverlayLayer({ overlayId }) {
       zIndex={3}
       maxZoom={20}
       attribution={cfg.attribution}
+      eventHandlers={health}
     />
   );
 }
@@ -2014,7 +2059,7 @@ const HazardIcon = () => (
 
 // Hazard button + panel. Same portal pattern as MapSwitcher. With an overlay on, the list
 // folds into the chosen row (+ "Change") and the legend sits right under it.
-function HazardSwitcher({ value, overlay, onOverlayChange, showLegend = true, lightPanel = false, compact = false }) {
+function HazardSwitcher({ value, overlay, onOverlayChange, showLegend = true, lightPanel = false, compact = false, failed = false }) {
   const [open, setOpen]         = useState(false);
   const [listOpen, setListOpen] = useState(false);
   const [pos, setPos]           = useState({ left: 8, bottom: 60, width: 260, maxHeight: 320 });
@@ -2069,7 +2114,7 @@ function HazardSwitcher({ value, overlay, onOverlayChange, showLegend = true, li
         aria-expanded={open}
       >
         <HazardIcon />
-        {cfg && <span className="msw-dot" style={{ background: cfg.dot }} aria-hidden="true" />}
+        {cfg && <span className="msw-dot" style={{ background: failed ? "#f59e0b" : cfg.dot }} aria-hidden="true" />}
       </button>
       {open && createPortal(
         <div
@@ -2143,7 +2188,7 @@ function HazardSwitcher({ value, overlay, onOverlayChange, showLegend = true, li
 // Legend card for the fullscreen map: the chosen overlay's legend, above the bottom-left
 // buttons. Everything comes from HAZARD_OVERLAYS, so it changes with the overlay and is
 // gone when none is chosen. Hidden on phones for now (see .hz-legend-card in App.css).
-function HazardLegendCard({ overlay, isLight, compact = false }) {
+function HazardLegendCard({ overlay, isLight, compact = false, failed = false }) {
   const cfg = overlay ? HAZARD_OVERLAYS[overlay] : null;
   if (!cfg) return null;
   return (
@@ -2158,10 +2203,18 @@ function HazardLegendCard({ overlay, isLight, compact = false }) {
           </span>
         </div>
       ))}
+      {failed && (
+        <div className="hz-legend-fail" role="status">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+          </svg>
+          <span>{compact ? "Layer unavailable" : <><strong>Layer unavailable.</strong> No color on the map does not mean no hazard.</>}</span>
+        </div>
+      )}
       {!compact && <div className="msw-legend-src">{(!isLight && cfg.noteDark) || cfg.note}</div>}
       {!compact && <div className="msw-legend-src">{cfg.source}</div>}
-      {compact && cfg.shortNote && <div className="hz-legend-short">{(!isLight && cfg.shortNoteDark) || cfg.shortNote}</div>}
-      {compact && <div className="hz-legend-short-src">{cfg.source}</div>}
+      {compact && !failed && cfg.shortNote && <div className="hz-legend-short">{(!isLight && cfg.shortNoteDark) || cfg.shortNote}</div>}
+      {compact && !failed && <div className="hz-legend-short-src">{cfg.source}</div>}
     </div>
   );
 }
@@ -2190,18 +2243,28 @@ function escapeHtml(s) {
   return String(s ?? "").replace(/[&<>"']/g, c => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" }[c]));
 }
 
-// Fullscreen marker: dot + "FEWS 1 - LIVE" style label. iconSize is 0x0 so the
-// dot sits exactly on the coordinate; CSS positions the label above it.
-function makeFsLabelIcon({ name, statusWord, statusColor, markerColor, markerBorderColor, showPulse, isSel }) {
+// Two stacked panes for the fullscreen station markers: every label below, every dot above,
+// so a dot is never hidden behind a neighbor's label. Created during render (guarded) so the
+// panes exist before the markers that use them are added.
+function FsMarkerPanes() {
+  const map = useMap();
+  if (!map.getPane("fs-labels")) map.createPane("fs-labels").style.zIndex = 610;
+  if (!map.getPane("fs-dots"))   map.createPane("fs-dots").style.zIndex = 620;
+  return null;
+}
+
+// Fullscreen station marker, one half at a time (part = "label" or "dot"). iconSize is 0x0 so
+// each half is anchored exactly on the coordinate; CSS places the label above the dot.
+// The pulse ring lives with the label half, under the label and under every dot.
+function makeFsLabelIcon({ name, statusWord, statusColor, markerColor, markerBorderColor, showPulse, isSel, part }) {
+  const labelHtml = `<span class="fs-lb ${isSel ? "fs-lb-sel" : ""}">${escapeHtml(name)} - <span style="color:${statusColor}">${statusWord}</span></span>`;
+  const pulseHtml = showPulse ? `<div class="radar-pulse" style="width:14px;height:14px;background:${markerColor};top:-7px;left:-7px;"></div>` : "";
+  const dotHtml = `<div class="fs-dot-wrap">
+        <div class="fs-dot ${isSel ? "fs-dot-sel" : ""}" style="background:${markerColor};border-color:${markerBorderColor};box-shadow:0 0 8px ${markerColor}"></div>
+      </div>`;
   return L.divIcon({
     className: "",
-    html: `<div class="fs-mk">
-      <span class="fs-lb ${isSel ? "fs-lb-sel" : ""}">${escapeHtml(name)} - <span style="color:${statusColor}">${statusWord}</span></span>
-      <div class="fs-dot-wrap">
-        <div class="fs-dot ${isSel ? "fs-dot-sel" : ""}" style="background:${markerColor};border-color:${markerBorderColor};box-shadow:0 0 8px ${markerColor}"></div>
-        ${showPulse ? `<div class="radar-pulse" style="width:14px;height:14px;background:${markerColor};top:0;left:0;"></div>` : ""}
-      </div>
-    </div>`,
+    html: `<div class="fs-mk fs-mk-${part}">${part === "label" ? pulseHtml + labelHtml : dotHtml}</div>`,
     iconSize: [0, 0],
     iconAnchor: [0, 0],
   });
@@ -2342,6 +2405,17 @@ function FsDrawer({
         };
     const today = todayStats[`fews_${f.id}`] || {};
     const sirenOn = !!sirens[f.id];
+    // Hero colors: exact status colors on dark maps, deeper shades of the same hue on light maps
+    const heroTone = (cfg) => {
+      if (!isLight) return { color: cfg.color, bg: cfg.bg };
+      const deep = {
+        BASE:     { color: "#475569", bg: "rgba(71,85,105,0.12)" },
+        NORMAL:   { color: "#a16207", bg: "rgba(202,138,4,0.14)" },
+        WARNING:  { color: "#c2410c", bg: "rgba(234,88,12,0.12)" },
+        CRITICAL: { color: "#b91c1c", bg: "rgba(220,38,38,0.12)" },
+      };
+      return deep[cfg.label] || { color: cfg.color, bg: cfg.bg };
+    };
 
     return (
       <>
@@ -2363,18 +2437,18 @@ function FsDrawer({
         <div className="fs-dr-body">
           {f.isLive ? (
             <div className="fs-dr-hero">
-              <div className="fs-dr-hero-val" style={{ color: p.online ? p.cfg.color : "var(--text-3)" }}>
+              <div className="fs-dr-hero-val" style={{ color: p.online ? heroTone(p.cfg).color : "var(--text-3)" }}>
                 {p.online ? convertCm(f.waterLevel, unitPref)?.toFixed(UNIT_DECIMALS[unitPref] ?? 0) : "—"}
                 {p.online && <span className="fs-dr-hero-unit">{unitPref}</span>}
               </div>
-              <span className="fs-dr-hero-pill" style={{ color: p.online ? p.cfg.color : "var(--text-3)", background: p.online ? p.cfg.bg : "rgba(255,255,255,0.06)" }}>
+              <span className="fs-dr-hero-pill" style={{ color: p.online ? heroTone(p.cfg).color : "var(--text-3)", background: p.online ? heroTone(p.cfg).bg : "rgba(255,255,255,0.06)" }}>
                 {p.online ? p.cfg.label : "OFFLINE"}
               </span>
             </div>
           ) : (
             <div className="fs-dr-hero">
               <div className="fs-dr-hero-val fs-dr-hero-word">MANUAL</div>
-              <span className="fs-dr-hero-pill" style={{ color: p.badgeColor, background: p.badgeBg }}>{p.badge}</span>
+              <span className={`fs-dr-hero-pill fs-dr-badge-${p.kind}`} style={{ color: p.badgeColor, background: p.badgeBg }}>{p.badge}</span>
             </div>
           )}
 
@@ -2488,7 +2562,7 @@ function ConfirmModal({ icon, iconColor, title, message, confirmLabel, confirmCo
     <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget && !confirmLoading) onCancel(); }}>
       <div className="modal-box">
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          {icon && <div className="modal-icon" style={{ color: iconColor, marginBottom: 0 }}>{icon}</div>}
+          {icon && <div className="modal-icon" style={{ color: iconColor, marginBottom: 0, display: "flex" }}>{icon}</div>}
           <div className="modal-title">{title}</div>
         </div>
         <div className="modal-msg">{message}</div>
@@ -2541,7 +2615,7 @@ function ChangeEmailModal({ onClose, token, user, onEmailChanged, addLog }) {
       <div className="modal-box" style={{ alignItems: "stretch", gap: 14 }}>
         <div className="modal-title" style={{ textAlign: "left" }}>Change Email</div>
         <div className="modal-msg" style={{ textAlign: "left", marginBottom: 0 }}>
-          Current: <span style={{ color: "var(--blue)", fontSize: 12 }}>{user.email}</span>
+          Current: <span style={{ color: "var(--text-1)", fontWeight: 600, fontSize: 12 }}>{user.email}</span>
         </div>
         <div className="settings-field">
           <label className="settings-label">New Email</label>
@@ -2669,7 +2743,7 @@ function ChangePhoneModal({ onClose, token, user, onPhoneChanged, addLog }) {
         <div className="modal-title" style={{ textAlign: "left" }}>Change Phone Number</div>
         <div className="modal-msg" style={{ textAlign: "left", marginBottom: 0 }}>
           {user.phone
-            ? <>Current: <span style={{ color: "var(--blue)", fontSize: 12 }}>{user.phone}</span></>
+            ? <>Current: <span style={{ color: "var(--text-1)", fontWeight: 600, fontSize: 12 }}>{user.phone}</span></>
             : "No phone number registered yet."}
         </div>
         <div className="settings-field">
@@ -2740,7 +2814,7 @@ function AddUserModal({ onAdd, onClose, token, addLog }) {
     <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget && !saving) onClose(); }}>
       <div className="modal-box aum-box" style={{ alignItems: "stretch", gap: 16, maxWidth: 420 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-          <div className="modal-icon" style={{ color: "var(--blue)", marginBottom: 0, fontSize: 22 }}>👤</div>
+          <div className="modal-icon" style={{ color: "var(--blue)", marginBottom: 0, display: "flex" }}>{SETTINGS_ICONS.user}</div>
           <div className="modal-title">Add New User</div>
         </div>
         <div className="modal-msg" style={{ textAlign: "left", marginBottom: 0, marginTop: -8 }}>
@@ -2816,6 +2890,14 @@ function DefaultAvatar() {
   );
 }
 
+// Shows the photo; if there is none or it fails to load, shows the fallback instead
+function SafeImg({ src, alt, style, fallback }) {
+  const [failed, setFailed] = useState(false);
+  useEffect(() => { setFailed(false); }, [src]);
+  if (!src || failed) return <>{fallback}</>;
+  return <img src={src} alt={alt} style={style} onError={() => setFailed(true)} />;
+}
+
 function ProfileDropdown({ user, token, onSave, onClose, addLog }) {
   const ref                   = useRef();
   const fileRef               = useRef();
@@ -2846,6 +2928,7 @@ function ProfileDropdown({ user, token, onSave, onClose, addLog }) {
     const reader = new FileReader();
     reader.onload = (ev) => setPhoto(ev.target.result);
     reader.readAsDataURL(file);
+    e.target.value = ""; // lets the same file be picked again after "Remove photo"
   };
 
   const handleSave = async () => {
@@ -2881,10 +2964,7 @@ function ProfileDropdown({ user, token, onSave, onClose, addLog }) {
         <>
           <div className="pd-header-view">
             <div className="pd-avatar-lg">
-              {user.photo
-                ? <img src={user.photo} alt="profile" style={{ width:"100%", height:"100%", borderRadius:"50%", objectFit:"cover" }} />
-                : <DefaultAvatar />
-              }
+              <SafeImg src={user.photo} alt="profile" style={{ width:"100%", height:"100%", borderRadius:"50%", objectFit:"cover" }} fallback={<DefaultAvatar />} />
             </div>
             <div className="pd-view-info">
               <div className="pd-view-name">{user.name}</div>
@@ -2893,21 +2973,21 @@ function ProfileDropdown({ user, token, onSave, onClose, addLog }) {
             </div>
           </div>
           <div className="pd-divider" />
-          <button className="pd-btn" onClick={() => setEditing(true)}>✎  Edit Profile</button>
+          <button className="pd-btn" onClick={() => { setPhoto(user.photo || null); setName(user.name); setError(""); setEditing(true); }}>✎  Edit Profile</button>
           <button className="pd-btn pd-logout-mobile" onClick={() => { if(typeof window.__onMobileLogout === 'function') window.__onMobileLogout(); }}>Logout</button>
         </>
       ) : (
         <>
           <div className="pd-edit-photo-wrap">
             <div className="pd-edit-avatar" onClick={() => fileRef.current.click()}>
-              {photo
-                ? <img src={photo} alt="profile" style={{ width:"100%", height:"100%", borderRadius:"50%", objectFit:"cover" }} />
-                : <DefaultAvatar />
-              }
+              <SafeImg src={photo} alt="profile" style={{ width:"100%", height:"100%", borderRadius:"50%", objectFit:"cover" }} fallback={<DefaultAvatar />} />
               <div className="pd-photo-overlay">Change</div>
             </div>
             <input ref={fileRef} type="file" accept="image/*" style={{ display:"none" }} onChange={handlePhoto} />
             <div className="pd-edit-photo-label">Change Profile Photo</div>
+            {photo && (
+              <button type="button" className="pd-remove-photo" onClick={() => setPhoto("")}>Remove photo</button>
+            )}
           </div>
           <div className="pd-divider" />
           <div className="settings-field">
@@ -2916,7 +2996,7 @@ function ProfileDropdown({ user, token, onSave, onClose, addLog }) {
           </div>
           {error && <div className="settings-error" style={{ fontSize: 11 }}>{error}</div>}
           <div className="pd-edit-actions">
-            <button className="pd-btn" onClick={() => { setEditing(false); setError(""); }}>Cancel</button>
+            <button className="pd-btn" onClick={() => { setPhoto(user.photo || null); setName(user.name); setEditing(false); setError(""); }}>Cancel</button>
             <button className="pd-save-btn" onClick={handleSave} disabled={saving}>
               {saving ? <span className="btn-spinner" /> : "Save"}
             </button>
@@ -3231,7 +3311,7 @@ function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userNa
           <div className="modal-overlay">
             <div className="modal-box">
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                <div className="modal-icon" style={{ color: "var(--amber)", marginBottom: 0 }}>⚠</div>
+                <div className="modal-icon" style={{ color: "var(--amber)", marginBottom: 0, display: "flex" }}>{SETTINGS_ICONS.m_warn}</div>
                 <div className="modal-title">Update Alert Thresholds?</div>
               </div>
               <div className="modal-msg">
@@ -3367,7 +3447,7 @@ function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userNa
                   <div className="uc-thr-label">Alert Thresholds</div>
                   <div className="uc-thr-row">
                     <div className="uc-thr-field">
-                      <label className="uc-thr-field-label">⚠ Warning ({unitPreference})</label>
+                      <label className="uc-thr-field-label"><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#f97316", marginRight: 6, verticalAlign: "middle" }} />Warning ({unitPreference})</label>
                       <div className="uc-thr-stepper">
                         <button type="button" className="uc-thr-step-btn"
                           disabled={!isActuallyLive || thr.warning <= 100}
@@ -3383,7 +3463,7 @@ function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userNa
                       </div>
                     </div>
                     <div className="uc-thr-field">
-                      <label className="uc-thr-field-label">🔴 Critical ({unitPreference})</label>
+                      <label className="uc-thr-field-label"><span style={{ display: "inline-block", width: 8, height: 8, borderRadius: "50%", background: "#ef4444", marginRight: 6, verticalAlign: "middle" }} />Critical ({unitPreference})</label>
                       <div className="uc-thr-stepper">
                         <button type="button" className="uc-thr-step-btn"
                           disabled={!isActuallyLive || thr.danger <= Math.max(200, thr.warning + 100)}
@@ -3545,7 +3625,11 @@ function DateRangeFilter({ from, to, onChange, emptyLabel = "All Dates" }) {
     <div className="fdd-wrap drf-wrap" ref={ref}>
       <button type="button" className={`fdd-trigger ${hasFilter ? "fdd-trigger-active" : ""} ${open ? "fdd-trigger-open" : ""}`}
        onClick={() => setOpen(o => !o)}>
-        <span className="fdd-icon" style={{ fontSize: 12 }}>📅</span>
+        <span className="fdd-icon" style={{ display: "inline-flex" }}>
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/>
+          </svg>
+        </span>
         <span className="fdd-label">{displayLabel}</span>
         <svg className="fdd-chevron" width="10" height="6" viewBox="0 0 10 6" fill="none">
           <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -3659,6 +3743,29 @@ function MuDropdown({ value, options, onChange }) {
     </div>
   );
 }
+
+// Flat line icons for the Settings page (same style as the sidebar icons)
+const svgIcon = (children, size = 15) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{children}</svg>
+);
+const SETTINGS_ICONS = {
+  mail:   svgIcon(<><rect x="3" y="5" width="18" height="14" rx="2"/><polyline points="3 7 12 13 21 7"/></>, 18),
+  lock:   svgIcon(<><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V7a4 4 0 0 1 8 0v4"/></>, 18),
+  phone:  svgIcon(<><rect x="7" y="2" width="10" height="20" rx="2"/><line x1="12" y1="18" x2="12.01" y2="18"/></>, 18),
+  user:   svgIcon(<><circle cx="12" cy="8" r="4"/><path d="M4 21c0-4 3.6-7 8-7s8 3 8 7"/></>, 22),
+  push_enabled:   svgIcon(<><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></>),
+  audio_enabled:  svgIcon(<><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></>),
+  banner_enabled: svgIcon(<><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></>),
+  ticker_enabled: svgIcon(<><line x1="3" y1="21" x2="21" y2="21"/><rect x="5" y="12" width="4" height="9"/><rect x="15" y="4" width="4" height="17"/></>),
+  ruler:  svgIcon(<><rect x="2" y="8" width="20" height="8" rx="1"/><line x1="6" y1="8" x2="6" y2="12"/><line x1="10" y1="8" x2="10" y2="11"/><line x1="14" y1="8" x2="14" y2="12"/><line x1="18" y1="8" x2="18" y2="11"/></>),
+  // 22px versions for the confirm popups
+  m_bell:     svgIcon(<><path d="M18 8a6 6 0 0 0-12 0c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></>, 22),
+  m_bell_off: svgIcon(<><path d="M13.73 21a2 2 0 0 1-3.46 0"/><path d="M18.63 13A17.89 17.89 0 0 1 18 8"/><path d="M6.26 6.26A5.86 5.86 0 0 0 6 8c0 7-3 9-3 9h14"/><path d="M18 8a6 6 0 0 0-9.33-5"/><line x1="1" y1="1" x2="23" y2="23"/></>, 22),
+  m_ruler:    svgIcon(<><rect x="2" y="8" width="20" height="8" rx="1"/><line x1="6" y1="8" x2="6" y2="12"/><line x1="10" y1="8" x2="10" y2="11"/><line x1="14" y1="8" x2="14" y2="12"/><line x1="18" y1="8" x2="18" y2="11"/></>, 22),
+  m_trash:    svgIcon(<><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/></>, 22),
+  m_siren:    svgIcon(<><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></>, 22),
+  m_warn:     svgIcon(<><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></>, 22),
+};
 
 function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog }) {
   const [showEmail, setShowEmail]           = useState(false);
@@ -3856,7 +3963,7 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
           setUsers(prev => prev.map(u => u.id === user.id ? { ...u, phone: newPhone } : u));
         }} />}
       {confirmSms && <ConfirmModal
-        icon={confirmSms.newVal ? "🔔" : "🔕"}
+        icon={confirmSms.newVal ? SETTINGS_ICONS.m_bell : SETTINGS_ICONS.m_bell_off}
         iconColor={confirmSms.newVal ? "var(--green)" : "var(--red)"}
         title={confirmSms.newVal ? `Enable SMS for ${confirmSms.name}?` : `Disable SMS for ${confirmSms.name}?`}
         message={confirmSms.newVal ? `${confirmSms.name} will receive SMS alerts on CRITICAL events.` : `${confirmSms.name} will no longer receive SMS alerts.`}
@@ -3865,7 +3972,7 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
         onConfirm={() => { handleSmsToggle(confirmSms.userId, confirmSms.newVal); setConfirmSms(null); }}
         onCancel={() => setConfirmSms(null)} />}
       {confirmNotif && <ConfirmModal
-        icon={confirmNotif.newVal ? "🔔" : "🔕"}
+        icon={confirmNotif.newVal ? SETTINGS_ICONS.m_bell : SETTINGS_ICONS.m_bell_off}
         iconColor={confirmNotif.newVal ? "var(--green)" : "var(--red)"}
         title={confirmNotif.newVal ? `Turn on ${confirmNotif.label}?` : `Turn off ${confirmNotif.label}?`}
         message={confirmNotif.newVal ? `You'll start receiving alerts for ${confirmNotif.label}.` : `You'll stop receiving alerts for ${confirmNotif.label}.`}
@@ -3875,7 +3982,7 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
         onConfirm={() => handleNotifToggle(confirmNotif.key, confirmNotif.newVal)}
         onCancel={() => { if (!confirmNotifLoading) setConfirmNotif(null); }} />}
       {confirmUnit && <ConfirmModal
-        icon="📏"
+        icon={SETTINGS_ICONS.m_ruler}
         iconColor="var(--blue)"
         title={`Switch display unit to ${confirmUnit}?`}
         message="This changes how water levels appear across the dashboard for your account only."
@@ -3883,8 +3990,8 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
         confirmLoading={confirmUnitLoading}
         onConfirm={() => handleUnitChange(confirmUnit)}
         onCancel={() => { if (!confirmUnitLoading) setConfirmUnit(null); }} />}
-      {confirmSave   && <ConfirmModal icon="👤" iconColor="var(--blue)" title={`Save Changes for ${confirmSave.name}?`} message={`Role → ${getDraft(confirmSave).role} · Department → ${getDraft(confirmSave).department}`} confirmLabel="Yes, Save" confirmLoading={confirmSaveLoading} onConfirm={doSave} onCancel={() => { if (!confirmSaveLoading) setConfirmSave(null); }} />}
-      {confirmRemove && <ConfirmModal icon="🗑" iconColor="var(--red)" title={`Remove ${confirmRemove.name}?`} message={`This will permanently remove ${confirmRemove.name} from the system.`} confirmLabel="Yes, Remove" confirmColor="var(--red)" onConfirm={doRemove} onCancel={() => setConfirmRemove(null)} />}
+      {confirmSave   && <ConfirmModal icon={SETTINGS_ICONS.user} iconColor="var(--blue)" title={`Save Changes for ${confirmSave.name}?`} message={`Role → ${getDraft(confirmSave).role} · Department → ${getDraft(confirmSave).department}`} confirmLabel="Yes, Save" confirmLoading={confirmSaveLoading} onConfirm={doSave} onCancel={() => { if (!confirmSaveLoading) setConfirmSave(null); }} />}
+      {confirmRemove && <ConfirmModal icon={SETTINGS_ICONS.m_trash} iconColor="var(--red)" title={`Remove ${confirmRemove.name}?`} message={`This will permanently remove ${confirmRemove.name} from the system.`} confirmLabel="Yes, Remove" confirmColor="var(--red)" onConfirm={doRemove} onCancel={() => setConfirmRemove(null)} />}
       <div className="page-body">
 
         <div className="page-card">
@@ -3892,13 +3999,13 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
           <div className="page-card-sub">Manage your login credentials.</div>
           <div className="settings-action-row">
             <button className="settings-action-btn" onClick={() => setShowEmail(true)}>
-              <span className="sa-icon">✉</span><div className="sa-text"><div className="sa-label">Change Email</div><div className="sa-sub">Update your account email address</div></div><span className="sa-arrow">›</span>
+              <span className="sa-icon">{SETTINGS_ICONS.mail}</span><div className="sa-text"><div className="sa-label">Change Email</div><div className="sa-sub">Update your account email address</div></div><span className="sa-arrow">›</span>
             </button>
             <button className="settings-action-btn" onClick={() => setShowPassword(true)}>
-              <span className="sa-icon">🔒</span><div className="sa-text"><div className="sa-label">Change Password</div><div className="sa-sub">Update your login password</div></div><span className="sa-arrow">›</span>
+              <span className="sa-icon">{SETTINGS_ICONS.lock}</span><div className="sa-text"><div className="sa-label">Change Password</div><div className="sa-sub">Update your login password</div></div><span className="sa-arrow">›</span>
             </button>
             <button className="settings-action-btn" onClick={() => setShowPhone(true)}>
-              <span className="sa-icon">📱</span><div className="sa-text"><div className="sa-label">Change Phone Number</div><div className="sa-sub">Update your SMS notification number</div></div><span className="sa-arrow">›</span>
+              <span className="sa-icon">{SETTINGS_ICONS.phone}</span><div className="sa-text"><div className="sa-label">Change Phone Number</div><div className="sa-sub">Update your SMS notification number</div></div><span className="sa-arrow">›</span>
             </button>
           </div>
         </div>
@@ -3931,10 +4038,9 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
                   return (
                     <div key={u.id} className="mu-row">
                       <div className="mu-avatar">
-                        {u.photo
-                          ? <img src={u.photo} alt={u.name} style={{ width:"100%", height:"100%", borderRadius:"50%", objectFit:"cover" }} />
-                          : u.name.split(" ").map(w=>w[0]).join("").slice(0,2)
-                        }
+                        <SafeImg src={u.photo} alt={u.name}
+                          style={{ width:"100%", height:"100%", borderRadius:"50%", objectFit:"cover" }}
+                          fallback={u.name.split(" ").map(w=>w[0]).join("").slice(0,2)} />
                       </div>
                       <div className="mu-info"><div className="mu-name">{u.name}</div><div className="mu-email">{u.email}</div></div>
                       <div className="mu-controls">
@@ -3949,7 +4055,7 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
                           onChange={val => handleDraft(u.id, "department", val)}
                         />
                         <button className="mu-save-btn" disabled={!changed} onClick={() => setConfirmSave(u)}>Save</button>
-                        <button className="mu-remove-btn" onClick={() => setConfirmRemove(u)}>✕</button>
+                        <button className="mu-remove-btn" onClick={() => setConfirmRemove(u)} title="Remove user" aria-label={`Remove ${u.name}`}>✕</button>
                       </div>
                     </div>
                   );
@@ -3965,14 +4071,14 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
           <div className="page-card-sub">Control how you receive alerts from FEWS.</div>
           <div className="settings-toggle-table">
             {[
-              { key: "push_enabled",   icon: "🔔", label: "Push Notifications",   sub: "Browser/phone alerts for CRITICAL events" },
-              { key: "audio_enabled",  icon: "🔊", label: "Alert Sound",           sub: "Play siren audio when an alert is active" },
-              { key: "banner_enabled", icon: "🚨", label: "Critical Alert Banner", sub: "Show the scrolling banner during CRITICAL events" },
-              { key: "ticker_enabled", icon: "📊", label: "Water Level Ticker",    sub: "Show the rolling 5-hour reading ticker" },
-            ].map(({ key, icon, label, sub }) => (
+              { key: "push_enabled",   label: "Push Notifications",   sub: "Browser/phone alerts for CRITICAL events" },
+              { key: "audio_enabled",  label: "Alert Sound",           sub: "Play siren audio when an alert is active" },
+              { key: "banner_enabled", label: "Critical Alert Banner", sub: "Show the scrolling banner during CRITICAL events" },
+              { key: "ticker_enabled", label: "Water Level Ticker",    sub: "Show the rolling 5-hour reading ticker" },
+            ].map(({ key, label, sub }) => (
               <div key={key} className="settings-toggle-row">
                 <div className="settings-toggle-info">
-                  <div className="settings-toggle-label">{icon} {label}</div>
+                  <div className="settings-toggle-label settings-label-icon">{SETTINGS_ICONS[key]}{label}</div>
                   <div className="settings-toggle-sub">{sub}</div>
                 </div>
                 <button
@@ -3992,7 +4098,7 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
           <div className="settings-toggle-table">
             <div className="settings-toggle-row">
               <div className="settings-toggle-info">
-                <div className="settings-toggle-label">📏 Measurement Unit</div>
+                <div className="settings-toggle-label settings-label-icon">{SETTINGS_ICONS.ruler}Measurement Unit</div>
                 <div className="settings-toggle-sub">Thresholds and logs always stay in centimeters.</div>
               </div>
               <MuDropdown
@@ -4635,7 +4741,7 @@ export default function App() {
             ? rawTs.replace(" ", "T").replace(/Z?$/, "Z")
             : null;
           const lastSeen = utcStr ? new Date(utcStr) : null;
-          const isRecent = lastSeen && (Date.now() - lastSeen.getTime()) < 7200000; // 60 mins
+          const isRecent = lastSeen && (Date.now() - lastSeen.getTime()) < 7200000; // 2 hrs
 
         setFews1Live(data.fews_1);
           if (isRecent) {
@@ -4856,6 +4962,10 @@ export default function App() {
     const baseMapIsLight = BASE_MAPS[baseMapId]?.isLight ?? false;
     // Hazard overlay on top of the base map (null = none). Not saved; resets on reload.
     const [overlayId, setOverlayId] = useState(null);
+    // True while the chosen overlay could not load any tile (one flag per map)
+    const [overlayFail, setOverlayFail] = useState({ dash: false, fs: false });
+    // A new choice (or none) starts clean
+    useEffect(() => { setOverlayFail({ dash: false, fs: false }); }, [overlayId]);
     // Any logout (button, expired token, or another tab) turns the overlay off
     useEffect(() => { if (!isLoggedIn) setOverlayId(null); }, [isLoggedIn]);
 
@@ -4884,6 +4994,15 @@ export default function App() {
     const [fsSelectedFEWS, setFsSelectedFEWS] = useState(null);
     const [fsDrawerOpen, setFsDrawerOpen] = useState(() => !isMobileViewport());
     const fsMapRef = useRef(null);
+
+    // Any logout (button, expired token, or another tab) closes the fullscreen map,
+    // so the next person to sign in doesn't land in it
+    useEffect(() => {
+      if (isLoggedIn) return;
+      setFullscreenMap(false);
+      setFsSelectedFEWS(null);
+      setFsDrawerOpen(!isMobileViewport());
+    }, [isLoggedIn]);
 
     const closeFullscreen = () => {
       setFullscreenMap(false);
@@ -5050,10 +5169,10 @@ const waterChartOptions = useMemo(() => ({
       },
       annotation: {
         annotations: {
-          zoneLow:     { type: "box", yMin: 0,                    yMax: Math.min(100, thresholds.warning), backgroundColor: "rgba(226,232,240,0.55)", borderWidth: 0 },
-          zoneSafe:    { type: "box", yMin: Math.min(100, thresholds.warning), yMax: thresholds.warning, backgroundColor: "rgba(253,224,71,0.60)",  borderWidth: 0 },
-          zoneWarning: { type: "box", yMin: thresholds.warning,   yMax: thresholds.danger,  backgroundColor: "rgba(249,115,22,0.60)", borderWidth: 0 },
-          zoneCritical:{ type: "box", yMin: thresholds.danger,    yMax: 700,                backgroundColor: "rgba(239,68,68,0.60)",  borderWidth: 0 },
+          zoneLow:     { type: "box", drawTime: "beforeDatasetsDraw", yMin: 0,                    yMax: Math.min(100, thresholds.warning), backgroundColor: "rgba(226,232,240,0.55)", borderWidth: 0, label: zoneLabel("BASELINE", "#0a0a0b", 0, Math.min(100, thresholds.warning)) },
+          zoneSafe:    { type: "box", drawTime: "beforeDatasetsDraw", yMin: Math.min(100, thresholds.warning), yMax: thresholds.warning, backgroundColor: "rgba(253,224,71,0.60)",  borderWidth: 0, label: zoneLabel("NORMAL", "#0a0a0b", Math.min(100, thresholds.warning), thresholds.warning) },
+          zoneWarning: { type: "box", drawTime: "beforeDatasetsDraw", yMin: thresholds.warning,   yMax: thresholds.danger,  backgroundColor: "rgba(249,115,22,0.60)", borderWidth: 0, label: zoneLabel("WARNING", "#ffffff", thresholds.warning, thresholds.danger) },
+          zoneCritical:{ type: "box", drawTime: "beforeDatasetsDraw", yMin: thresholds.danger,    yMax: 700,                backgroundColor: "rgba(239,68,68,0.60)",  borderWidth: 0, label: zoneLabel("CRITICAL", "#ffffff", thresholds.danger, 700) },
           lineWarning: { type: "line", yMin: thresholds.warning, yMax: thresholds.warning, borderColor: "rgba(249,115,22,0.80)", borderWidth: 2, borderDash: [4, 4], label: { display: false } },
           lineCritical:{ type: "line", yMin: thresholds.danger,  yMax: thresholds.danger,  borderColor: "rgba(239,68,68,0.80)",  borderWidth: 2, borderDash: [4, 4], label: { display: false } },
         },
@@ -5128,7 +5247,7 @@ const waterChartOptions = useMemo(() => ({
         const f = allFews.find(x => x.id === sirenConfirm);
         return (
           <ConfirmModal
-            icon="🔊"
+            icon={SETTINGS_ICONS.m_siren}
             iconColor="var(--red)"
             title="Activate Siren?"
             message={`This will physically sound the siren at ${f?.name || "the station"} (${f?.location || ""}). Only activate during an actual emergency.`}
@@ -5243,7 +5362,7 @@ const waterChartOptions = useMemo(() => ({
             </div>
             <div className="profile-wrap">
               <div className="profile-avatar-btn" ref={avatarBtnRef} onMouseDown={e => e.stopPropagation()} onClick={() => setShowProfileDropdown(v => !v)}>
-                {user.photo ? <img src={user.photo} alt="avatar" style={{ width:"100%", height:"100%", borderRadius:"50%", objectFit:"cover" }} /> : <DefaultAvatar />}
+                <SafeImg src={user.photo} alt="avatar" style={{ width:"100%", height:"100%", borderRadius:"50%", objectFit:"cover" }} fallback={<DefaultAvatar />} />
               </div>
               {showProfileDropdown && (() => {
                   const rect    = avatarBtnRef.current?.getBoundingClientRect();
@@ -5356,10 +5475,10 @@ const waterChartOptions = useMemo(() => ({
                   <span className="card-tag">Batangas City</span>
                 </div>
                 <div className={`map-wrap ${baseMapIsLight ? "map-is-light" : ""}`}>
-                  <HazardLegendCard overlay={overlayId} isLight={baseMapIsLight} compact />
+                  <HazardLegendCard overlay={overlayId} isLight={baseMapIsLight} compact failed={overlayFail.dash} />
                   <div className="map-ctrl-group">
                     <MapSwitcher value={baseMapId} onChange={handleBaseMapChange} compact />
-                    <HazardSwitcher value={baseMapId} overlay={overlayId} onOverlayChange={setOverlayId} showLegend={false} compact />
+                    <HazardSwitcher value={baseMapId} overlay={overlayId} onOverlayChange={setOverlayId} showLegend={false} compact failed={overlayFail.dash} />
                     <button className="map-ctrl-btn" onClick={handleDashCenter} title="Center map" aria-label="Center map">
                       <CenterIcon />
                     </button>
@@ -5374,7 +5493,7 @@ const waterChartOptions = useMemo(() => ({
                     zoomControl={false}
                     scrollWheelZoom={true}>
                     <BaseMapLayers mapId={baseMapId} />
-                    <HazardOverlayLayer overlayId={overlayId} />
+                    <HazardOverlayLayer overlayId={overlayId} onStatus={bad => setOverlayFail(p => p.dash === bad ? p : { ...p, dash: bad })} />
                     <MapRefSetter mapRef={dashMapRef} />
                     <HideLeafletPrefix />
                     <MapResizeWatcher />
@@ -5471,15 +5590,6 @@ const waterChartOptions = useMemo(() => ({
               <div className="card card-water">
                 <div className="card-header">
                   <h2>Water Level</h2>
-
-                  {hasEverHadData && fews1Connected && (
-                    <div className="wl-legend-row">
-                      <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#ffffff", border: "1px solid rgba(255,255,255,0.4)" }} />Baseline</span>
-                      <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#fde047" }} />Normal</span>
-                      <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#f97316" }} />Warning</span>
-                      <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#ef4444" }} />Critical</span>
-                    </div>
-                  )}
 
                     <span className="card-tag">
                       {hasEverHadData
@@ -5856,9 +5966,10 @@ const waterChartOptions = useMemo(() => ({
                     scrollWheelZoom={true}
                     minZoom={3}>
                     <BaseMapLayers mapId={baseMapId} />
-                    <HazardOverlayLayer overlayId={overlayId} />
+                    <HazardOverlayLayer overlayId={overlayId} onStatus={bad => setOverlayFail(p => p.fs === bad ? p : { ...p, fs: bad })} />
                     <MapRefSetter mapRef={fsMapRef} />
                     <HideLeafletPrefix />
+                    <FsMarkerPanes />
                     {allFews.map(f => {
                       const isManualServiceable = !f.isLive && f.manualStatus === "serviceable";
                       const isActuallyLive = f.isLive && isHardwareOnline;
@@ -5882,14 +5993,21 @@ const waterChartOptions = useMemo(() => ({
                         : (f.isLive
                             ? (isActuallyLive ? "#22c55e" : "#94a3b8")
                             : (isManualServiceable ? "#38bdf8" : "#9aa0a8"));
-                      const icon = makeFsLabelIcon({
+                      const iconArgs = {
                         name: f.name, statusWord, statusColor,
                         markerColor, markerBorderColor, showPulse, isSel: isFsSel,
-                      });
+                      };
                       return (
-                        <Marker key={f.id} position={[f.lat, f.lng]} icon={icon}
-                          zIndexOffset={isFsSel ? 1000 : 0}
-                          eventHandlers={{ click: () => selectFsStation(f.id) }} />
+                        <React.Fragment key={f.id}>
+                          <Marker position={[f.lat, f.lng]} icon={makeFsLabelIcon({ ...iconArgs, part: "label" })}
+                            pane="fs-labels"
+                            zIndexOffset={isFsSel ? 1000 : 0}
+                            eventHandlers={{ click: () => selectFsStation(f.id) }} />
+                          <Marker position={[f.lat, f.lng]} icon={makeFsLabelIcon({ ...iconArgs, part: "dot" })}
+                            pane="fs-dots"
+                            zIndexOffset={isFsSel ? 1000 : 0}
+                            eventHandlers={{ click: () => selectFsStation(f.id) }} />
+                        </React.Fragment>
                       );
                     })}
                   </MapContainer>
@@ -5925,12 +6043,12 @@ const waterChartOptions = useMemo(() => ({
                     isLight={baseMapIsLight}
                   />
 
-                  <HazardLegendCard overlay={overlayId} isLight={baseMapIsLight} />
+                  <HazardLegendCard overlay={overlayId} isLight={baseMapIsLight} failed={overlayFail.fs} />
 
                   {/* Map controls — bottom left */}
                   <div className="map-ctrl-group map-ctrl-group-fs">
                     <MapSwitcher value={baseMapId} onChange={handleBaseMapChange} lightPanel />
-                    <HazardSwitcher value={baseMapId} overlay={overlayId} onOverlayChange={setOverlayId} showLegend={false} lightPanel />
+                    <HazardSwitcher value={baseMapId} overlay={overlayId} onOverlayChange={setOverlayId} showLegend={false} lightPanel failed={overlayFail.fs} />
                     <button className="map-ctrl-btn" onClick={handleFsCenter} title="Center map" aria-label="Center map">
                       <CenterIcon />
                     </button>

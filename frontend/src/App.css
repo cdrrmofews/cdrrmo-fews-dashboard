@@ -141,12 +141,6 @@ body {
   padding: 8px;
 }
 
-.sidebar-toggle-nav {
-  margin-top: 4px;
-  border-top: 1px solid var(--border);
-  padding-top: 14px !important;
-}
-
 .brand {
   position: relative;
   display: flex;
@@ -167,11 +161,9 @@ body {
   background: var(--border);
 }
 
-.brand-icon             { font-size: 22px; flex-shrink: 0; }
 .brand-text             { overflow: hidden; white-space: nowrap; }
 .brand-text.hidden      { display: none; }
 .brand-name             { font-size: 16px; font-weight: 600; letter-spacing: 0; color: var(--text-1); }
-.brand-tag              { font-size: 11px; color: var(--text-3); margin-top: 2px; }
 
 /* Expanded sidebar header: logo on top, name below, toggle in the corner */
 .brand.brand-open {
@@ -533,6 +525,13 @@ body {
 .pd-edit-avatar:hover .pd-photo-overlay { opacity: 1; }
 
 .pd-edit-photo-label { font-size: 11px; color: var(--text-3); font-weight: 600; }
+.pd-remove-photo {
+  background: transparent; border: none; color: var(--red);
+  font-family: var(--font); font-size: 11px; font-weight: 600;
+  padding: 3px 8px; border-radius: 6px; cursor: pointer;
+  transition: background 0.15s;
+}
+.pd-remove-photo:hover { background: rgba(239,68,68,0.10); }
 
 .pd-edit-actions { display: flex; gap: 8px; margin-top: 4px; }
 
@@ -614,7 +613,6 @@ body {
 .wl-abbr { display: none; }
 .stat-label-abbr { display: none; }
 .type-badge-abbr { display: none; }
-.stats-preset-abbr { display: none; }
 
 .chart-wrap { flex: 1; min-height: 0; position: relative; display: block; }
 
@@ -755,21 +753,7 @@ body {
   letter-spacing: 0.08em; text-transform: uppercase;
 }
 
-.rsb-section-toggle {
-  display: flex; align-items: center; justify-content: space-between;
-  background: transparent; border: none; padding: 0; cursor: pointer;
-  width: 100%; font-family: var(--font);
-}
-
-.rsb-toggle-arrow { font-size: 9px; color: var(--text-3); margin-left: auto; }
-
 .rsb-section-items { display: flex; flex-direction: column; gap: 6px; }
-
-.rsb-badge-manual {
-  color: var(--text-2);
-  background: rgba(255,255,255,0.06);
-  font-family: var(--mono);
-}
 
 .rsb-item {
   display: flex;
@@ -799,6 +783,13 @@ body {
 
 @media (max-width: 768px) {
   .rsb-badge-manual-size { font-size: 9px; }
+}
+
+/* Laptop widths: the sidebar is too narrow for the long SERVICEABLE / UNSERVICEABLE badge,
+   so manual rows show only their dot (the status is in the detail card on click).
+   Phones keep the badge (full-width list); 1600px and up has room for it. */
+@media (min-width: 769px) and (max-width: 1599px) {
+  .rsb-badge-manual-size { display: none; }
 }
 
 .rsb-detail {
@@ -899,20 +890,29 @@ body {
 }
 
 .login-brand      { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.login-brand-icon { font-size: 36px; margin-bottom: 4px; }
-.login-brand-name { font-size: 22px; font-weight: 800; color: var(--text-1); letter-spacing: 0.06em; }
 .login-brand-tag  { font-size: 12px; color: var(--text-3); font-family: var(--mono); }
 
 .login-form  { display: flex; flex-direction: column; gap: 16px; }
 .login-field { display: flex; flex-direction: column; gap: 6px; }
-.login-label { font-size: 11px; font-weight: 600; color: var(--text-3); letter-spacing: 0.06em; text-transform: uppercase; }
+.login-label { font-size: 11px; font-weight: 600; color: var(--text-2); letter-spacing: 0.06em; text-transform: uppercase; }
 
 .login-input {
   background: var(--bg-raised); border: 1px solid var(--border); border-radius: 10px;
   padding: 11px 14px; color: var(--text-1); font-family: var(--font); font-size: 14px;
   outline: none; transition: border-color 0.2s;
 }
-.login-input:focus        { border-color: var(--blue); }
+.login-input:focus        { border-color: var(--blue); box-shadow: 0 0 0 3px rgba(56,189,248,0.15); }
+
+/* Chrome autofill: keep the dark theme instead of the blue-grey fill */
+.login-input:-webkit-autofill,
+.login-input:-webkit-autofill:hover,
+.login-input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--text-1);
+  caret-color: var(--text-1);
+  -webkit-box-shadow: 0 0 0 1000px var(--bg-raised) inset;
+  box-shadow: 0 0 0 1000px var(--bg-raised) inset;
+  transition: background-color 9999s ease-out 0s;
+}
 .login-input::placeholder { color: var(--text-3); }
 
 .login-error {
@@ -920,6 +920,25 @@ body {
   background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2);
   border-radius: 8px; padding: 8px 12px;
 }
+
+.login-hint-caps {
+  font-size: 12px; font-weight: 600; color: var(--amber);
+  background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.25);
+  border-radius: 8px; padding: 8px 12px;
+}
+
+.login-remember { display: flex; flex-direction: column; gap: 4px; }
+.login-remember-row { display: flex; align-items: center; gap: 8px; }
+.login-check {
+  width: 16px; height: 16px; padding: 0; border-radius: 4px; flex-shrink: 0;
+  border: 1.5px solid rgba(255,255,255,0.28); background: transparent;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: background 0.15s, border-color 0.15s;
+}
+.login-check-on { background: var(--blue); border-color: var(--blue); }
+.login-check:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.login-remember-label { font-size: 12px; color: var(--text-2); cursor: pointer; user-select: none; }
+.login-remember-hint { font-size: 10px; line-height: 1.4; color: var(--text-3); padding-left: 24px; }
 
 .login-btn {
   background: var(--blue); color: #000; border: none; border-radius: 10px;
@@ -1041,15 +1060,6 @@ body {
 }
 .settings-input:focus { border-color: var(--blue); }
 
-select.settings-input {
-  -webkit-appearance: none; appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none' stroke='%234a607e' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='1 1 5 5 9 1'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
-  padding-right: 28px;
-  cursor: pointer;
-}
-
 .settings-error {
   font-size: 11px; color: var(--red);
   background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2);
@@ -1066,7 +1076,9 @@ select.settings-input {
 }
 .settings-action-btn:hover { border-color: var(--blue); background: rgba(56,189,248,0.05); }
 
-.sa-icon  { font-size: 18px; flex-shrink: 0; }
+.sa-icon  { display: flex; align-items: center; justify-content: center; width: 22px; flex-shrink: 0; color: var(--text-2); }
+.settings-label-icon { display: flex; align-items: center; gap: 8px; }
+.settings-label-icon svg { color: var(--text-2); flex-shrink: 0; }
 .sa-text  { flex: 1; }
 .sa-label { font-size: 13px; font-weight: 600; color: var(--text-1); }
 .sa-sub   { font-size: 11px; color: var(--text-3); margin-top: 2px; }
@@ -1115,6 +1127,9 @@ select.settings-input {
   background: var(--bg-raised); border: 1px solid var(--border);
   border-radius: 10px; padding: 12px 14px;
 }
+
+.mu-row { transition: background 0.15s, border-color 0.15s; }
+.mu-row:hover { background: #26262b; border-color: rgba(255,255,255,0.18); }
 
 .mu-avatar {
   width: 36px; height: 36px; border-radius: 50%;
@@ -1277,26 +1292,6 @@ select.settings-input {
   }
 }
 
-.uc-power-btn {
-  width: 36px; height: 36px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 16px; border: none; cursor: pointer;
-  transition: background 0.2s, box-shadow 0.2s;
-  flex-shrink: 0;
-}
-
-.uc-power-on {
-  background: rgba(34,197,94,0.12);
-  color: var(--green);
-  border: 1px solid rgba(34,197,94,0.25);
-}
-
-.uc-power-off {
-  background: rgba(255,255,255,0.04);
-  color: var(--text-3);
-  border: 1px solid var(--border);
-}
-
 .uc-stats-row {
   display: flex; gap: 0;
   border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
@@ -1386,10 +1381,6 @@ select.settings-input {
   box-shadow: inset 0 0 0 1px var(--border); cursor: default;
 }
 .uc-thr-note-dirty { color: var(--blue); }
-
-.unit-toggle { font-size: 11px; font-weight: 700; font-family: var(--mono); padding: 5px 14px; border-radius: 999px; border: none; cursor: pointer; transition: background 0.2s, color 0.2s; }
-.unit-on     { background: rgba(34,197,94,0.15); color: var(--green); }
-.unit-off    { background: var(--bg-card); color: var(--text-3); border: 1px solid var(--border); }
 
 .uc-thr-stepper {
   display: flex;
@@ -1826,6 +1817,12 @@ select.settings-input {
   gap: 10px;
   flex-wrap: wrap;
 }
+@media (min-width: 769px) {
+  .logs-filters-row .stats-preset-btn { height: 36px; } /* match the 36px dropdowns */
+}
+@media (max-width: 768px) {
+  .logs-filters-row .stats-preset-btn { display: none; } /* quick date presets are desktop only */
+}
 
 .logs-search-wrap {
   position: relative;
@@ -1838,7 +1835,8 @@ select.settings-input {
 .logs-search-icon {
   position: absolute;
   left: 13px;
-  font-size: 12px;
+  display: flex;
+  color: var(--text-3);
   pointer-events: none;
   z-index: 1;
 }
@@ -1947,8 +1945,8 @@ select.settings-input {
 .logs-col-station { display: flex; align-items: center; justify-content: center; }
 
 .logs-station-tag {
-  font-size: 10px; font-weight: 700; color: var(--blue);
-  background: rgba(56,189,248,0.10); border: 1px solid rgba(56,189,248,0.18);
+  font-size: 10px; font-weight: 700; color: var(--text-2);
+  background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.12);
   border-radius: 5px; padding: 2px 8px; font-family: var(--mono);
   letter-spacing: 0.04em; white-space: nowrap;
 }
@@ -2276,7 +2274,6 @@ select.settings-input {
 .mc-range-from  { border-radius: 6px 0 0 6px !important; }
 .mc-range-to    { border-radius: 0 6px 6px 0 !important; }
 .mc-range-from.mc-range-to { border-radius: 6px !important; }
-.mc-disabled    { opacity: 0.22; cursor: not-allowed !important; pointer-events: none; }
 
 /* ================================
    BUTTON SPINNER
@@ -2340,29 +2337,6 @@ select.settings-input {
 /* Desktop: hide inline phone (shown in its own column), show phone col */
 .sms-phone-inline { display: none; }
 .sms-phone-col    { display: block; }
-.sms-role-admin,
-.sms-role-operator { all: unset; font-size: 12px; color: var(--text-2); }
-
-/* ================================
-   ALERT TRIGGERS TOGGLE ROWS
-================================ */
-.notif-toggle-row {
-  display: grid;
-  grid-template-columns: 1fr 64px;
-  padding: 11px 16px;
-  align-items: center;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-card);
-}
-
-.notif-toggle-row:last-child { border-bottom: none; }
-
-.notif-toggle-btn-wrap {
-  width: 64px;
-  display: flex;
-  justify-content: center;
-  flex-shrink: 0;
-}
 
 @keyframes tickerSlide {
   0%   { transform: translateX(0); }
@@ -2509,8 +2483,6 @@ select.settings-input {
     width: 100%;
   }
   .login-brand      { gap: 4px; }
-  .login-brand-icon { font-size: 26px; margin-bottom: 2px; }
-  .login-brand-name { font-size: 16px; }
   .login-brand-tag  { font-size: 10px; }
   .login-form       { gap: 12px; }
   .login-label      { font-size: 10px; }
@@ -2558,8 +2530,6 @@ select.settings-input {
   .stat-label-abbr { display: inline; }
   .type-badge-full { display: none; }
   .type-badge-abbr { display: inline; }
-  .stats-preset-full { display: none; }
-  .stats-preset-abbr { display: inline; }
 
   .right-sidebar { width: 100%; min-width: 100%; height: auto; }
   .rsb-list      { flex-direction: column; gap: 6px; max-height: none; overflow-y: visible; margin-right: 0; padding-right: 0; }
@@ -2587,8 +2557,6 @@ select.settings-input {
   .settings-toggle       { padding: 4px 0; font-size: 10px; width: 44px; }
   .settings-toggle-label { font-size: 13px; }
   .settings-toggle-sub   { font-size: 10px; }
-  .notif-toggle-row      { padding: 10px 12px; grid-template-columns: 1fr 64px; }
-  .notif-toggle-btn-wrap { width: 64px; display: flex; justify-content: center; }
 
   /* ── Settings — Manage Users ── */
   .mu-row      { flex-wrap: wrap; gap: 10px; }
@@ -2789,24 +2757,9 @@ select.settings-input {
   /* .settings-input: 16px zoom-safe, controlled visually by height/padding */
   .settings-input { font-size: 16px !important; height: 38px; padding: 6px 10px; border-radius: 8px; }
 
-  /* mu-select: styled select, keep compact — no zoom risk since appearance:none */
-  .mu-select {
-    font-size: 12px !important;
-    height: 32px;
-    padding: 0 24px 0 8px;
-    border-radius: 8px;
-  }
-
   .ticker-overlay {
   bottom: calc(52px + env(safe-area-inset-bottom)) !important;
 }
-
-  /* settings-input selects (Add User role/dept) — styled, zoom-safe at 16px */
-  select.settings-input {
-    font-size: 16px !important;
-    height: 44px;
-    padding: 8px 28px 8px 10px;
-  }
 
   /* Unit Control inline inputs */
   .uc-inline-input  { font-size: 14px !important; }
@@ -2891,38 +2844,6 @@ div.leaflet-container {
   filter: brightness(1.6) contrast(1);
 }
 
-/* ── Leaflet zoom controls ── desktop styling only ── */
-.leaflet-control-zoom {
-  border: none !important;
-  border-radius: 10px !important;
-  overflow: hidden;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.10) !important;
-}
- 
-.leaflet-control-zoom-in,
-.leaflet-control-zoom-out {
-  width: 28px !important;
-  height: 28px !important;
-  line-height: 28px !important;
-  font-size: 16px !important;
-  font-weight: 700 !important;
-  background: rgba(255, 255, 255, 0.88) !important;
-  color: #475569 !important;
-  border: none !important;
-  border-bottom: 1px solid rgba(0, 0, 0, 0.06) !important;
-  transition: background 0.15s, color 0.15s !important;
-}
-
-.leaflet-control-zoom-out {
-  border-bottom: none !important;
-}
-
-.leaflet-control-zoom-in:hover,
-.leaflet-control-zoom-out:hover {
-  background: rgba(255, 255, 255, 1) !important;
-  color: #1e293b !important;
-}
-
 /* ── Leaflet attribution ── */
 .leaflet-control-attribution {
   background: transparent !important;
@@ -2944,12 +2865,6 @@ div.leaflet-container {
   transition: opacity 0.2s;
 }
 .leaflet-control-attribution:hover { opacity: 1; }
-
-.map-fullscreen-inner .leaflet-control-zoom {
-  z-index: 1200;
-}
-
-/* AFTER */
 
 /* Mobile */
 @media (max-width: 768px) {
@@ -2988,21 +2903,6 @@ div.leaflet-container {
 }
 
 @media (max-width: 768px) {
-  .leaflet-top.leaflet-left {
-    top: 8px;
-    left: 8px;
-    z-index: 400;
-  }
-
-  /* Leaflet's own base CSS adds margin-top/margin-left: 10px to controls,
-     which pushes the zoom buttons lower than the fullscreen expand button
-     even though both containers are set to top: 8px. Zero it out so they
-     align on the same horizontal line. */
-  .leaflet-top.leaflet-left .leaflet-control-zoom {
-    margin-top: 0 !important;
-    margin-left: 0 !important;
-  }
-
   .leaflet-container .leaflet-top,
   .leaflet-container .leaflet-bottom {
     z-index: 400 !important;
@@ -3015,13 +2915,6 @@ div.leaflet-container {
   .map-fullscreen-inner .leaflet-top,
   .map-fullscreen-inner .leaflet-control {
     z-index: 1200 !important;
-  }
-
-  .leaflet-control-zoom-in,
-  .leaflet-control-zoom-out {
-    width: 32px !important;
-    height: 32px !important;
-    line-height: 32px !important;
   }
 
   .leaflet-control-attribution {
@@ -3057,7 +2950,6 @@ div.leaflet-container {
   .uc-stat            { flex: 1 1 100%; border-right: none; }
   .uc-stat:nth-child(odd) { border-right: none; }
 
-  .mu-select   { height: 32px; font-size: 11px !important; padding: 0 22px 0 7px; }
   .fdd-trigger { font-size: 9px; padding: 0 6px; }
   .fdd-label   { max-width: none; }
 
@@ -3379,18 +3271,6 @@ div.leaflet-container {
 }
 
 /* ── Dark map chrome ── */
-.leaflet-control-zoom-in,
-.leaflet-control-zoom-out {
-  background: rgba(23, 23, 26, 0.92) !important;
-  color: #e8eaed !important;
-}
-.leaflet-control-zoom-in { border-bottom: 1px solid rgba(255, 255, 255, 0.09) !important; }
-.leaflet-control-zoom-in:hover,
-.leaflet-control-zoom-out:hover {
-  background: #202024 !important;
-  color: #ffffff !important;
-}
-
 .leaflet-container .leaflet-popup-content-wrapper {
   background: #202024;
   color: #e8eaed;
@@ -3443,29 +3323,29 @@ div.leaflet-container {
 .map-fullscreen-inner .leaflet-left   { margin-left: env(safe-area-inset-left, 0px); }
 .map-fullscreen-inner .leaflet-bottom { margin-bottom: env(safe-area-inset-bottom, 0px); }
 
-/* Desktop only: zoom buttons share the same edge gap as the rest of the fullscreen chrome */
-@media (min-width: 769px) {
-  .map-fullscreen-inner .leaflet-top.leaflet-left .leaflet-control-zoom {
-    margin-top:  var(--fs-gap);
-    margin-left: var(--fs-gap);
-  }
-}
-
 @media (max-width: 768px) {
   .map-ctrl-btn { width: 32px; height: 32px; }
 }
 
 /* ── Fullscreen marker labels ── */
+/* Each station is two markers (see FsMarkerPanes in App.jsx): the label half and the dot half,
+   both anchored on the coordinate. The label sits 11px above it (dot radius 7px + 4px gap). */
 .fs-mk {
   position: absolute;
   left: 0;
   top: 0;
-  transform: translate(-50%, calc(-100% + 7px));
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
   cursor: pointer;
+}
+.fs-mk-label .fs-lb {
+  position: absolute;
+  left: 0;
+  bottom: 11px;
+  transform: translateX(-50%);
+}
+.fs-mk-dot .fs-dot-wrap {
+  position: absolute;
+  left: -7px;
+  top: -7px;
 }
 .fs-lb {
   background: rgba(23, 23, 26, 0.94);
@@ -3877,16 +3757,6 @@ body:has(.msw-panel) .hz-legend-card { visibility: hidden; transition-delay: 0s;
 }
 
 /* Hazard overlay section */
-.msw-divider { height: 1px; background: rgba(255, 255, 255, 0.10); margin: 10px 0 8px; }
-
-.msw-legend {
-  margin-top: 8px;
-  padding: 8px 10px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.10);
-  border-radius: 10px;
-}
-.msw-legend-title { font-size: 10px; font-weight: 700; color: var(--text-2); margin-bottom: 6px; }
 .msw-legend-row   { display: flex; align-items: center; gap: 8px; padding: 2px 0; font-size: 11px; }
 .msw-legend-swatch {
   width: 14px; height: 10px; border-radius: 3px; flex-shrink: 0;
@@ -3987,9 +3857,8 @@ body:has(.msw-panel) .hz-legend-card { visibility: hidden; transition-delay: 0s;
   pointer-events: none;
 }
 
-/* Fullscreen map: legend card for the chosen hazard overlay, above the bottom-left buttons.
-   Solid card first (version A). If it feels heavy, lower the background alpha to about 0.6
-   and add backdrop-filter: blur(6px). pointer-events: none so the map can still be dragged
+/* Legend card for the chosen hazard overlay, above the bottom-left buttons (the dashboard map
+   gets a smaller version, see below). pointer-events: none so the map can still be dragged
    through it. */
 .hz-legend-card {
   position: absolute;
@@ -4030,12 +3899,30 @@ body:has(.msw-panel) .hz-legend-card { visibility: hidden; transition-delay: 0s;
   opacity: 0.85;
 }
 
+/* "Layer unavailable" notice inside the legend card (amber, same as the hazard button dot) */
+.hz-legend-fail {
+  display: flex; align-items: flex-start; gap: 6px;
+  margin-top: 7px; padding: 6px 8px;
+  background: rgba(245, 158, 11, 0.14);
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  border-radius: 8px;
+  font-size: 11px; line-height: 1.35;
+  color: var(--amber);
+}
+.hz-legend-fail svg { flex-shrink: 0; margin-top: 1px; }
+.hz-legend-fail strong { font-weight: 700; }
+.map-wrap .hz-legend-fail { font-size: 10px; padding: 5px 6px; gap: 5px; }
+.map-fullscreen-inner.map-is-light .hz-legend-card .hz-legend-fail {
+  color: #92400e;
+  background: rgba(245, 158, 11, 0.16);
+  border-color: rgba(180, 83, 9, 0.45);
+}
+
 /* Legend rows (both maps): swatch on the left, the second name under the first, same left edge */
 .hz-legend-card .msw-legend-row { align-items: flex-start; padding: 2px 0; }
 .hz-legend-card .msw-legend-swatch { margin-top: 3px; }
 .hz-legend-text { display: flex; flex-direction: column; min-width: 0; }
 .hz-legend-range { font-size: 10px; line-height: 1.3; color: var(--text-3); }
-.hz-legend-card .msw-legend-range,
 .hz-legend-card .msw-legend-src { font-size: 11px; }
 
 /* Phone: the bottom sheet would sit on top of it, so it stays off until the phone pass */
@@ -4095,8 +3982,6 @@ body:has(.msw-panel) .hz-legend-card { visibility: hidden; transition-delay: 0s;
 .msw-panel-light .msw-opt-sub { color: #64748b; }
 .msw-panel-light .msw-hz-dot-none { border-color: #64748b; }
 .msw-panel-light .msw-swatch { border-color: rgba(15, 23, 42, 0.25); }
-.msw-panel-light .msw-legend { background: rgba(15, 23, 42, 0.04); border-color: rgba(15, 23, 42, 0.12); }
-.msw-panel-light .msw-legend-title { color: #334155; }
 .msw-panel-light .msw-legend-name { color: #0f172a; }
 .msw-panel-light .msw-legend-range,
 .msw-panel-light .msw-legend-src { color: #64748b; }
@@ -4129,15 +4014,6 @@ body:has(.msw-panel) .hz-legend-card { visibility: hidden; transition-delay: 0s;
 .fs-drawer-light .fs-dr-badge-wait,
 .fs-drawer-light .fs-dr-badge-manual { background: #e8ecf1 !important; color: #475569 !important; }
 .fs-drawer-light .fs-dr-dot { box-shadow: 0 0 0 1.5px rgba(15, 23, 42, 0.45); }
-.fs-drawer-light .fs-dr-hero {
-  --text-1: #e8eaed;
-  --text-2: #9aa0a8;
-  --text-3: #7b828c;
-  background: #17171a;
-  margin: 12px 14px 4px;
-  border-radius: 12px;
-  border-bottom: none;
-}
 .fs-drawer-light .fs-dr-btn:hover { border-color: rgba(15, 23, 42, 0.3); }
 .fs-drawer-light .fs-dr-handle span { background: rgba(15, 23, 42, 0.25); }
 

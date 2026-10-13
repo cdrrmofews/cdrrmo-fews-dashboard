@@ -489,7 +489,7 @@ def update_map_pref(req: UpdateMapPrefRequest, user=Depends(get_current_user)):
         release_db(conn)
 
 @app.put("/users/{user_id}/sms")
-def update_sms_enabled(user_id: int, req: SmsEnabledRequest, user=Depends(get_current_user)):
+def update_sms_enabled(user_id: int, req: SmsEnabledRequest, admin=Depends(require_admin)):
     conn = get_db()
     cur  = conn.cursor()
     try:
@@ -1166,10 +1166,13 @@ def update_unit(device_id: str, req: UpdateUnitRequest, user=Depends(get_current
     if user["role"] not in ("Admin", "Operator"):
         raise HTTPException(status_code=403, detail="Not authorized")
 
-    # Operators cannot edit informational fields
+    # Operators cannot edit unit information or alert thresholds (Admin only)
     if user["role"] == "Operator":
-        if any(v is not None for v in [req.installed_date, req.hw_technician, req.sw_technician, req.description]):
-            raise HTTPException(status_code=403, detail="Operators can only update alert thresholds.")
+        if any(v is not None for v in [
+            req.installed_date, req.hw_technician, req.sw_technician, req.description,
+            req.threshold_warning, req.threshold_danger,
+        ]):
+            raise HTTPException(status_code=403, detail="Only Admins can update unit information or alert thresholds.")
 
     # Server-side threshold validation
     w = req.threshold_warning
