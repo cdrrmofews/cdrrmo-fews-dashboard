@@ -366,6 +366,16 @@ function isMobileViewport() {
   return typeof window !== "undefined" && window.innerWidth <= 768;
 }
 
+// Philippine mobile numbers only. Accepts 09XXXXXXXXX, 9XXXXXXXXX, 639XXXXXXXXX
+// and +639XXXXXXXXX (spaces and dashes allowed). Returns the stored form
+// +639XXXXXXXXX, or null if invalid. Keep in sync with normalize_ph_mobile()
+// in the backend main.py.
+const PH_PHONE_ERROR = "Enter a Philippine mobile number, like 09171234567.";
+function normalizePhMobile(raw) {
+  const m = String(raw || "").replace(/[\s-]/g, "").match(/^(?:\+?63|0)?(9\d{9})$/);
+  return m ? `+63${m[1]}` : null;
+}
+
 // ─── RBAC HELPERS ────────────────────────────────────────────────────────────
 const ROLE_ACCESS = {
   Admin:    ["Dashboard", "Statistics", "UnitControl", "Logs", "Settings"],
@@ -443,20 +453,6 @@ const BASELINE_CM = 100;
 
 function getBaselineCutoff(thresholds) {
   return Math.min(BASELINE_CM, thresholds.warning);
-}
-
-// Centered name inside a status band. Hidden when the band is under 100 cm tall
-// (only Normal can get that thin, when Warning is set to 100).
-const ZONE_LABEL_MIN_CM = 100;
-function zoneLabel(content, color, yMin, yMax) {
-  return {
-    display: yMax - yMin >= ZONE_LABEL_MIN_CM,
-    content,
-    position: "center",
-    color,
-    backgroundColor: "transparent",
-    font: { family: "'DM Sans', sans-serif", size: 10, weight: "500" },
-  };
 }
 
 // Only downgrades a live, "safe" reading into "base" when it's below the
@@ -2712,11 +2708,11 @@ function ChangePhoneModal({ onClose, token, user, onPhoneChanged, addLog }) {
   useLockBodyScroll();
 
   const handle = async () => {
-    const cleaned = phone.trim().replace(/\s+/g, "");
-    const cleanedC = phoneConfirm.trim().replace(/\s+/g, "");
-    if (!cleaned)  { setError("New phone number is required."); return; }
-    if (!/^\+?\d{10,15}$/.test(cleaned)) { setError("Enter a valid phone number (e.g. +639XXXXXXXXX)."); return; }
-    if (!cleanedC) { setError("Please confirm your phone number."); return; }
+    const cleaned  = normalizePhMobile(phone);
+    const cleanedC = normalizePhMobile(phoneConfirm);
+    if (!phone.trim()) { setError("New phone number is required."); return; }
+    if (!cleaned)      { setError(PH_PHONE_ERROR); return; }
+    if (!phoneConfirm.trim()) { setError("Please confirm your phone number."); return; }
     if (cleaned !== cleanedC) { setError("Phone numbers do not match."); return; }
     setSaving(true); setError("");
     try {
@@ -2728,7 +2724,7 @@ function ChangePhoneModal({ onClose, token, user, onPhoneChanged, addLog }) {
       const data = await res.json();
       if (!res.ok) { setError(data.detail || "Failed to update phone number."); setSaving(false); return; }
       addLog({ station: "System", type: "system", message: `${user.name} updated their phone number` });
-      onPhoneChanged(cleaned);
+      onPhoneChanged(data.phone || cleaned);
       onClose();
     } catch (err) {
       if (err?.message === "Unauthorized") return;
@@ -2787,13 +2783,14 @@ function AddUserModal({ onAdd, onClose, token, addLog }) {
     if (!form.password.trim())    { setError("Password is required."); return; }
     if (form.password.length < 6) { setError("Password must be at least 6 characters."); return; }
     if (!form.phone.trim())       { setError("Phone number is required."); return; }
-    if (!/^\+?\d{10,15}$/.test(form.phone.trim().replace(/\s+/g,""))) { setError("Enter a valid phone number (e.g. +639XXXXXXXXX)."); return; }
+    const phone = normalizePhMobile(form.phone);
+    if (!phone)                   { setError(PH_PHONE_ERROR); return; }
     setSaving(true);
     try {
       const res = await authFetch(`${API_BASE}/users`, {
         method:  "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-        body:    JSON.stringify({ name: form.name, email: form.email, password: form.password, role: form.role, department: form.department, phone: form.phone.trim() }),
+        body:    JSON.stringify({ name: form.name, email: form.email, password: form.password, role: form.role, department: form.department, phone }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.detail || "Failed to create user."); setSaving(false); return; }
@@ -3451,13 +3448,13 @@ function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userNa
                       <div className="uc-thr-stepper">
                         <button type="button" className="uc-thr-step-btn"
                           disabled={!isActuallyLive || thr.warning <= 100}
-                          onClick={() => setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], warning: prev[f.id].warning - 100 } }))}>
+                          onClick={() => { setThrError(p => ({ ...p, [f.id]: "" })); setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], warning: prev[f.id].warning - 100 } })); }}>
                           −
                         </button>
                         <span className="uc-thr-step-val">{formatWaterLevel(thr.warning, unitPreference)}</span>
                         <button type="button" className="uc-thr-step-btn"
                           disabled={!isActuallyLive || thr.warning >= Math.min(300, thr.danger - 100)}
-                          onClick={() => setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], warning: prev[f.id].warning + 100 } }))}>
+                          onClick={() => { setThrError(p => ({ ...p, [f.id]: "" })); setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], warning: prev[f.id].warning + 100 } })); }}>
                           +
                         </button>
                       </div>
@@ -3467,13 +3464,13 @@ function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userNa
                       <div className="uc-thr-stepper">
                         <button type="button" className="uc-thr-step-btn"
                           disabled={!isActuallyLive || thr.danger <= Math.max(200, thr.warning + 100)}
-                          onClick={() => setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], danger: prev[f.id].danger - 100 } }))}>
+                          onClick={() => { setThrError(p => ({ ...p, [f.id]: "" })); setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], danger: prev[f.id].danger - 100 } })); }}>
                           −
                         </button>
                         <span className="uc-thr-step-val">{formatWaterLevel(thr.danger, unitPreference)}</span>
                         <button type="button" className="uc-thr-step-btn"
                           disabled={!isActuallyLive || thr.danger >= 600}
-                          onClick={() => setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], danger: prev[f.id].danger + 100 } }))}>
+                          onClick={() => { setThrError(p => ({ ...p, [f.id]: "" })); setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], danger: prev[f.id].danger + 100 } })); }}>
                           +
                         </button>
                       </div>
@@ -3493,6 +3490,7 @@ function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userNa
                       setThrConfirm(f.id);
                     }}>Save</button>
                   </div>
+                  {thrError[f.id] && <div className="settings-error" role="alert">{thrError[f.id]}</div>}
                   {!isActuallyLive && <div className="uc-thr-note">Available when FEWS 1 is live</div>}
                   {isActuallyLive && thrDirty && <div className="uc-thr-note uc-thr-note-dirty">Unsaved changes</div>}
                 </div>
@@ -4595,9 +4593,6 @@ export default function App() {
     sessionStorage.setItem("activeNav", "Dashboard");
   };
 
-  const userRef = useRef(user);
-  useEffect(() => { userRef.current = user; }, [user]);
-
   const handleLogout = useCallback(async () => {
     const tok = getStoredToken();
 
@@ -4915,9 +4910,6 @@ export default function App() {
       [allFews, isHardwareOnline, fews1DataRecent]
     );
 
-    const prevCriticalRef = useRef(false);
-    useEffect(() => { prevCriticalRef.current = isCritical; }, [isCritical]);
-
     useEffect(() => {
       if (!isLoggedIn || !user.push_enabled) return;
       const setupPush = async () => {
@@ -5169,10 +5161,10 @@ const waterChartOptions = useMemo(() => ({
       },
       annotation: {
         annotations: {
-          zoneLow:     { type: "box", drawTime: "beforeDatasetsDraw", yMin: 0,                    yMax: Math.min(100, thresholds.warning), backgroundColor: "rgba(226,232,240,0.55)", borderWidth: 0, label: zoneLabel("BASELINE", "#0a0a0b", 0, Math.min(100, thresholds.warning)) },
-          zoneSafe:    { type: "box", drawTime: "beforeDatasetsDraw", yMin: Math.min(100, thresholds.warning), yMax: thresholds.warning, backgroundColor: "rgba(253,224,71,0.60)",  borderWidth: 0, label: zoneLabel("NORMAL", "#0a0a0b", Math.min(100, thresholds.warning), thresholds.warning) },
-          zoneWarning: { type: "box", drawTime: "beforeDatasetsDraw", yMin: thresholds.warning,   yMax: thresholds.danger,  backgroundColor: "rgba(249,115,22,0.60)", borderWidth: 0, label: zoneLabel("WARNING", "#ffffff", thresholds.warning, thresholds.danger) },
-          zoneCritical:{ type: "box", drawTime: "beforeDatasetsDraw", yMin: thresholds.danger,    yMax: 700,                backgroundColor: "rgba(239,68,68,0.60)",  borderWidth: 0, label: zoneLabel("CRITICAL", "#ffffff", thresholds.danger, 700) },
+          zoneLow:     { type: "box", drawTime: "beforeDatasetsDraw", yMin: 0,                    yMax: Math.min(100, thresholds.warning), backgroundColor: "rgba(226,232,240,0.55)", borderWidth: 0 },
+          zoneSafe:    { type: "box", drawTime: "beforeDatasetsDraw", yMin: Math.min(100, thresholds.warning), yMax: thresholds.warning, backgroundColor: "rgba(253,224,71,0.60)",  borderWidth: 0 },
+          zoneWarning: { type: "box", drawTime: "beforeDatasetsDraw", yMin: thresholds.warning,   yMax: thresholds.danger,  backgroundColor: "rgba(249,115,22,0.60)", borderWidth: 0 },
+          zoneCritical:{ type: "box", drawTime: "beforeDatasetsDraw", yMin: thresholds.danger,    yMax: 700,                backgroundColor: "rgba(239,68,68,0.60)",  borderWidth: 0 },
           lineWarning: { type: "line", yMin: thresholds.warning, yMax: thresholds.warning, borderColor: "rgba(249,115,22,0.80)", borderWidth: 2, borderDash: [4, 4], label: { display: false } },
           lineCritical:{ type: "line", yMin: thresholds.danger,  yMax: thresholds.danger,  borderColor: "rgba(239,68,68,0.80)",  borderWidth: 2, borderDash: [4, 4], label: { display: false } },
         },
@@ -5422,7 +5414,6 @@ const waterChartOptions = useMemo(() => ({
             });
           };
 
-          /* AFTER — close button sits above the scrolling row, not overlapping it */
           return (
             <div className="ticker-overlay" style={{
               position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9000,
@@ -5434,7 +5425,6 @@ const waterChartOptions = useMemo(() => ({
               display: "flex",
               flexDirection: "column",
             }}>
-              {/* Close button row — sits above the cards, never overlaps */}
               {/* Scrolling cards row */}
               <div style={{
                 display: "flex", gap: 14,
@@ -5590,6 +5580,15 @@ const waterChartOptions = useMemo(() => ({
               <div className="card card-water">
                 <div className="card-header">
                   <h2>Water Level</h2>
+
+                  {hasEverHadData && fews1Connected && (
+                    <div className="wl-legend-row">
+                      <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#ffffff", border: "1px solid rgba(255,255,255,0.4)" }} />Baseline</span>
+                      <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#fde047" }} />Normal</span>
+                      <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#f97316" }} />Warning</span>
+                      <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#ef4444" }} />Critical</span>
+                    </div>
+                  )}
 
                     <span className="card-tag">
                       {hasEverHadData

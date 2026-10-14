@@ -68,6 +68,17 @@ LOG_TYPES_BY_ROLE = {
     "Operator": ["info", "baseline", "warning", "danger", "connectivity"],
 }
 
+# Philippine mobile numbers only. Accepts 09XXXXXXXXX, 9XXXXXXXXX,
+# 639XXXXXXXXX and +639XXXXXXXXX (spaces and dashes allowed) and returns
+# the stored form +639XXXXXXXXX, or None if the number is not valid.
+# Keep in sync with normalizePhMobile() in the frontend App.jsx.
+PH_PHONE_ERROR = "Enter a Philippine mobile number, like 09171234567."
+
+def normalize_ph_mobile(raw):
+    digits = re.sub(r"[\s\-]", "", raw or "")
+    m = re.fullmatch(r"(?:\+?63|0)?(9[0-9]{9})", digits)
+    return f"+63{m.group(1)}" if m else None
+
 @app.on_event("startup")
 def startup():
     threading.Thread(target=cleanup_logs, daemon=True).start()
@@ -397,10 +408,13 @@ def change_phone(req: ChangePhoneRequest, user=Depends(get_current_user)):
     conn = get_db()
     cur  = conn.cursor()
     try:
+        phone = normalize_ph_mobile(req.phone)
+        if not phone:
+            raise HTTPException(status_code=400, detail=PH_PHONE_ERROR)
         user_id = int(user["sub"])
         cur.execute(
             "UPDATE users SET phone = %s WHERE id = %s RETURNING id, name, email, role, department, photo, phone",
-            (req.phone, user_id)
+            (phone, user_id)
         )
         conn.commit()
         row = cur.fetchone()
@@ -1021,11 +1035,16 @@ def create_user(req: CreateUserRequest, admin=Depends(require_admin)):
         cur.execute("SELECT id FROM users WHERE email = %s", (req.email,))
         if cur.fetchone():
             raise HTTPException(status_code=400, detail="Email already exists")
+        phone = None
+        if req.phone and req.phone.strip():
+            phone = normalize_ph_mobile(req.phone)
+            if not phone:
+                raise HTTPException(status_code=400, detail=PH_PHONE_ERROR)
         cur.execute("""
             INSERT INTO users (name, email, password, role, department, phone)
             VALUES (%s, %s, %s, %s, %s, %s)
             RETURNING id, name, email, role, department, phone
-        """, (req.name, req.email, hash_password(req.password), req.role, req.department, req.phone))
+        """, (req.name, req.email, hash_password(req.password), req.role, req.department, phone))
         conn.commit()
         return cur.fetchone()
     finally:

@@ -307,10 +307,6 @@ body {
   border-radius: 12px;
 }
 
-.topbar-seal-img:last-child {
-  height: 46px;
-  width: auto;
-}
 .top-left { display: flex; align-items: center; gap: 16px; }
 
 .title-block h1 {
@@ -1144,18 +1140,6 @@ body {
 .mu-email { font-size: 10px; color: var(--text-3); font-family: var(--mono); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .mu-controls { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-
-.mu-select {
-  background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px;
-  padding: 7px 28px 7px 10px; color: var(--text-1); font-family: var(--font);
-  font-size: 11px; font-weight: 600; outline: none; cursor: pointer;
-  transition: border-color 0.2s; height: 34px;
-  -webkit-appearance: none; appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none' stroke='%234a607e' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='1 1 5 5 9 1'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 8px center;
-}
-.mu-select:focus { border-color: var(--blue); }
 
 .mu-save-btn {
   background: rgba(56,189,248,0.15); color: var(--blue);
@@ -2452,7 +2436,6 @@ body {
   display: none;
   }
   .topbar-seal-img            { height: 44px; width: auto; max-width: 130px; border-radius: 10px; }
-  .topbar-seal-img:last-child { height: 44px; width: auto; max-width: 130px; }
 
   .top-left { display: none; }
 
@@ -2940,7 +2923,6 @@ div.leaflet-container {
 ================================ */
 @media (max-width: 400px) {
   .topbar-seal-img            { height: 38px; width: auto; max-width: 110px; border-radius: 8px; }
-  .topbar-seal-img:last-child { height: 38px; width: auto; max-width: 110px; }
 
   .nav-btn,
   .sidebar.collapsed .nav-btn { padding: 3px 5px; font-size: 8px; height: 44px; }

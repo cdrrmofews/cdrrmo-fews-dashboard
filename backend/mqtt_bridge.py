@@ -26,10 +26,61 @@ STATION_LOCATIONS: dict = {"fews_1": "Bridge of Progress"}
 _critical_notified: dict = {}
 _warning_notified: dict = {}
 _prev_status: dict = {}
+_state_checked: dict = {}  # True once we know this station's offline state since the server started
+_offline_from_db: dict = {}  # True when the offline state had to be read from the database (server restarted)
+_broker_state = {"disconnected_at": 0.0}  # last time the bridge lost its EMQX connection
 
 def mark_station_online(station_id: str):
     _last_online[station_id] = time.time()
     _offline_logged[station_id] = False  # reset so next dropout gets logged
+    _state_checked[station_id] = True
+    _offline_from_db[station_id] = False
+
+def station_was_offline(station_id: str) -> bool:
+    """True if the station should count as offline right now.
+    Normally the in-memory flag knows. After a server restart the flag is empty, so on the
+    first message we ask the database: if the station's latest connectivity log says
+    'went offline', it never got its 'back online' log."""
+    if _offline_logged.get(station_id, False):
+        return True
+    if _state_checked.get(station_id, False):
+        return False
+    station_name = STATION_NAMES.get(station_id, station_id)
+    try:
+        conn = get_db()
+        cur  = conn.cursor()
+        try:
+            cur.execute("""
+                SELECT message FROM system_logs
+                WHERE station = %s AND type = 'connectivity'
+                ORDER BY timestamp DESC, id DESC
+                LIMIT 1
+            """, (station_name,))
+            row = cur.fetchone()
+        finally:
+            cur.close()
+            release_db(conn)
+        _state_checked[station_id] = True
+        from_db = bool(row and "went offline" in row["message"])
+        if from_db:
+            _offline_from_db[station_id] = True
+        return from_db
+    except Exception as e:
+        print(f"[BRIDGE] Offline-state check failed for {station_id}: {e}")
+        return False  # not marked as checked, so the next message tries again
+
+def back_online_text(station_id: str, station_name: str) -> str:
+    """Wording for the 'back online' log. Call it BEFORE mark_station_online(), which resets the state it reads.
+    Best guess only: if the server restarted during the gap, or the bridge recorded a broker
+    disconnect after the station's last message, the log blames the broker connection.
+    Otherwise no server-side cause was found, so it keeps the 'signal loss' wording."""
+    server_side = (
+        _offline_from_db.get(station_id, False)
+        or _broker_state["disconnected_at"] > _last_online.get(station_id, 0)
+    )
+    if server_side:
+        return f"{station_name} is back online after the server lost its broker connection"
+    return f"{station_name} is back online and transmitting data after signal loss"
 
 def get_last_online(station_id: str) -> float:
     return _last_online.get(station_id, 0)
@@ -153,10 +204,11 @@ def on_message(client, userdata, msg):
         if msg.topic == MQTT_HEARTBEAT_TOPIC:
             station_id = data.get("station_id")
             if station_id:
-                was_offline = _offline_logged.get(station_id, False)  # ← check BEFORE mark
-                mark_station_online(station_id)                        # ← resets flag after check
+                was_offline = station_was_offline(station_id)  # check BEFORE mark (asks the DB after a restart)
+                station_name = STATION_NAMES.get(station_id, station_id)
+                back_msg = back_online_text(station_id, station_name) if was_offline else ""  # BEFORE mark, it reads state that mark resets
+                mark_station_online(station_id)                # resets flag after check
                 if was_offline:
-                    station_name = STATION_NAMES.get(station_id, station_id)
                     try:
                         conn = get_db()
                         cur  = conn.cursor()
@@ -167,7 +219,7 @@ def on_message(client, userdata, msg):
                             """, (
                                 station_name,
                                 "connectivity",
-                                f"{station_name} is back online and transmitting data after signal loss",
+                                back_msg,
                                 "System",
                             ))
                             conn.commit()
@@ -228,7 +280,7 @@ def on_message(client, userdata, msg):
             if data.get("online") and data.get("station_id"):
                 station_id   = data.get("station_id")
                 station_name = STATION_NAMES.get(station_id, station_id)
-                was_offline  = _offline_logged.get(station_id, False)  # ← ADD THIS LINE
+                was_offline  = station_was_offline(station_id)
                 was_online   = get_last_online(station_id)
                 mark_station_online(station_id)
 
@@ -294,28 +346,32 @@ def on_message(client, userdata, msg):
                 f"Water Level: {water_str} [{status_label}]"
             )
 
-            was_offline = _offline_logged.get(station_id, False)
+            was_offline = station_was_offline(station_id)  # asks the DB after a restart
+            back_msg = back_online_text(station_id, station_name) if was_offline else ""  # picked now: mark_station_online() runs after the commit
+
+            # "Back online" goes in first. clock_timestamp() gives each insert its own time
+            # (now() would be frozen for the whole transaction), so the Logs page, which sorts
+            # by timestamp, shows the reading above the "back online" line, in the right order.
+            if was_offline:
+                cur.execute("""
+                    INSERT INTO system_logs (station, type, message, user_name, timestamp)
+                    VALUES (%s, %s, %s, %s, clock_timestamp())
+                """, (
+                    station_name,
+                    "connectivity",
+                    back_msg,
+                    "System",
+                ))
 
             cur.execute("""
-                INSERT INTO system_logs (station, type, message, user_name)
-                VALUES (%s, %s, %s, %s)
+                INSERT INTO system_logs (station, type, message, user_name, timestamp)
+                VALUES (%s, %s, %s, %s, clock_timestamp())
             """, (
                 station_name,
                 log_type,
                 log_message,
                 "System",
             ))
-
-            if was_offline:
-                cur.execute("""
-                    INSERT INTO system_logs (station, type, message, user_name)
-                    VALUES (%s, %s, %s, %s)
-                """, (
-                    station_name,
-                    "connectivity",
-                    f"{station_name} is back online and transmitting data after signal loss",
-                    "System",
-                ))
 
             conn.commit()
             mark_station_online(station_id)
@@ -473,6 +529,7 @@ def on_message(client, userdata, msg):
 
 def on_disconnect(client, userdata, rc):
     if rc != 0:
+        _broker_state["disconnected_at"] = time.time()
         print(f"[BRIDGE] Unexpected disconnect rc={rc}, will auto-reconnect")
 
 def start_bridge():

@@ -370,6 +370,16 @@ function isMobileViewport() {
   return typeof window !== "undefined" && window.innerWidth <= 768;
 }
 
+// Philippine mobile numbers only. Accepts 09XXXXXXXXX, 9XXXXXXXXX, 639XXXXXXXXX
+// and +639XXXXXXXXX (spaces and dashes allowed). Returns the stored form
+// +639XXXXXXXXX, or null if invalid. Keep in sync with normalize_ph_mobile()
+// in the backend main.py.
+const PH_PHONE_ERROR = "Enter a Philippine mobile number, like 09171234567.";
+function normalizePhMobile(raw) {
+  const m = String(raw || "").replace(/[\s-]/g, "").match(/^(?:\+?63|0)?(9\d{9})$/);
+  return m ? `+63${m[1]}` : null;
+}
+
 // ─── RBAC HELPERS ────────────────────────────────────────────────────────────
 const ROLE_ACCESS = {
   Admin:    ["Dashboard", "Statistics", "UnitControl", "Logs", "Settings"],
@@ -447,20 +457,6 @@ const BASELINE_CM = 100;
 
 function getBaselineCutoff(thresholds) {
   return Math.min(BASELINE_CM, thresholds.warning);
-}
-
-// Centered name inside a status band. Hidden when the band is under 100 cm tall
-// (only Normal can get that thin, when Warning is set to 100).
-const ZONE_LABEL_MIN_CM = 100;
-function zoneLabel(content, color, yMin, yMax) {
-  return {
-    display: yMax - yMin >= ZONE_LABEL_MIN_CM,
-    content,
-    position: "center",
-    color,
-    backgroundColor: "transparent",
-    font: { family: "'DM Sans', sans-serif", size: 10, weight: "500" },
-  };
 }
 
 // Only downgrades a live, "safe" reading into "base" when it's below the
@@ -1798,33 +1794,11 @@ function OpenPopup({ fews, markerRefs }) {
 // Covers FEWS 1 plus manual stations 2–14 and 16–18, all clustered
 // around Batangas City proper. Deliberately excludes FEWS 15 (Talahib
 // Pandayan), which sits ~15km south and would force an extreme zoom-out
-// if included — its popup just opens off-screen until the user pans out.
+// if included — it stays off-screen until the user pans out.
 const CITY_DEFAULT_BOUNDS = [[13.744, 121.050], [13.766, 121.082]];
 
 // FEWS 1 close-up — the dashboard map's home view (also used by its center button)
 const DASH_DEFAULT_BOUNDS = [[13.760466, 121.066331], [13.764466, 121.070331]];
-
-function OpenAllPopups({ fewsList, markerRefs, active }) {
-  const map = useMap();
-  useEffect(() => {
-    if (!active) return;
-    if (fewsList.length === 0) return;
-
-    // Single upfront pan, same as before — autoPan={false} on the popups
-    // means none of them can trigger their own pan, so this is safe
-    // regardless of which bounds we fit to.
-    map.fitBounds(CITY_DEFAULT_BOUNDS, { padding: [20, 20] });
-
-    const t = setTimeout(() => {
-      fewsList.forEach(f => {
-        const markerRef = markerRefs.current[f.id];
-        if (markerRef) markerRef.openPopup();
-      });
-    }, 700);
-    return () => clearTimeout(t);
-  }, [active]); // eslint-disable-line react-hooks/exhaustive-deps
-  return null;
-}
 
 // Drops the "Leaflet" label and flag from the attribution box. The data and tile credits stay.
 function HideLeafletPrefix() {
@@ -2738,11 +2712,11 @@ function ChangePhoneModal({ onClose, token, user, onPhoneChanged, addLog }) {
   useLockBodyScroll();
 
   const handle = async () => {
-    const cleaned = phone.trim().replace(/\s+/g, "");
-    const cleanedC = phoneConfirm.trim().replace(/\s+/g, "");
-    if (!cleaned)  { setError("New phone number is required."); return; }
-    if (!/^\+?\d{10,15}$/.test(cleaned)) { setError("Enter a valid phone number (e.g. +639XXXXXXXXX)."); return; }
-    if (!cleanedC) { setError("Please confirm your phone number."); return; }
+    const cleaned  = normalizePhMobile(phone);
+    const cleanedC = normalizePhMobile(phoneConfirm);
+    if (!phone.trim()) { setError("New phone number is required."); return; }
+    if (!cleaned)      { setError(PH_PHONE_ERROR); return; }
+    if (!phoneConfirm.trim()) { setError("Please confirm your phone number."); return; }
     if (cleaned !== cleanedC) { setError("Phone numbers do not match."); return; }
     setSaving(true); setError("");
     try {
@@ -2754,7 +2728,7 @@ function ChangePhoneModal({ onClose, token, user, onPhoneChanged, addLog }) {
       const data = await res.json();
       if (!res.ok) { setError(data.detail || "Failed to update phone number."); setSaving(false); return; }
       addLog({ station: "System", type: "system", message: `${user.name} updated their phone number` });
-      onPhoneChanged(cleaned);
+      onPhoneChanged(data.phone || cleaned);
       onClose();
     } catch (err) {
       if (err?.message === "Unauthorized") return;
@@ -2813,13 +2787,14 @@ function AddUserModal({ onAdd, onClose, token, addLog }) {
     if (!form.password.trim())    { setError("Password is required."); return; }
     if (form.password.length < 6) { setError("Password must be at least 6 characters."); return; }
     if (!form.phone.trim())       { setError("Phone number is required."); return; }
-    if (!/^\+?\d{10,15}$/.test(form.phone.trim().replace(/\s+/g,""))) { setError("Enter a valid phone number (e.g. +639XXXXXXXXX)."); return; }
+    const phone = normalizePhMobile(form.phone);
+    if (!phone)                   { setError(PH_PHONE_ERROR); return; }
     setSaving(true);
     try {
       const res = await authFetch(`${API_BASE}/users`, {
         method:  "POST",
         headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` },
-        body:    JSON.stringify({ name: form.name, email: form.email, password: form.password, role: form.role, department: form.department, phone: form.phone.trim() }),
+        body:    JSON.stringify({ name: form.name, email: form.email, password: form.password, role: form.role, department: form.department, phone }),
       });
       const data = await res.json();
       if (!res.ok) { setError(data.detail || "Failed to create user."); setSaving(false); return; }
@@ -3477,13 +3452,13 @@ function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userNa
                       <div className="uc-thr-stepper">
                         <button type="button" className="uc-thr-step-btn"
                           disabled={!isActuallyLive || thr.warning <= 100}
-                          onClick={() => setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], warning: prev[f.id].warning - 100 } }))}>
+                          onClick={() => { setThrError(p => ({ ...p, [f.id]: "" })); setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], warning: prev[f.id].warning - 100 } })); }}>
                           −
                         </button>
                         <span className="uc-thr-step-val">{formatWaterLevel(thr.warning, unitPreference)}</span>
                         <button type="button" className="uc-thr-step-btn"
                           disabled={!isActuallyLive || thr.warning >= Math.min(300, thr.danger - 100)}
-                          onClick={() => setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], warning: prev[f.id].warning + 100 } }))}>
+                          onClick={() => { setThrError(p => ({ ...p, [f.id]: "" })); setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], warning: prev[f.id].warning + 100 } })); }}>
                           +
                         </button>
                       </div>
@@ -3493,13 +3468,13 @@ function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userNa
                       <div className="uc-thr-stepper">
                         <button type="button" className="uc-thr-step-btn"
                           disabled={!isActuallyLive || thr.danger <= Math.max(200, thr.warning + 100)}
-                          onClick={() => setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], danger: prev[f.id].danger - 100 } }))}>
+                          onClick={() => { setThrError(p => ({ ...p, [f.id]: "" })); setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], danger: prev[f.id].danger - 100 } })); }}>
                           −
                         </button>
                         <span className="uc-thr-step-val">{formatWaterLevel(thr.danger, unitPreference)}</span>
                         <button type="button" className="uc-thr-step-btn"
                           disabled={!isActuallyLive || thr.danger >= 600}
-                          onClick={() => setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], danger: prev[f.id].danger + 100 } }))}>
+                          onClick={() => { setThrError(p => ({ ...p, [f.id]: "" })); setThr(prev => ({ ...prev, [f.id]: { ...prev[f.id], danger: prev[f.id].danger + 100 } })); }}>
                           +
                         </button>
                       </div>
@@ -3519,6 +3494,7 @@ function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userNa
                       setThrConfirm(f.id);
                     }}>Save</button>
                   </div>
+                  {thrError[f.id] && <div className="settings-error" role="alert">{thrError[f.id]}</div>}
                   {!isActuallyLive && <div className="uc-thr-note">Available when FEWS 1 is live</div>}
                   {isActuallyLive && thrDirty && <div className="uc-thr-note uc-thr-note-dirty">Unsaved changes</div>}
                 </div>
@@ -4621,9 +4597,6 @@ export default function App() {
     sessionStorage.setItem("activeNav", "Dashboard");
   };
 
-  const userRef = useRef(user);
-  useEffect(() => { userRef.current = user; }, [user]);
-
   const handleLogout = useCallback(async () => {
     const tok = getStoredToken();
 
@@ -4767,7 +4740,7 @@ export default function App() {
             ? rawTs.replace(" ", "T").replace(/Z?$/, "Z")
             : null;
           const lastSeen = utcStr ? new Date(utcStr) : null;
-          const isRecent = lastSeen && (Date.now() - lastSeen.getTime()) < 7200000; // 60 mins
+          const isRecent = lastSeen && (Date.now() - lastSeen.getTime()) < 7200000; // 2 hrs
 
         setFews1Live(data.fews_1);
           if (isRecent) {
@@ -4940,9 +4913,6 @@ export default function App() {
       isHardwareOnline && fews1DataRecent && allFews.some(f => f.status === "danger"),
       [allFews, isHardwareOnline, fews1DataRecent]
     );
-
-    const prevCriticalRef = useRef(false);
-    useEffect(() => { prevCriticalRef.current = isCritical; }, [isCritical]);
 
     useEffect(() => {
       if (!isLoggedIn || !user.push_enabled) return;
@@ -5195,10 +5165,10 @@ const waterChartOptions = useMemo(() => ({
       },
       annotation: {
         annotations: {
-          zoneLow:     { type: "box", drawTime: "beforeDatasetsDraw", yMin: 0,                    yMax: Math.min(100, thresholds.warning), backgroundColor: "rgba(226,232,240,0.55)", borderWidth: 0, label: zoneLabel("BASELINE", "#0a0a0b", 0, Math.min(100, thresholds.warning)) },
-          zoneSafe:    { type: "box", drawTime: "beforeDatasetsDraw", yMin: Math.min(100, thresholds.warning), yMax: thresholds.warning, backgroundColor: "rgba(253,224,71,0.60)",  borderWidth: 0, label: zoneLabel("NORMAL", "#0a0a0b", Math.min(100, thresholds.warning), thresholds.warning) },
-          zoneWarning: { type: "box", drawTime: "beforeDatasetsDraw", yMin: thresholds.warning,   yMax: thresholds.danger,  backgroundColor: "rgba(249,115,22,0.60)", borderWidth: 0, label: zoneLabel("WARNING", "#ffffff", thresholds.warning, thresholds.danger) },
-          zoneCritical:{ type: "box", drawTime: "beforeDatasetsDraw", yMin: thresholds.danger,    yMax: 700,                backgroundColor: "rgba(239,68,68,0.60)",  borderWidth: 0, label: zoneLabel("CRITICAL", "#ffffff", thresholds.danger, 700) },
+          zoneLow:     { type: "box", drawTime: "beforeDatasetsDraw", yMin: 0,                    yMax: Math.min(100, thresholds.warning), backgroundColor: "rgba(226,232,240,0.55)", borderWidth: 0 },
+          zoneSafe:    { type: "box", drawTime: "beforeDatasetsDraw", yMin: Math.min(100, thresholds.warning), yMax: thresholds.warning, backgroundColor: "rgba(253,224,71,0.60)",  borderWidth: 0 },
+          zoneWarning: { type: "box", drawTime: "beforeDatasetsDraw", yMin: thresholds.warning,   yMax: thresholds.danger,  backgroundColor: "rgba(249,115,22,0.60)", borderWidth: 0 },
+          zoneCritical:{ type: "box", drawTime: "beforeDatasetsDraw", yMin: thresholds.danger,    yMax: 700,                backgroundColor: "rgba(239,68,68,0.60)",  borderWidth: 0 },
           lineWarning: { type: "line", yMin: thresholds.warning, yMax: thresholds.warning, borderColor: "rgba(249,115,22,0.80)", borderWidth: 2, borderDash: [4, 4], label: { display: false } },
           lineCritical:{ type: "line", yMin: thresholds.danger,  yMax: thresholds.danger,  borderColor: "rgba(239,68,68,0.80)",  borderWidth: 2, borderDash: [4, 4], label: { display: false } },
         },
@@ -5448,7 +5418,6 @@ const waterChartOptions = useMemo(() => ({
             });
           };
 
-          /* AFTER — close button sits above the scrolling row, not overlapping it */
           return (
             <div className="ticker-overlay" style={{
               position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 9000,
@@ -5460,7 +5429,6 @@ const waterChartOptions = useMemo(() => ({
               display: "flex",
               flexDirection: "column",
             }}>
-              {/* Close button row — sits above the cards, never overlaps */}
               {/* Scrolling cards row */}
               <div style={{
                 display: "flex", gap: 14,
@@ -5616,6 +5584,15 @@ const waterChartOptions = useMemo(() => ({
               <div className="card card-water">
                 <div className="card-header">
                   <h2>Water Level</h2>
+
+                  {hasEverHadData && fews1Connected && (
+                    <div className="wl-legend-row">
+                      <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#ffffff", border: "1px solid rgba(255,255,255,0.4)" }} />Baseline</span>
+                      <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#fde047" }} />Normal</span>
+                      <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#f97316" }} />Warning</span>
+                      <span className="wl-legend"><span className="wl-legend-dot" style={{ background: "#ef4444" }} />Critical</span>
+                    </div>
+                  )}
 
                     <span className="card-tag">
                       {hasEverHadData
@@ -6256,12 +6233,6 @@ body {
   padding: 8px;
 }
 
-.sidebar-toggle-nav {
-  margin-top: 4px;
-  border-top: 1px solid var(--border);
-  padding-top: 14px !important;
-}
-
 .brand {
   position: relative;
   display: flex;
@@ -6282,11 +6253,9 @@ body {
   background: var(--border);
 }
 
-.brand-icon             { font-size: 22px; flex-shrink: 0; }
 .brand-text             { overflow: hidden; white-space: nowrap; }
 .brand-text.hidden      { display: none; }
 .brand-name             { font-size: 16px; font-weight: 600; letter-spacing: 0; color: var(--text-1); }
-.brand-tag              { font-size: 11px; color: var(--text-3); margin-top: 2px; }
 
 /* Expanded sidebar header: logo on top, name below, toggle in the corner */
 .brand.brand-open {
@@ -6430,10 +6399,6 @@ body {
   border-radius: 12px;
 }
 
-.topbar-seal-img:last-child {
-  height: 46px;
-  width: auto;
-}
 .top-left { display: flex; align-items: center; gap: 16px; }
 
 .title-block h1 {
@@ -6736,7 +6701,6 @@ body {
 .wl-abbr { display: none; }
 .stat-label-abbr { display: none; }
 .type-badge-abbr { display: none; }
-.stats-preset-abbr { display: none; }
 
 .chart-wrap { flex: 1; min-height: 0; position: relative; display: block; }
 
@@ -6877,21 +6841,7 @@ body {
   letter-spacing: 0.08em; text-transform: uppercase;
 }
 
-.rsb-section-toggle {
-  display: flex; align-items: center; justify-content: space-between;
-  background: transparent; border: none; padding: 0; cursor: pointer;
-  width: 100%; font-family: var(--font);
-}
-
-.rsb-toggle-arrow { font-size: 9px; color: var(--text-3); margin-left: auto; }
-
 .rsb-section-items { display: flex; flex-direction: column; gap: 6px; }
-
-.rsb-badge-manual {
-  color: var(--text-2);
-  background: rgba(255,255,255,0.06);
-  font-family: var(--mono);
-}
 
 .rsb-item {
   display: flex;
@@ -7028,8 +6978,6 @@ body {
 }
 
 .login-brand      { display: flex; flex-direction: column; align-items: center; gap: 6px; }
-.login-brand-icon { font-size: 36px; margin-bottom: 4px; }
-.login-brand-name { font-size: 22px; font-weight: 800; color: var(--text-1); letter-spacing: 0.06em; }
 .login-brand-tag  { font-size: 12px; color: var(--text-3); font-family: var(--mono); }
 
 .login-form  { display: flex; flex-direction: column; gap: 16px; }
@@ -7061,7 +7009,6 @@ body {
   border-radius: 8px; padding: 8px 12px;
 }
 
-/* (removed: the message now only takes space while it is showing) */
 .login-hint-caps {
   font-size: 12px; font-weight: 600; color: var(--amber);
   background: rgba(245,158,11,0.08); border: 1px solid rgba(245,158,11,0.25);
@@ -7201,15 +7148,6 @@ body {
 }
 .settings-input:focus { border-color: var(--blue); }
 
-select.settings-input {
-  -webkit-appearance: none; appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none' stroke='%234a607e' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='1 1 5 5 9 1'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 10px center;
-  padding-right: 28px;
-  cursor: pointer;
-}
-
 .settings-error {
   font-size: 11px; color: var(--red);
   background: rgba(239,68,68,0.08); border: 1px solid rgba(239,68,68,0.2);
@@ -7294,18 +7232,6 @@ select.settings-input {
 .mu-email { font-size: 10px; color: var(--text-3); font-family: var(--mono); margin-top: 2px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 
 .mu-controls { display: flex; align-items: center; gap: 6px; flex-shrink: 0; }
-
-.mu-select {
-  background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px;
-  padding: 7px 28px 7px 10px; color: var(--text-1); font-family: var(--font);
-  font-size: 11px; font-weight: 600; outline: none; cursor: pointer;
-  transition: border-color 0.2s; height: 34px;
-  -webkit-appearance: none; appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' fill='none' stroke='%234a607e' stroke-width='1.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='1 1 5 5 9 1'/%3E%3C/svg%3E");
-  background-repeat: no-repeat;
-  background-position: right 8px center;
-}
-.mu-select:focus { border-color: var(--blue); }
 
 .mu-save-btn {
   background: rgba(56,189,248,0.15); color: var(--blue);
@@ -7442,26 +7368,6 @@ select.settings-input {
   }
 }
 
-.uc-power-btn {
-  width: 36px; height: 36px; border-radius: 50%;
-  display: flex; align-items: center; justify-content: center;
-  font-size: 16px; border: none; cursor: pointer;
-  transition: background 0.2s, box-shadow 0.2s;
-  flex-shrink: 0;
-}
-
-.uc-power-on {
-  background: rgba(34,197,94,0.12);
-  color: var(--green);
-  border: 1px solid rgba(34,197,94,0.25);
-}
-
-.uc-power-off {
-  background: rgba(255,255,255,0.04);
-  color: var(--text-3);
-  border: 1px solid var(--border);
-}
-
 .uc-stats-row {
   display: flex; gap: 0;
   border: 1px solid var(--border); border-radius: 10px; overflow: hidden;
@@ -7551,10 +7457,6 @@ select.settings-input {
   box-shadow: inset 0 0 0 1px var(--border); cursor: default;
 }
 .uc-thr-note-dirty { color: var(--blue); }
-
-.unit-toggle { font-size: 11px; font-weight: 700; font-family: var(--mono); padding: 5px 14px; border-radius: 999px; border: none; cursor: pointer; transition: background 0.2s, color 0.2s; }
-.unit-on     { background: rgba(34,197,94,0.15); color: var(--green); }
-.unit-off    { background: var(--bg-card); color: var(--text-3); border: 1px solid var(--border); }
 
 .uc-thr-stepper {
   display: flex;
@@ -8448,7 +8350,6 @@ select.settings-input {
 .mc-range-from  { border-radius: 6px 0 0 6px !important; }
 .mc-range-to    { border-radius: 0 6px 6px 0 !important; }
 .mc-range-from.mc-range-to { border-radius: 6px !important; }
-.mc-disabled    { opacity: 0.22; cursor: not-allowed !important; pointer-events: none; }
 
 /* ================================
    BUTTON SPINNER
@@ -8512,29 +8413,6 @@ select.settings-input {
 /* Desktop: hide inline phone (shown in its own column), show phone col */
 .sms-phone-inline { display: none; }
 .sms-phone-col    { display: block; }
-.sms-role-admin,
-.sms-role-operator { all: unset; font-size: 12px; color: var(--text-2); }
-
-/* ================================
-   ALERT TRIGGERS TOGGLE ROWS
-================================ */
-.notif-toggle-row {
-  display: grid;
-  grid-template-columns: 1fr 64px;
-  padding: 11px 16px;
-  align-items: center;
-  border-bottom: 1px solid var(--border);
-  background: var(--bg-card);
-}
-
-.notif-toggle-row:last-child { border-bottom: none; }
-
-.notif-toggle-btn-wrap {
-  width: 64px;
-  display: flex;
-  justify-content: center;
-  flex-shrink: 0;
-}
 
 @keyframes tickerSlide {
   0%   { transform: translateX(0); }
@@ -8650,7 +8528,6 @@ select.settings-input {
   display: none;
   }
   .topbar-seal-img            { height: 44px; width: auto; max-width: 130px; border-radius: 10px; }
-  .topbar-seal-img:last-child { height: 44px; width: auto; max-width: 130px; }
 
   .top-left { display: none; }
 
@@ -8681,8 +8558,6 @@ select.settings-input {
     width: 100%;
   }
   .login-brand      { gap: 4px; }
-  .login-brand-icon { font-size: 26px; margin-bottom: 2px; }
-  .login-brand-name { font-size: 16px; }
   .login-brand-tag  { font-size: 10px; }
   .login-form       { gap: 12px; }
   .login-label      { font-size: 10px; }
@@ -8730,8 +8605,6 @@ select.settings-input {
   .stat-label-abbr { display: inline; }
   .type-badge-full { display: none; }
   .type-badge-abbr { display: inline; }
-  .stats-preset-full { display: none; }
-  .stats-preset-abbr { display: inline; }
 
   .right-sidebar { width: 100%; min-width: 100%; height: auto; }
   .rsb-list      { flex-direction: column; gap: 6px; max-height: none; overflow-y: visible; margin-right: 0; padding-right: 0; }
@@ -8759,8 +8632,6 @@ select.settings-input {
   .settings-toggle       { padding: 4px 0; font-size: 10px; width: 44px; }
   .settings-toggle-label { font-size: 13px; }
   .settings-toggle-sub   { font-size: 10px; }
-  .notif-toggle-row      { padding: 10px 12px; grid-template-columns: 1fr 64px; }
-  .notif-toggle-btn-wrap { width: 64px; display: flex; justify-content: center; }
 
   /* ── Settings — Manage Users ── */
   .mu-row      { flex-wrap: wrap; gap: 10px; }
@@ -8961,24 +8832,9 @@ select.settings-input {
   /* .settings-input: 16px zoom-safe, controlled visually by height/padding */
   .settings-input { font-size: 16px !important; height: 38px; padding: 6px 10px; border-radius: 8px; }
 
-  /* mu-select: styled select, keep compact — no zoom risk since appearance:none */
-  .mu-select {
-    font-size: 12px !important;
-    height: 32px;
-    padding: 0 24px 0 8px;
-    border-radius: 8px;
-  }
-
   .ticker-overlay {
   bottom: calc(52px + env(safe-area-inset-bottom)) !important;
 }
-
-  /* settings-input selects (Add User role/dept) — styled, zoom-safe at 16px */
-  select.settings-input {
-    font-size: 16px !important;
-    height: 44px;
-    padding: 8px 28px 8px 10px;
-  }
 
   /* Unit Control inline inputs */
   .uc-inline-input  { font-size: 14px !important; }
@@ -9159,7 +9015,6 @@ div.leaflet-container {
 ================================ */
 @media (max-width: 400px) {
   .topbar-seal-img            { height: 38px; width: auto; max-width: 110px; border-radius: 8px; }
-  .topbar-seal-img:last-child { height: 38px; width: auto; max-width: 110px; }
 
   .nav-btn,
   .sidebar.collapsed .nav-btn { padding: 3px 5px; font-size: 8px; height: 44px; }
@@ -9169,7 +9024,6 @@ div.leaflet-container {
   .uc-stat            { flex: 1 1 100%; border-right: none; }
   .uc-stat:nth-child(odd) { border-right: none; }
 
-  .mu-select   { height: 32px; font-size: 11px !important; padding: 0 22px 0 7px; }
   .fdd-trigger { font-size: 9px; padding: 0 6px; }
   .fdd-label   { max-width: none; }
 
@@ -10234,7 +10088,6 @@ body:has(.msw-panel) .hz-legend-card { visibility: hidden; transition-delay: 0s;
 .fs-drawer-light .fs-dr-badge-wait,
 .fs-drawer-light .fs-dr-badge-manual { background: #e8ecf1 !important; color: #475569 !important; }
 .fs-drawer-light .fs-dr-dot { box-shadow: 0 0 0 1.5px rgba(15, 23, 42, 0.45); }
-/* (removed: the hero card now follows the light drawer) */
 .fs-drawer-light .fs-dr-btn:hover { border-color: rgba(15, 23, 42, 0.3); }
 .fs-drawer-light .fs-dr-handle span { background: rgba(15, 23, 42, 0.25); }
 
@@ -10606,9 +10459,7 @@ FILE: frontend/package.json
   },
   "dependencies": {
     "chart.js": "^4.5.1",
-    "chartjs-adapter-date-fns": "^3.0.0",
     "chartjs-plugin-annotation": "^3.1.0",
-    "date-fns": "^3.6.0",
     "leaflet": "^1.9.4",
     "react": "^19.2.0",
     "react-chartjs-2": "^5.3.1",
