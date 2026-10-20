@@ -670,6 +670,15 @@ body {
   pointer-events: none;
 }
 
+/* Phone dashboard map only: smaller halo, the map card is small */
+@keyframes radar-pulse-sm {
+  0%   { transform: scale(1); opacity: 0.8; }
+  100% { transform: scale(4); opacity: 0;   }
+}
+@media (max-width: 768px) {
+  .map-wrap .radar-pulse { animation-name: radar-pulse-sm; }
+}
+
 @media (max-width: 768px) {
   .map-fullscreen-box {
   width: 100%;
@@ -2498,7 +2507,7 @@ body {
   }
 
   .card-map, .card-water, .card-battery { grid-column: auto; grid-row: auto; }
-  .card-map     { height: 230px; }
+  .card-map     { height: 300px; }
   .card-water   { height: 300px; }
   .card-battery { height: 215px; }
   .card         { padding: 10px 12px; }
@@ -2901,7 +2910,9 @@ div.leaflet-container {
   }
 
   .leaflet-control-attribution {
-    font-size: 8px !important;
+    font-size: 6.5px !important;
+    line-height: 1.25 !important;
+    padding: 1px 4px !important;
   }
 
   .uc-manual-icon { font-size: 9px; }
@@ -3549,9 +3560,9 @@ div.leaflet-container {
   text-shadow: 0 0 10px rgba(255, 255, 255, 0.85);
 }
 
-/* Phone: hidden until the phone pass */
+/* Phone: smaller than desktop (26px), top left below the status bar */
 @media (max-width: 768px) {
-  .map-fs-title { display: none; }
+  .map-fs-title { font-size: 20px; }
 }
 
 /* ── Batch 4: phone bottom sheet ── */
@@ -3767,6 +3778,10 @@ body:has(.msw-panel) .hz-legend-card { visibility: hidden; transition-delay: 0s;
   .msw-swatch { width: 32px; height: 26px; }
   .msw-opt-name { font-size: 11px; }
   .msw-opt-sub  { display: none; }
+  /* Fullscreen map panels are as wide as the button row, so one column. The dashboard map
+     panels (msw-panel-compact) keep their 2 columns. */
+  .msw-panel:not(.msw-panel-compact) .msw-list { grid-template-columns: 1fr; }
+  .msw-panel:not(.msw-panel-compact) { padding: 8px; }
 }
 
 /* ── Light base maps (class is set on .map-wrap / .map-fullscreen-inner) ── */
@@ -3907,9 +3922,47 @@ body:has(.msw-panel) .hz-legend-card { visibility: hidden; transition-delay: 0s;
 .hz-legend-range { font-size: 10px; line-height: 1.3; color: var(--text-3); }
 .hz-legend-card .msw-legend-src { font-size: 11px; }
 
-/* Phone: the bottom sheet would sit on top of it, so it stays off until the phone pass */
+/* Phone: the dashboard map keeps its strip, so its card stays off. The fullscreen map shows
+   the card above the buttons, and hides it while the station sheet is open (the sheet would cover it). */
 @media (max-width: 768px) {
-  .hz-legend-card { display: none; }
+  .map-wrap .hz-legend-card { display: none; }
+  .map-fullscreen-inner.fs-drawer-open .hz-legend-card { display: none; }
+}
+
+/* Phone text vs desktop text in the fullscreen legend card */
+.hz-phone-only { display: none; }
+@media (max-width: 768px) {
+  .hz-desk-only  { display: none; }
+  .hz-phone-only { display: block; }
+}
+
+/* One amber warning line above the buttons while the station sheet hides the card (phone only) */
+.hz-legend-fail.hz-fs-warn { display: none; }
+@media (max-width: 768px) {
+  .map-fullscreen-inner.fs-drawer-open .hz-legend-fail.hz-fs-warn {
+    display: flex;
+    position: absolute;
+    left:  calc(var(--fs-gap) + env(safe-area-inset-left, 0px));
+    bottom: calc(55% + 12px + 44px); /* sheet height + button lift + button (36px) + gap (8px) */
+    z-index: 1000;
+    width: fit-content;
+    max-width: calc(100vw - 2 * var(--fs-gap));
+    margin: 0;
+    background: linear-gradient(rgba(245, 158, 11, 0.14), rgba(245, 158, 11, 0.14)), rgba(23, 23, 26, 0.94);
+    pointer-events: none;
+  }
+}
+.map-fullscreen-inner.map-is-light .hz-legend-fail.hz-fs-warn {
+  color: #92400e;
+  background: #fff7e6;
+  border-color: rgba(180, 83, 9, 0.45);
+}
+/* hidden while a Base map or Hazard panel is open, same as the card */
+body:has(.msw-panel) .hz-fs-warn { visibility: hidden; }
+
+/* Short phones: drop the note and source lines first; title + classes (+ the failed warning) stay */
+@media (max-width: 768px) and (max-height: 600px) {
+  .hz-legend-card .hz-legend-opt { display: none; }
 }
 
 /* ── Light base maps: soft frosted chrome (the station drawer stays dark for now) ── */
@@ -4010,4 +4063,70 @@ body:has(.msw-panel) .hz-legend-card { visibility: hidden; transition-delay: 0s;
   .msw-panel-compact .msw-opt-name { font-size: 12px; }
   .msw-panel-compact .msw-opt-sub { font-size: 10px; }
   .msw-panel-compact .msw-links { margin-top: 6px; }
+}
+
+/* Phone dashboard map: legend view inside the hazard panel */
+.msw-legend-compact .msw-legend-title { font-size: 11px; font-weight: 600; color: var(--text-1); margin: 7px 2px 4px; }
+.msw-legend-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px 10px; margin: 0 2px; }
+.msw-legend-grid .msw-legend-row { align-items: flex-start; padding: 0; }
+.msw-legend-grid .msw-legend-swatch { margin-top: 2px; }
+.msw-legend-compact .msw-legend-src { margin: 5px 2px 0; font-size: 10px; }
+.msw-legend-compact .hz-legend-fail { margin: 7px 0 0; }
+
+/* Phone dashboard map: strip showing which hazard overlay is on */
+.hz-strip { display: none; }
+@media (max-width: 768px) {
+  .hz-strip {
+    position: absolute;
+    top: 8px;
+    left: 8px;
+    z-index: 800;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    max-width: calc(100% - 16px);
+    padding: 5px 10px;
+    background: rgba(23, 23, 26, 0.92);
+    border: 1px solid rgba(255, 255, 255, 0.14);
+    border-radius: 999px;
+    color: var(--text-1);
+    font-family: var(--font);
+    font-size: 11px;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+  .hz-strip strong { font-weight: 600; }
+  .hz-strip-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+  .hz-strip-muted { color: var(--text-3); }
+  .hz-strip-act {
+    color: var(--blue);
+    border-left: 1px solid rgba(255, 255, 255, 0.14);
+    padding-left: 7px;
+  }
+  .hz-strip-fail {
+    background: linear-gradient(rgba(245, 158, 11, 0.14), rgba(245, 158, 11, 0.14)), rgba(23, 23, 26, 0.92);
+    border-color: rgba(245, 158, 11, 0.45);
+    color: var(--amber);
+  }
+  .hz-strip-fail .hz-strip-act { color: var(--amber); border-left-color: rgba(245, 158, 11, 0.45); }
+  /* the strip steps aside while a panel is open */
+  .map-wrap:has(.msw-panel) .hz-strip { display: none; }
+}
+
+/* Phone dashboard map panels: as wide as the button row, one column, smaller text */
+@media (max-width: 768px) {
+  .msw-panel-compact { padding: 6px; }
+  .msw-panel-compact .msw-title { font-size: 9px; padding: 0 3px 4px; }
+  .msw-panel-compact .msw-list { grid-template-columns: 1fr; gap: 2px; }
+  .msw-panel-compact .msw-opt { height: 24px; padding: 0 4px; gap: 6px; border-radius: 8px; }
+  .msw-panel-compact .msw-swatch { width: 22px; height: 16px; border-radius: 4px; }
+  .msw-panel-compact .msw-opt-name { font-size: 10px; white-space: nowrap; }
+  .msw-panel-compact .msw-hz-dot { width: 8px; height: 8px; margin: 0 2px; }
+  .msw-panel-compact .msw-change { font-size: 10px; }
+  .msw-panel-compact .msw-change svg { display: none; }
+  .msw-legend-compact .msw-legend-title { font-size: 10px; line-height: 1.3; margin: 6px 3px 4px; }
+  .msw-legend-compact .msw-legend-grid { grid-template-columns: 1fr; gap: 0; margin: 0 3px; }
+  .msw-legend-compact .msw-legend-row { font-size: 10px; min-height: 16px; align-items: center; }
+  .msw-legend-compact .msw-legend-grid .msw-legend-swatch { width: 12px; height: 8px; margin-top: 0; }
+  .msw-legend-compact .hz-legend-fail { font-size: 10px; padding: 4px 6px; margin: 6px 0 0; }
 }

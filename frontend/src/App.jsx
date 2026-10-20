@@ -120,6 +120,8 @@ const HAZARD_OVERLAYS = {
     note: "Each class combines how deep the flood gets and how long it lasts. Example: High = 1 to 2 m and/or more than 3 days. Other classes are on HazardHunterPH.",
     shortNote: "Each class combines how deep the flood gets and how long it lasts. High = 1 to 2 m and/or more than 3 days.",
     dot: "#a855f7",
+    phoneNote: "Depth and duration combined. High = 1 to 2 m and/or over 3 days.",
+    phoneSource: "Source: MGB-DENR via GeoRisk PH",
     // Swatch colors are estimated from the server legend; compare against the live map
     classes: [
       { label: "Low",       range: "", color: "#E0D0FF" },
@@ -141,7 +143,10 @@ const HAZARD_OVERLAYS = {
     noteDark: "Shown in teal here so it is not mistaken for the status colors. Brighter means higher surge.",
     shortNote: "Shown in teal so it is not mistaken for the status colors. Darker means higher surge.",
     shortNoteDark: "Shown in teal so it is not mistaken for the status colors. Brighter means higher surge.",
-    dot: "#2dd4bf",
+    dot: "#f472b6",
+    phoneNote: "Shown in teal, not the status colors. Darker means higher surge.",
+    phoneNoteDark: "Shown in teal, not the status colors. Brighter means higher surge.",
+    phoneSource: "Source: PAGASA via GeoRisk PH",
     // color = light base maps, darkColor = dark base maps. First estimates of what the
     // CSS filters produce; compare against the live map
     classes: [
@@ -161,6 +166,8 @@ const HAZARD_OVERLAYS = {
     legendTitle: "Rain-induced landslide susceptibility, 2012 data, not live",
     note: "Colors are shifted here so they are not mistaken for the status colors, so they differ from HazardHunterPH. Debris flow zone = Debris Flow / Possible Accumulation Zone.",
     shortNote: "Colors are shifted, so they differ from HazardHunterPH.",
+    phoneNote: "Colors are shifted, so they differ from HazardHunterPH.",
+    phoneSource: "Source: MGB-DENR via GeoRisk PH",
     dot: "#f472b6",
     // color = light base maps, darkColor = dark base maps. First estimates of what the
     // CSS filters produce; compare against the live map. Debris flow is a hatched swatch.
@@ -184,6 +191,8 @@ const HAZARD_OVERLAYS = {
     note: "Mapped faults only, not a full earthquake risk map. Line colors are shifted here so they are not mistaken for the status colors. Line symbols are on HazardHunterPH.",
     shortNote: "Mapped faults only, not a full earthquake risk map. Line colors are shifted so they are not mistaken for the status colors.",
     dot: "#a3e635",
+    phoneNote: "Mapped faults only, not full earthquake risk. Line colors are shifted.",
+    phoneSource: "Source: PHIVOLCS via GeoRisk PH",
     // Swatches are short lines. color = light base maps, darkColor = dark base maps.
     // First estimates of what the CSS filters produce; compare against the live map
     classes: [
@@ -202,6 +211,8 @@ const HAZARD_OVERLAYS = {
     legendTitle: "Liquefaction susceptibility, 2018 data, not live",
     note: "The server uses two naming scales that share these colors, so a color can carry either name. Colors are shifted here so they are not mistaken for the status colors, so they differ from HazardHunterPH.",
     dot: "#818cf8",
+    phoneNote: "Two naming scales share these colors, so a color can carry either name.",
+    phoneSource: "Source: PHIVOLCS via GeoRisk PH",
     // One row per server color (the two naming scales reuse the same colors).
     // color = light base maps, darkColor = dark base maps. First estimates of what the
     // CSS filters produce; compare against the live map
@@ -1958,17 +1969,65 @@ function getMapPanelPos(btn, width) {
   };
 }
 
-function MapSwitcher({ value, onChange, lightPanel = false, compact = false }) {
+// Phone dashboard map only: the panels are drawn inside the map (.map-wrap), above the buttons,
+// so they can't cover the card header. Everywhere else they are portaled to <body> as before.
+function getPanelHost(btn, compact) {
+  if (!compact || !isMobileViewport()) return { host: document.body, inMap: false };
+  const wrap = btn?.closest(".map-wrap");
+  return wrap ? { host: wrap, inMap: true } : { host: document.body, inMap: false };
+}
+const IN_MAP_PANEL_STYLE = {
+  position: "absolute", left: 8, bottom: 48,
+  width: 146, // 4 buttons (32px) + 3 gaps (6px): left edge on Base map, right edge on Fullscreen
+  maxHeight: "calc(100% - 56px)",
+};
+
+// Phone fullscreen map: the panels are as wide as the button row, so both edges line up with it
+function getPanelWidth(btn, compact) {
+  if (isMobileViewport()) {
+    const grp = btn?.closest(".map-ctrl-group")?.getBoundingClientRect();
+    return grp ? Math.round(grp.width) : Math.min(300, window.innerWidth - 16);
+  }
+  return compact ? 220 : 260;
+}
+
+// Runs fn once the bottom-left buttons have finished sliding down (the sheet just closed).
+// Waits for the real transitionend; the timer is only a safety net.
+function afterButtonsSettle(btn, fn) {
+  const grp = btn?.closest(".map-ctrl-group");
+  if (!grp) { setTimeout(fn, 300); return; }
+  let done = false;
+  const go = () => {
+    if (done) return;
+    done = true;
+    grp.removeEventListener("transitionend", onEnd);
+    clearTimeout(t);
+    fn();
+  };
+  const onEnd = (e) => { if (e.target === grp && e.propertyName === "bottom") go(); };
+  const t = setTimeout(go, 600);
+  grp.addEventListener("transitionend", onEnd);
+}
+
+function MapSwitcher({ value, onChange, lightPanel = false, compact = false, onOpen }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos]   = useState({ left: 8, bottom: 60, width: 260, maxHeight: 320 });
   const isLight = lightPanel && !!BASE_MAPS[value]?.isLight;
   const btnRef   = useRef(null);
   const panelRef = useRef(null);
+  const { host, inMap } = getPanelHost(btnRef.current, compact);
 
   const toggle = () => {
     if (!open && btnRef.current) {
-      const width = isMobileViewport() ? Math.min(300, window.innerWidth - 16) : (compact ? 220 : 260);
-      setPos(getMapPanelPos(btnRef.current, width));
+      const place = () => {
+        if (!btnRef.current) return;
+        const width = getPanelWidth(btnRef.current, compact);
+        setPos(getMapPanelPos(btnRef.current, width));
+        setOpen(true);
+      };
+      // onOpen returns true when it closed the station sheet: wait for the buttons to slide back down
+      if (onOpen && onOpen()) afterButtonsSettle(btnRef.current, place); else place();
+      return;
     }
     setOpen(o => !o);
   };
@@ -2013,7 +2072,7 @@ function MapSwitcher({ value, onChange, lightPanel = false, compact = false }) {
           className={`msw-panel ${isLight ? "msw-panel-light" : ""} ${compact ? "msw-panel-compact" : ""}`}
           role="dialog"
           aria-label="Base map"
-          style={{ position: "fixed", left: pos.left, bottom: pos.bottom, width: pos.width, maxHeight: pos.maxHeight }}
+          style={inMap ? IN_MAP_PANEL_STYLE : { position: "fixed", left: pos.left, bottom: pos.bottom, width: pos.width, maxHeight: pos.maxHeight }}
         >
           <div className="msw-title">Base map</div>
           <div className="msw-list">
@@ -2039,7 +2098,7 @@ function MapSwitcher({ value, onChange, lightPanel = false, compact = false }) {
             })}
           </div>
         </div>,
-        document.body
+        host
       )}
     </>
   );
@@ -2055,7 +2114,7 @@ const HazardIcon = () => (
 
 // Hazard button + panel. Same portal pattern as MapSwitcher. With an overlay on, the list
 // folds into the chosen row (+ "Change") and the legend sits right under it.
-function HazardSwitcher({ value, overlay, onOverlayChange, showLegend = true, lightPanel = false, compact = false, failed = false }) {
+function HazardSwitcher({ value, overlay, onOverlayChange, showLegend = true, lightPanel = false, compact = false, failed = false, onOpen }) {
   const [open, setOpen]         = useState(false);
   const [listOpen, setListOpen] = useState(false);
   const [pos, setPos]           = useState({ left: 8, bottom: 60, width: 260, maxHeight: 320 });
@@ -2063,14 +2122,22 @@ function HazardSwitcher({ value, overlay, onOverlayChange, showLegend = true, li
   const panelRef = useRef(null);
 
   const cfg      = overlay ? HAZARD_OVERLAYS[overlay] : null;
-  const showList = !showLegend || listOpen || !cfg;
+  const { host, inMap } = getPanelHost(btnRef.current, compact);
+  const legendOn = showLegend || inMap; // phone dashboard map: folded legend view
+  const showList = !legendOn || listOpen || !cfg;
   const isLight  = !!BASE_MAPS[value]?.isLight;
 
   const toggle = () => {
     if (!open && btnRef.current) {
-      const width = isMobileViewport() ? Math.min(300, window.innerWidth - 16) : (compact ? 220 : 260);
-      setPos(getMapPanelPos(btnRef.current, width));
-      setListOpen(false);
+      const place = () => {
+        if (!btnRef.current) return;
+        const width = getPanelWidth(btnRef.current, compact);
+        setPos(getMapPanelPos(btnRef.current, width));
+        setListOpen(false);
+        setOpen(true);
+      };
+      if (onOpen && onOpen()) afterButtonsSettle(btnRef.current, place); else place();
+      return;
     }
     setOpen(o => !o);
   };
@@ -2096,7 +2163,7 @@ function HazardSwitcher({ value, overlay, onOverlayChange, showLegend = true, li
     };
   }, [open]);
 
-  const pick = (id) => { onOverlayChange(id); setListOpen(false); if (!showLegend) setOpen(false); };
+  const pick = (id) => { onOverlayChange(id); setListOpen(false); if (inMap || !legendOn || !id) setOpen(false); };
 
   return (
     <>
@@ -2118,9 +2185,9 @@ function HazardSwitcher({ value, overlay, onOverlayChange, showLegend = true, li
           className={`msw-panel ${lightPanel && isLight ? "msw-panel-light" : ""} ${compact ? "msw-panel-compact" : ""}`}
           role="dialog"
           aria-label="Hazard overlay"
-          style={{ position: "fixed", left: pos.left, bottom: pos.bottom, width: pos.width, maxHeight: pos.maxHeight }}
+          style={inMap ? IN_MAP_PANEL_STYLE : { position: "fixed", left: pos.left, bottom: pos.bottom, width: pos.width, maxHeight: pos.maxHeight }}
         >
-          <div className="msw-title">Hazard overlay</div>
+          {!(inMap && !showList) && <div className="msw-title">Hazard overlay</div>}
           {showList ? (
             <div className="msw-list">
               <button type="button" className={`msw-opt ${!overlay ? "msw-opt-selected" : ""}`} onClick={() => pick(null)}>
@@ -2156,7 +2223,31 @@ function HazardSwitcher({ value, overlay, onOverlayChange, showLegend = true, li
               </span>
             </button>
           )}
-          {cfg && !showList && (
+          {cfg && !showList && inMap && (
+            <div className="msw-legend msw-legend-compact">
+              {failed && (
+                <div className="hz-legend-fail" role="status">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                    <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                  </svg>
+                  <span><strong>Layer unavailable</strong></span>
+                </div>
+              )}
+              <div className="msw-legend-title">{cfg.legendTitle}</div>
+              <div className="msw-legend-grid">
+                {cfg.classes.map(c => (
+                  <div key={c.label} className="msw-legend-row">
+                    <span className="msw-legend-swatch" style={(c.color || c.darkColor) ? { background: (!isLight && c.darkColor) || c.color } : undefined} />
+                    <span className="hz-legend-text">
+                      <span className="msw-legend-name">{c.label}</span>
+                      {c.range && <span className="hz-legend-range">{c.range}</span>}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+          {cfg && !showList && !inMap && (
             <div className="msw-legend">
               <div className="msw-legend-title">{cfg.legendTitle}</div>
               {cfg.classes.map(c => (
@@ -2170,12 +2261,14 @@ function HazardSwitcher({ value, overlay, onOverlayChange, showLegend = true, li
               <div className="msw-legend-src">{cfg.source}</div>
             </div>
           )}
-          <div className="msw-links">
-            <a className="msw-link" href="https://hazardhunter.georisk.gov.ph/" target="_blank" rel="noopener noreferrer">HazardHunterPH ↗</a>
-            <a className="msw-link" href="https://www.panahon.gov.ph/" target="_blank" rel="noopener noreferrer">PANaHON ↗</a>
-          </div>
+          {!inMap && (
+            <div className="msw-links">
+              <a className="msw-link" href="https://hazardhunter.georisk.gov.ph/" target="_blank" rel="noopener noreferrer">HazardHunterPH ↗</a>
+              <a className="msw-link" href="https://www.panahon.gov.ph/" target="_blank" rel="noopener noreferrer">PANaHON ↗</a>
+            </div>
+          )}
         </div>,
-        document.body
+        host
       )}
     </>
   );
@@ -2207,8 +2300,10 @@ function HazardLegendCard({ overlay, isLight, compact = false, failed = false })
           <span>{compact ? "Layer unavailable" : <><strong>Layer unavailable.</strong> No color on the map does not mean no hazard.</>}</span>
         </div>
       )}
-      {!compact && <div className="msw-legend-src">{(!isLight && cfg.noteDark) || cfg.note}</div>}
-      {!compact && <div className="msw-legend-src">{cfg.source}</div>}
+      {!compact && <div className="msw-legend-src hz-desk-only">{(!isLight && cfg.noteDark) || cfg.note}</div>}
+      {!compact && <div className="msw-legend-src hz-desk-only">{cfg.source}</div>}
+      {!compact && !failed && <div className="msw-legend-src hz-phone-only hz-legend-opt">{(!isLight && cfg.phoneNoteDark) || cfg.phoneNote || (!isLight && cfg.shortNoteDark) || cfg.shortNote || cfg.note}</div>}
+      {!compact && !failed && <div className="msw-legend-src hz-phone-only hz-legend-opt">{cfg.phoneSource || cfg.source}</div>}
       {compact && !failed && cfg.shortNote && <div className="hz-legend-short">{(!isLight && cfg.shortNoteDark) || cfg.shortNote}</div>}
       {compact && !failed && <div className="hz-legend-short-src">{cfg.source}</div>}
     </div>
@@ -2249,11 +2344,23 @@ function FsMarkerPanes() {
   return null;
 }
 
+// Reports the map's zoom level so the fullscreen markers can hide their labels when zoomed out
+function ZoomWatcher({ onZoom }) {
+  const map = useMap();
+  useEffect(() => {
+    const report = () => onZoom(map.getZoom());
+    report();
+    map.on("zoomend", report);
+    return () => { map.off("zoomend", report); };
+  }, [map, onZoom]);
+  return null;
+}
+
 // Fullscreen station marker, one half at a time (part = "label" or "dot"). iconSize is 0x0 so
 // each half is anchored exactly on the coordinate; CSS places the label above the dot.
 // The pulse ring lives with the label half, under the label and under every dot.
-function makeFsLabelIcon({ name, statusWord, statusColor, markerColor, markerBorderColor, showPulse, isSel, part }) {
-  const labelHtml = `<span class="fs-lb ${isSel ? "fs-lb-sel" : ""}">${escapeHtml(name)} - <span style="color:${statusColor}">${statusWord}</span></span>`;
+function makeFsLabelIcon({ name, statusWord, statusColor, markerColor, markerBorderColor, showPulse, isSel, part, showLabel = true }) {
+  const labelHtml = !showLabel ? "" : `<span class="fs-lb ${isSel ? "fs-lb-sel" : ""}">${escapeHtml(name)} - <span style="color:${statusColor}">${statusWord}</span></span>`;
   const pulseHtml = showPulse ? `<div class="radar-pulse" style="width:14px;height:14px;background:${markerColor};top:-7px;left:-7px;"></div>` : "";
   const dotHtml = `<div class="fs-dot-wrap">
         <div class="fs-dot ${isSel ? "fs-dot-sel" : ""}" style="background:${markerColor};border-color:${markerBorderColor};box-shadow:0 0 8px ${markerColor}"></div>
@@ -2271,6 +2378,10 @@ const FS_DRAWER_PAD = 384;
 
 // Phone bottom sheet covers this fraction of the screen height (keep in sync with `height: 55%` in App.css)
 const FS_SHEET_VH = 0.55;
+
+// Phone fullscreen map: below this zoom only dots show (plus the live station and the selected one).
+// First guess, tune by eye on the phone.
+const FS_LABELS_ZOOM = 16;
 
 // Map padding (right, bottom) so flyTo keeps the target in the visible part of the map
 function fsInsets(drawerOpen) {
@@ -4986,6 +5097,7 @@ export default function App() {
     const [fsSelectedFEWS, setFsSelectedFEWS] = useState(null);
     const [fsDrawerOpen, setFsDrawerOpen] = useState(() => !isMobileViewport());
     const fsMapRef = useRef(null);
+    const [fsZoom, setFsZoom] = useState(null);
 
     // Any logout (button, expired token, or another tab) closes the fullscreen map,
     // so the next person to sign in doesn't land in it
@@ -5014,6 +5126,11 @@ export default function App() {
     };
     const handleFsCenter = () => { setFsSelectedFEWS(null); flyFsToCity(); };
     const handleFsBack   = () => { setFsSelectedFEWS(null); flyFsToCity(); };
+    // Phone: opening a map panel closes the station sheet. Returns true if it closed one.
+    const closeSheetForPanel = () => {
+      if (isMobileViewport() && fsDrawerOpen) { setFsDrawerOpen(false); return true; }
+      return false;
+    };
 
     const selectFsStation = (id) => {
       const f = allFews.find(x => x.id === id);
@@ -5466,6 +5583,28 @@ const waterChartOptions = useMemo(() => ({
                 </div>
                 <div className={`map-wrap ${baseMapIsLight ? "map-is-light" : ""}`}>
                   <HazardLegendCard overlay={overlayId} isLight={baseMapIsLight} compact failed={overlayFail.dash} />
+                  {overlayId && HAZARD_OVERLAYS[overlayId] && (
+                    <button
+                      type="button"
+                      className={`hz-strip ${overlayFail.dash ? "hz-strip-fail" : ""}`}
+                      aria-label="Open hazard legend"
+                      onClick={e => e.currentTarget.closest(".map-wrap")?.querySelector('button[aria-label="Hazard overlay"]')?.click()}
+                    >
+                      <span className="hz-strip-dot" style={{ background: overlayFail.dash ? "#f59e0b" : HAZARD_OVERLAYS[overlayId].dot }} />
+                      {overlayFail.dash ? (
+                        <>
+                          <span>{HAZARD_OVERLAYS[overlayId].label} unavailable</span>
+                          <span className="hz-strip-act">Details ›</span>
+                        </>
+                      ) : (
+                        <>
+                          <strong>{HAZARD_OVERLAYS[overlayId].label}</strong>
+                          <span className="hz-strip-muted">not live</span>
+                          <span className="hz-strip-act">Legend ›</span>
+                        </>
+                      )}
+                    </button>
+                  )}
                   <div className="map-ctrl-group">
                     <MapSwitcher value={baseMapId} onChange={handleBaseMapChange} compact />
                     <HazardSwitcher value={baseMapId} overlay={overlayId} onOverlayChange={setOverlayId} showLegend={false} compact failed={overlayFail.dash} />
@@ -5969,6 +6108,7 @@ const waterChartOptions = useMemo(() => ({
                     <MapRefSetter mapRef={fsMapRef} />
                     <HideLeafletPrefix />
                     <FsMarkerPanes />
+                    <ZoomWatcher onZoom={setFsZoom} />
                     {allFews.map(f => {
                       const isManualServiceable = !f.isLive && f.manualStatus === "serviceable";
                       const isActuallyLive = f.isLive && isHardwareOnline;
@@ -5995,6 +6135,8 @@ const waterChartOptions = useMemo(() => ({
                       const iconArgs = {
                         name: f.name, statusWord, statusColor,
                         markerColor, markerBorderColor, showPulse, isSel: isFsSel,
+                        // phone: label only for the live station, the selected one, or when zoomed in
+                        showLabel: !isMobileViewport() || isFsSel || f.isLive || (fsZoom != null && fsZoom >= FS_LABELS_ZOOM),
                       };
                       return (
                         <React.Fragment key={f.id}>
@@ -6043,11 +6185,19 @@ const waterChartOptions = useMemo(() => ({
                   />
 
                   <HazardLegendCard overlay={overlayId} isLight={baseMapIsLight} failed={overlayFail.fs} />
+                  {overlayId && overlayFail.fs && (
+                    <div className="hz-legend-fail hz-fs-warn" role="status">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                      </svg>
+                      <span><strong>Layer unavailable.</strong> No color on the map does not mean no hazard.</span>
+                    </div>
+                  )}
 
                   {/* Map controls — bottom left */}
                   <div className="map-ctrl-group map-ctrl-group-fs">
-                    <MapSwitcher value={baseMapId} onChange={handleBaseMapChange} lightPanel />
-                    <HazardSwitcher value={baseMapId} overlay={overlayId} onOverlayChange={setOverlayId} showLegend={false} lightPanel failed={overlayFail.fs} />
+                    <MapSwitcher value={baseMapId} onChange={handleBaseMapChange} lightPanel onOpen={closeSheetForPanel} />
+                    <HazardSwitcher value={baseMapId} overlay={overlayId} onOverlayChange={setOverlayId} showLegend={false} lightPanel failed={overlayFail.fs} onOpen={closeSheetForPanel} />
                     <button className="map-ctrl-btn" onClick={handleFsCenter} title="Center map" aria-label="Center map">
                       <CenterIcon />
                     </button>
