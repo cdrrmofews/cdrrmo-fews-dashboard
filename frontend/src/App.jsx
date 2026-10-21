@@ -4356,6 +4356,19 @@ export default function App() {
     };
   }, []);
   
+  // Phone: while the drawer is open it owns one history entry, so the Android back gesture/button
+  // (or browser back) closes it instead of leaving the app. Closing it any other way removes that entry.
+  useEffect(() => {
+    if (!sidebarOpen || !isMobileViewport()) return;
+    window.history.pushState({ fewsDrawer: true }, "");
+    const onPop = () => setSidebarOpen(false);
+    window.addEventListener("popstate", onPop);
+    return () => {
+      window.removeEventListener("popstate", onPop);
+      if (window.history.state?.fewsDrawer) window.history.back();
+    };
+  }, [sidebarOpen]);
+
   const [fews1Live, setFews1Live]                 = useState(null);
   const [fews1Connected, setFews1Connected]       = useState(false);
   const [fews1StatusOnline, setFews1StatusOnline] = useState(false);
@@ -4778,7 +4791,7 @@ export default function App() {
   }, []);
 
   const mobileLogoutRef = useRef(null);
-  mobileLogoutRef.current = () => setShowLogoutModal(true);
+  mobileLogoutRef.current = () => { setShowProfileDropdown(false); setShowLogoutModal(true); };
   useEffect(() => {
     window.__onMobileLogout = () => { if (mobileLogoutRef.current) mobileLogoutRef.current(); };
     return () => { delete window.__onMobileLogout; };
@@ -5498,9 +5511,10 @@ const waterChartOptions = useMemo(() => ({
         const sr = sc.getBoundingClientRect();
         const rr = row.getBoundingClientRect();
         const bottom   = (card || row).getBoundingClientRect().bottom;
-        const visibleH = sr.height - 60; // roughly the bottom nav bar
-        const centered = sc.scrollTop + ((rr.top + bottom) / 2 - sr.top) - visibleH / 2;
-        const rowStaysVisible = sc.scrollTop + (rr.top - sr.top) - 12; // a tall card never pushes its row off the top
+        const barH = sc.querySelector(".topbar")?.offsetHeight ?? 0; // the sticky topbar covers the top of the scroller
+        const visibleH = sr.height - barH - 24; // visible area: below the topbar, small margin at the bottom
+        const centered = sc.scrollTop + ((rr.top + bottom) / 2 - sr.top) - barH - visibleH / 2;
+        const rowStaysVisible = sc.scrollTop + (rr.top - sr.top) - barH - 12; // a tall card never pushes its row off the top
         return Math.max(0, Math.min(centered, rowStaysVisible));
       };
       let t0 = 0, last = 0;
@@ -5512,6 +5526,50 @@ const waterChartOptions = useMemo(() => ({
         sc.scrollTop += diff * (1 - Math.exp(-dt / 90)); // same easing on 60 and 120 Hz screens
         const elapsed = now - t0;
         if ((elapsed > 450 && Math.abs(diff) < 1) || elapsed > 1500) { stop(); return; }
+        focusRafRef.current = requestAnimationFrame(step);
+      };
+      focusRafRef.current = requestAnimationFrame(step);
+    });
+  };
+
+  // Phone: tapping a station row opens its card under the row. If the card would end below the
+  // bottom nav bar, scroll just enough to bring all of it into view: never more than that, and
+  // never so far that the row itself leaves the top of the screen. Nothing happens if it already fits.
+  const revealStationCard = (f) => {
+    cancelAnimationFrame(focusRafRef.current);
+    focusRafRef.current = requestAnimationFrame(() => {
+      const row = document.querySelector(`.rsb-item[data-station-id="${CSS.escape(String(f.id))}"]`);
+      const sc  = row?.closest(".main");
+      if (!row || !sc) return;
+      const stop = () => {
+        cancelAnimationFrame(focusRafRef.current);
+        sc.removeEventListener("touchstart", stop);
+        sc.removeEventListener("wheel", stop);
+      };
+      // touching or wheeling the page hands control back to the user
+      sc.addEventListener("touchstart", stop, { passive: true });
+      sc.addEventListener("wheel", stop, { passive: true });
+      // How far to scroll right now (px). The card is still growing for ~0.26s, so this is
+      // recomputed every frame until it settles.
+      const calcWant = () => {
+        const card = row.nextElementSibling?.classList.contains("rsb-detail-inline") ? row.nextElementSibling : null;
+        if (!card) return 0;
+        const visibleBottom = Math.min(sc.getBoundingClientRect().bottom, window.innerHeight) - 24; // just above the screen bottom (clears the home indicator)
+        const visibleTop    = sc.getBoundingClientRect().top + (sc.querySelector(".topbar")?.offsetHeight ?? 0) + 12; // below the sticky topbar
+        const rr         = row.getBoundingClientRect();
+        const cardBottom = card.getBoundingClientRect().bottom;
+        const need = Math.max(0, cardBottom - visibleBottom);   // how far the card sticks out below
+        return Math.min(need, rr.top - visibleTop);             // a tall card never pushes its row off the top
+      };
+      let t0 = 0, last = 0;
+      const step = (now) => {
+        if (!t0) t0 = now;
+        const dt = last ? now - last : 16;
+        last = now;
+        const want = calcWant();
+        sc.scrollTop += want * (1 - Math.exp(-dt / 90)); // same easing on 60 and 120 Hz screens
+        const elapsed = now - t0;
+        if ((elapsed > 450 && Math.abs(want) < 1) || elapsed > 1500) { stop(); return; }
         focusRafRef.current = requestAnimationFrame(step);
       };
       focusRafRef.current = requestAnimationFrame(step);
@@ -5566,9 +5624,10 @@ const waterChartOptions = useMemo(() => ({
       <div style={{ display: "flex", flex: 1, minHeight: 0 }}>
 
       {/* ─── SIDEBAR ─── */}
+      {sidebarOpen && <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />}
       <aside className={`sidebar ${sidebarOpen ? "" : "collapsed"}`}>
         <div className={`brand ${sidebarOpen ? "brand-open" : ""}`}>
-          {sidebarOpen && <img src="/logo1.jpg" alt="CDRRMO FEWS" className="brand-logo" />}
+          <img src="/logo1.jpg" alt="CDRRMO FEWS" className="brand-logo" />
           <div className={`brand-text ${sidebarOpen ? "" : "hidden"}`}>
             <div className="brand-name">CDRRMO Fews</div>
           </div>
@@ -5600,6 +5659,7 @@ const waterChartOptions = useMemo(() => ({
             <button key={item.key} className={`nav-btn ${activeNav === item.key ? "active" : ""}`} onClick={() => {
               setActiveNav(item.key);
               sessionStorage.setItem("activeNav", item.key);
+              if (isMobileViewport()) setSidebarOpen(false);
             }}>
               <span className="nav-icon">{item.icon}</span>
               <span className={`nav-label ${sidebarOpen ? "" : "hidden"}`}>{item.label}</span>
@@ -5607,7 +5667,7 @@ const waterChartOptions = useMemo(() => ({
           ))}
         </nav>
         <div className="sidebar-footer">
-          <button className="logout-btn" onClick={() => setShowLogoutModal(true)}>
+          <button className="logout-btn" onClick={() => { setShowLogoutModal(true); if (isMobileViewport()) setSidebarOpen(false); }}>
             <span className="nav-icon">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M13 4H6a2 2 0 0 0-2 2v12a2 2 0 0 0 2 2h7" />
@@ -5624,6 +5684,9 @@ const waterChartOptions = useMemo(() => ({
       <div className="main">
         <header className="topbar">
           <div className="top-left">
+            <button type="button" className="topbar-menu-btn" onClick={() => setSidebarOpen(true)} aria-label="Open menu">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+            </button>
             <div className="title-block">
               <h1>{pageInfo.title}</h1>
               <div className="subtitle">{pageInfo.sub}</div>
@@ -5638,9 +5701,10 @@ const waterChartOptions = useMemo(() => ({
                 {alertCount} Alert{alertCount > 1 ? "s" : ""}
               </div>
             )}
-            <div className={`connection ${isHardwareOnline ? "online" : "waiting"}`}>
+            <div className={`connection ${isHardwareOnline ? "online" : "waiting"}`} role="status" aria-label={isHardwareOnline ? "System Online" : "Waiting for Data"}>
               <span className={isHardwareOnline ? "pulse-dot" : "wait-dot"} />
-              {isHardwareOnline ? "System Online" : "Waiting for Data"}
+              <span className="connection-label connection-label-full">{isHardwareOnline ? "System Online" : "Waiting for Data"}</span>
+              <span className="connection-label connection-label-short">{isHardwareOnline ? "Online" : "Offline"}</span>
             </div>
             <div className="profile-wrap">
               <div className="profile-avatar-btn" ref={avatarBtnRef} onMouseDown={e => e.stopPropagation()} onClick={() => setShowProfileDropdown(v => !v)}>
@@ -6088,7 +6152,10 @@ const waterChartOptions = useMemo(() => ({
                       <React.Fragment key={f.id}>
                       <button className={`rsb-item ${isSel ? "selected" : ""}`}
                         data-station-id={String(f.id)}
-                        onClick={() => setSelectedFEWS(isSel ? null : f.id)}
+                        onClick={() => {
+                          setSelectedFEWS(isSel ? null : f.id);
+                          if (!isSel && isMobileViewport()) revealStationCard(f);
+                        }}
                         style={{ "--status-color": f.isLive ? cfg.color : "#7e92b4" }}>
                         <div className="rsb-dot" style={{
                           background: f.isLive
