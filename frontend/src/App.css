@@ -759,6 +759,47 @@ body {
 }
 
 .rsb-section-items { display: flex; flex-direction: column; gap: 6px; }
+.rsb-section-inner { display: flex; flex-direction: column; gap: 6px; min-width: 0; }
+
+/* Group headers are buttons so they can collapse on phones.
+   Desktop: they look and behave like the old plain label (no chevron, not clickable). */
+.rsb-section-toggle {
+  display: flex; align-items: center; justify-content: space-between;
+  width: 100%;
+  background: transparent; border: none; padding: 0;
+  font-family: var(--font); line-height: inherit; text-align: left;
+  -webkit-appearance: none; appearance: none;
+  pointer-events: none; cursor: default;
+}
+.rsb-section-chev { display: none; }
+
+@media (max-width: 768px) {
+  .rsb-section-toggle {
+    width: auto;
+    margin: 0 -6px; /* keeps the label text where it was; the tap area is wider than the text */
+    padding: 0 6px;
+    min-height: 40px;
+    border-radius: 8px;
+    pointer-events: auto; cursor: pointer;
+    -webkit-tap-highlight-color: transparent;
+    transition: background 0.15s;
+  }
+  .rsb-section-toggle:active { background: var(--bg-raised); }
+  .rsb-section-chev { display: block; flex-shrink: 0; transition: transform 0.2s ease; }
+  .rsb-section-toggle[aria-expanded="false"] .rsb-section-chev { transform: rotate(-90deg); }
+  /* Smooth open/close: the body is a 1-row grid that animates between 1fr and 0fr */
+  .rsb-section { transition: gap 0.28s ease; }
+  .rsb-section .rsb-section-items {
+    display: grid;
+    grid-template-rows: 1fr;
+    transition: grid-template-rows 0.28s ease;
+  }
+  .rsb-section .rsb-section-inner { min-height: 0; overflow: hidden; }
+  .rsb-section-collapsed { gap: 0; }
+  .rsb-section-collapsed .rsb-section-items { grid-template-rows: 0fr; }
+  /* collapsed rows can't be tabbed to once the close animation ends */
+  .rsb-section-collapsed .rsb-section-inner { visibility: hidden; transition: visibility 0s linear 0.28s; }
+}
 
 .rsb-item {
   display: flex;
@@ -837,6 +878,34 @@ body {
 .siren-off:hover { background: var(--bg-raised); color: var(--text-1); }
 .siren-on        { background: rgba(239,68,68,0.15); color: var(--red); border: 1px solid rgba(239,68,68,0.3); box-shadow: 0 0 8px rgba(239,68,68,0.2); animation: blink 1.2s infinite; }
 .rsb-siren-note  { font-size: 9px; color: var(--text-3); font-family: var(--mono); line-height: 1.4; }
+
+/* Station card: the bottom copy is for desktop, the inline copy (under its own row) is for phones.
+   Two classes on purpose, so they beat the phone .rsb-detail margin rule further down. */
+.rsb-detail.rsb-detail-inline { display: none; }
+.rsb-detail-up {
+  margin: -6px -4px -6px auto;
+  padding: 6px 8px;
+  min-height: 32px;
+  background: transparent; border: none;
+  color: var(--blue);
+  font-family: var(--font); font-size: 11px; font-weight: 600;
+  cursor: pointer;
+  -webkit-tap-highlight-color: transparent;
+}
+@media (max-width: 768px) {
+  .rsb-detail.rsb-detail-bottom { display: none; }
+  .rsb-detail.rsb-detail-inline { display: flex; margin: 4px 0 6px; overflow: hidden; animation: rsb-card-in 0.26s ease-out; }
+}
+
+@keyframes rsb-card-in {
+  from { opacity: 0; max-height: 0; padding-top: 0; padding-bottom: 0; margin-top: 0; margin-bottom: 0; }
+  to   { opacity: 1; max-height: 600px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .rsb-section, .rsb-section .rsb-section-items, .rsb-section-collapsed .rsb-section-inner { transition: none; }
+  .rsb-detail.rsb-detail-inline { animation: none; }
+}
 
 /* ================================
    PAGES
@@ -3926,7 +3995,7 @@ body:has(.msw-panel) .hz-legend-card { visibility: hidden; transition-delay: 0s;
    the card above the buttons, and hides it while the station sheet is open (the sheet would cover it). */
 @media (max-width: 768px) {
   .map-wrap .hz-legend-card { display: none; }
-  .map-fullscreen-inner.fs-drawer-open .hz-legend-card { display: none; }
+  .map-fullscreen-inner.fs-drawer-open .hz-legend-card { visibility: hidden; transition-delay: 0s; }
 }
 
 /* Phone text vs desktop text in the fullscreen legend card */

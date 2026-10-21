@@ -148,8 +148,9 @@ const HAZARD_OVERLAYS = {
     shortNote: "Shown in teal so it is not mistaken for the status colors. Darker means higher surge.",
     shortNoteDark: "Shown in teal so it is not mistaken for the status colors. Brighter means higher surge.",
     dot: "#f472b6",
-    phoneNote: "Colors are shifted, so they differ from HazardHunterPH.",
-    phoneSource: "Source: MGB-DENR via GeoRisk PH",
+    phoneNote: "Shown in teal, not the status colors. Darker means higher surge.",
+    phoneNoteDark: "Shown in teal, not the status colors. Brighter means higher surge.",
+    phoneSource: "Source: PAGASA via GeoRisk PH",
     // color = light base maps, darkColor = dark base maps. First estimates of what the
     // CSS filters produce; compare against the live map
     classes: [
@@ -169,6 +170,8 @@ const HAZARD_OVERLAYS = {
     legendTitle: "Rain-induced landslide susceptibility, 2012 data, not live",
     note: "Colors are shifted here so they are not mistaken for the status colors, so they differ from HazardHunterPH. Debris flow zone = Debris Flow / Possible Accumulation Zone.",
     shortNote: "Colors are shifted, so they differ from HazardHunterPH.",
+    phoneNote: "Colors are shifted, so they differ from HazardHunterPH.",
+    phoneSource: "Source: MGB-DENR via GeoRisk PH",
     dot: "#f472b6",
     // color = light base maps, darkColor = dark base maps. First estimates of what the
     // CSS filters produce; compare against the live map. Debris flow is a hatched swatch.
@@ -1979,11 +1982,38 @@ function getPanelHost(btn, compact) {
 }
 const IN_MAP_PANEL_STYLE = {
   position: "absolute", left: 8, bottom: 48,
-  width: "calc(100% - 16px)",
+  width: 146, // 4 buttons (32px) + 3 gaps (6px): left edge on Base map, right edge on Fullscreen
   maxHeight: "calc(100% - 56px)",
 };
 
-function MapSwitcher({ value, onChange, lightPanel = false, compact = false }) {
+// Phone fullscreen map: the panels are as wide as the button row, so both edges line up with it
+function getPanelWidth(btn, compact) {
+  if (isMobileViewport()) {
+    const grp = btn?.closest(".map-ctrl-group")?.getBoundingClientRect();
+    return grp ? Math.round(grp.width) : Math.min(300, window.innerWidth - 16);
+  }
+  return compact ? 220 : 260;
+}
+
+// Runs fn once the bottom-left buttons have finished sliding down (the sheet just closed).
+// Waits for the real transitionend; the timer is only a safety net.
+function afterButtonsSettle(btn, fn) {
+  const grp = btn?.closest(".map-ctrl-group");
+  if (!grp) { setTimeout(fn, 300); return; }
+  let done = false;
+  const go = () => {
+    if (done) return;
+    done = true;
+    grp.removeEventListener("transitionend", onEnd);
+    clearTimeout(t);
+    fn();
+  };
+  const onEnd = (e) => { if (e.target === grp && e.propertyName === "bottom") go(); };
+  const t = setTimeout(go, 600);
+  grp.addEventListener("transitionend", onEnd);
+}
+
+function MapSwitcher({ value, onChange, lightPanel = false, compact = false, onOpen }) {
   const [open, setOpen] = useState(false);
   const [pos, setPos]   = useState({ left: 8, bottom: 60, width: 260, maxHeight: 320 });
   const isLight = lightPanel && !!BASE_MAPS[value]?.isLight;
@@ -1993,8 +2023,15 @@ function MapSwitcher({ value, onChange, lightPanel = false, compact = false }) {
 
   const toggle = () => {
     if (!open && btnRef.current) {
-      const width = isMobileViewport() ? Math.min(300, window.innerWidth - 16) : (compact ? 220 : 260);
-      setPos(getMapPanelPos(btnRef.current, width));
+      const place = () => {
+        if (!btnRef.current) return;
+        const width = getPanelWidth(btnRef.current, compact);
+        setPos(getMapPanelPos(btnRef.current, width));
+        setOpen(true);
+      };
+      // onOpen returns true when it closed the station sheet: wait for the buttons to slide back down
+      if (onOpen && onOpen()) afterButtonsSettle(btnRef.current, place); else place();
+      return;
     }
     setOpen(o => !o);
   };
@@ -2081,7 +2118,7 @@ const HazardIcon = () => (
 
 // Hazard button + panel. Same portal pattern as MapSwitcher. With an overlay on, the list
 // folds into the chosen row (+ "Change") and the legend sits right under it.
-function HazardSwitcher({ value, overlay, onOverlayChange, showLegend = true, lightPanel = false, compact = false, failed = false }) {
+function HazardSwitcher({ value, overlay, onOverlayChange, showLegend = true, lightPanel = false, compact = false, failed = false, onOpen }) {
   const [open, setOpen]         = useState(false);
   const [listOpen, setListOpen] = useState(false);
   const [pos, setPos]           = useState({ left: 8, bottom: 60, width: 260, maxHeight: 320 });
@@ -2096,9 +2133,15 @@ function HazardSwitcher({ value, overlay, onOverlayChange, showLegend = true, li
 
   const toggle = () => {
     if (!open && btnRef.current) {
-      const width = isMobileViewport() ? Math.min(300, window.innerWidth - 16) : (compact ? 220 : 260);
-      setPos(getMapPanelPos(btnRef.current, width));
-      setListOpen(false);
+      const place = () => {
+        if (!btnRef.current) return;
+        const width = getPanelWidth(btnRef.current, compact);
+        setPos(getMapPanelPos(btnRef.current, width));
+        setListOpen(false);
+        setOpen(true);
+      };
+      if (onOpen && onOpen()) afterButtonsSettle(btnRef.current, place); else place();
+      return;
     }
     setOpen(o => !o);
   };
@@ -2191,7 +2234,7 @@ function HazardSwitcher({ value, overlay, onOverlayChange, showLegend = true, li
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                     <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
                   </svg>
-                  <span><strong>Layer unavailable.</strong> No color on the map does not mean no hazard.</span>
+                  <span><strong>Layer unavailable</strong></span>
                 </div>
               )}
               <div className="msw-legend-title">{cfg.legendTitle}</div>
@@ -2206,8 +2249,6 @@ function HazardSwitcher({ value, overlay, onOverlayChange, showLegend = true, li
                   </div>
                 ))}
               </div>
-              <div className="msw-legend-src">{(!isLight && cfg.phoneNoteDark) || cfg.phoneNote || (!isLight && cfg.shortNoteDark) || cfg.shortNote || (!isLight && cfg.noteDark) || cfg.note}</div>
-              <div className="msw-legend-src">{cfg.phoneSource || cfg.source}</div>
             </div>
           )}
           {cfg && !showList && !inMap && (
@@ -2224,7 +2265,7 @@ function HazardSwitcher({ value, overlay, onOverlayChange, showLegend = true, li
               <div className="msw-legend-src">{cfg.source}</div>
             </div>
           )}
-          {!(inMap && !showList) && (
+          {!inMap && (
             <div className="msw-links">
               <a className="msw-link" href="https://hazardhunter.georisk.gov.ph/" target="_blank" rel="noopener noreferrer">HazardHunterPH ↗</a>
               <a className="msw-link" href="https://www.panahon.gov.ph/" target="_blank" rel="noopener noreferrer">PANaHON ↗</a>
@@ -2263,8 +2304,10 @@ function HazardLegendCard({ overlay, isLight, compact = false, failed = false })
           <span>{compact ? "Layer unavailable" : <><strong>Layer unavailable.</strong> No color on the map does not mean no hazard.</>}</span>
         </div>
       )}
-      {!compact && <div className="msw-legend-src">{(!isLight && cfg.noteDark) || cfg.note}</div>}
-      {!compact && <div className="msw-legend-src">{cfg.source}</div>}
+      {!compact && <div className="msw-legend-src hz-desk-only">{(!isLight && cfg.noteDark) || cfg.note}</div>}
+      {!compact && <div className="msw-legend-src hz-desk-only">{cfg.source}</div>}
+      {!compact && !failed && <div className="msw-legend-src hz-phone-only hz-legend-opt">{(!isLight && cfg.phoneNoteDark) || cfg.phoneNote || (!isLight && cfg.shortNoteDark) || cfg.shortNote || cfg.note}</div>}
+      {!compact && !failed && <div className="msw-legend-src hz-phone-only hz-legend-opt">{cfg.phoneSource || cfg.source}</div>}
       {compact && !failed && cfg.shortNote && <div className="hz-legend-short">{(!isLight && cfg.shortNoteDark) || cfg.shortNote}</div>}
       {compact && !failed && <div className="hz-legend-short-src">{cfg.source}</div>}
     </div>
@@ -2305,11 +2348,23 @@ function FsMarkerPanes() {
   return null;
 }
 
+// Reports the map's zoom level so the fullscreen markers can hide their labels when zoomed out
+function ZoomWatcher({ onZoom }) {
+  const map = useMap();
+  useEffect(() => {
+    const report = () => onZoom(map.getZoom());
+    report();
+    map.on("zoomend", report);
+    return () => { map.off("zoomend", report); };
+  }, [map, onZoom]);
+  return null;
+}
+
 // Fullscreen station marker, one half at a time (part = "label" or "dot"). iconSize is 0x0 so
 // each half is anchored exactly on the coordinate; CSS places the label above the dot.
 // The pulse ring lives with the label half, under the label and under every dot.
-function makeFsLabelIcon({ name, statusWord, statusColor, markerColor, markerBorderColor, showPulse, isSel, part }) {
-  const labelHtml = `<span class="fs-lb ${isSel ? "fs-lb-sel" : ""}">${escapeHtml(name)} - <span style="color:${statusColor}">${statusWord}</span></span>`;
+function makeFsLabelIcon({ name, statusWord, statusColor, markerColor, markerBorderColor, showPulse, isSel, part, showLabel = true }) {
+  const labelHtml = !showLabel ? "" : `<span class="fs-lb ${isSel ? "fs-lb-sel" : ""}">${escapeHtml(name)} - <span style="color:${statusColor}">${statusWord}</span></span>`;
   const pulseHtml = showPulse ? `<div class="radar-pulse" style="width:14px;height:14px;background:${markerColor};top:-7px;left:-7px;"></div>` : "";
   const dotHtml = `<div class="fs-dot-wrap">
         <div class="fs-dot ${isSel ? "fs-dot-sel" : ""}" style="background:${markerColor};border-color:${markerBorderColor};box-shadow:0 0 8px ${markerColor}"></div>
@@ -2327,6 +2382,10 @@ const FS_DRAWER_PAD = 384;
 
 // Phone bottom sheet covers this fraction of the screen height (keep in sync with `height: 55%` in App.css)
 const FS_SHEET_VH = 0.55;
+
+// Phone fullscreen map: below this zoom only dots show (plus the live station and the selected one).
+// First guess, tune by eye on the phone.
+const FS_LABELS_ZOOM = 16;
 
 // Map padding (right, bottom) so flyTo keeps the target in the visible part of the map
 function fsInsets(drawerOpen) {
@@ -5042,6 +5101,7 @@ export default function App() {
     const [fsSelectedFEWS, setFsSelectedFEWS] = useState(null);
     const [fsDrawerOpen, setFsDrawerOpen] = useState(() => !isMobileViewport());
     const fsMapRef = useRef(null);
+    const [fsZoom, setFsZoom] = useState(null);
 
     // Any logout (button, expired token, or another tab) closes the fullscreen map,
     // so the next person to sign in doesn't land in it
@@ -5070,6 +5130,11 @@ export default function App() {
     };
     const handleFsCenter = () => { setFsSelectedFEWS(null); flyFsToCity(); };
     const handleFsBack   = () => { setFsSelectedFEWS(null); flyFsToCity(); };
+    // Phone: opening a map panel closes the station sheet. Returns true if it closed one.
+    const closeSheetForPanel = () => {
+      if (isMobileViewport() && fsDrawerOpen) { setFsDrawerOpen(false); return true; }
+      return false;
+    };
 
     const selectFsStation = (id) => {
       const f = allFews.find(x => x.id === id);
@@ -6047,6 +6112,7 @@ const waterChartOptions = useMemo(() => ({
                     <MapRefSetter mapRef={fsMapRef} />
                     <HideLeafletPrefix />
                     <FsMarkerPanes />
+                    <ZoomWatcher onZoom={setFsZoom} />
                     {allFews.map(f => {
                       const isManualServiceable = !f.isLive && f.manualStatus === "serviceable";
                       const isActuallyLive = f.isLive && isHardwareOnline;
@@ -6073,6 +6139,8 @@ const waterChartOptions = useMemo(() => ({
                       const iconArgs = {
                         name: f.name, statusWord, statusColor,
                         markerColor, markerBorderColor, showPulse, isSel: isFsSel,
+                        // phone: label only for the live station, the selected one, or when zoomed in
+                        showLabel: !isMobileViewport() || isFsSel || f.isLive || (fsZoom != null && fsZoom >= FS_LABELS_ZOOM),
                       };
                       return (
                         <React.Fragment key={f.id}>
@@ -6121,11 +6189,19 @@ const waterChartOptions = useMemo(() => ({
                   />
 
                   <HazardLegendCard overlay={overlayId} isLight={baseMapIsLight} failed={overlayFail.fs} />
+                  {overlayId && overlayFail.fs && (
+                    <div className="hz-legend-fail hz-fs-warn" role="status">
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                        <path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>
+                      </svg>
+                      <span><strong>Layer unavailable.</strong> No color on the map does not mean no hazard.</span>
+                    </div>
+                  )}
 
                   {/* Map controls — bottom left */}
                   <div className="map-ctrl-group map-ctrl-group-fs">
-                    <MapSwitcher value={baseMapId} onChange={handleBaseMapChange} lightPanel />
-                    <HazardSwitcher value={baseMapId} overlay={overlayId} onOverlayChange={setOverlayId} showLegend={false} lightPanel failed={overlayFail.fs} />
+                    <MapSwitcher value={baseMapId} onChange={handleBaseMapChange} lightPanel onOpen={closeSheetForPanel} />
+                    <HazardSwitcher value={baseMapId} overlay={overlayId} onOverlayChange={setOverlayId} showLegend={false} lightPanel failed={overlayFail.fs} onOpen={closeSheetForPanel} />
                     <button className="map-ctrl-btn" onClick={handleFsCenter} title="Center map" aria-label="Center map">
                       <CenterIcon />
                     </button>
@@ -9076,7 +9152,9 @@ div.leaflet-container {
   }
 
   .leaflet-control-attribution {
-    font-size: 8px !important;
+    font-size: 6.5px !important;
+    line-height: 1.25 !important;
+    padding: 1px 4px !important;
   }
 
   .uc-manual-icon { font-size: 9px; }
@@ -9724,9 +9802,9 @@ div.leaflet-container {
   text-shadow: 0 0 10px rgba(255, 255, 255, 0.85);
 }
 
-/* Phone: hidden until the phone pass */
+/* Phone: smaller than desktop (26px), top left below the status bar */
 @media (max-width: 768px) {
-  .map-fs-title { display: none; }
+  .map-fs-title { font-size: 20px; }
 }
 
 /* ── Batch 4: phone bottom sheet ── */
@@ -9942,6 +10020,10 @@ body:has(.msw-panel) .hz-legend-card { visibility: hidden; transition-delay: 0s;
   .msw-swatch { width: 32px; height: 26px; }
   .msw-opt-name { font-size: 11px; }
   .msw-opt-sub  { display: none; }
+  /* Fullscreen map panels are as wide as the button row, so one column. The dashboard map
+     panels (msw-panel-compact) keep their 2 columns. */
+  .msw-panel:not(.msw-panel-compact) .msw-list { grid-template-columns: 1fr; }
+  .msw-panel:not(.msw-panel-compact) { padding: 8px; }
 }
 
 /* ── Light base maps (class is set on .map-wrap / .map-fullscreen-inner) ── */
@@ -10082,9 +10164,47 @@ body:has(.msw-panel) .hz-legend-card { visibility: hidden; transition-delay: 0s;
 .hz-legend-range { font-size: 10px; line-height: 1.3; color: var(--text-3); }
 .hz-legend-card .msw-legend-src { font-size: 11px; }
 
-/* Phone: the bottom sheet would sit on top of it, so it stays off until the phone pass */
+/* Phone: the dashboard map keeps its strip, so its card stays off. The fullscreen map shows
+   the card above the buttons, and hides it while the station sheet is open (the sheet would cover it). */
 @media (max-width: 768px) {
-  .hz-legend-card { display: none; }
+  .map-wrap .hz-legend-card { display: none; }
+  .map-fullscreen-inner.fs-drawer-open .hz-legend-card { display: none; }
+}
+
+/* Phone text vs desktop text in the fullscreen legend card */
+.hz-phone-only { display: none; }
+@media (max-width: 768px) {
+  .hz-desk-only  { display: none; }
+  .hz-phone-only { display: block; }
+}
+
+/* One amber warning line above the buttons while the station sheet hides the card (phone only) */
+.hz-legend-fail.hz-fs-warn { display: none; }
+@media (max-width: 768px) {
+  .map-fullscreen-inner.fs-drawer-open .hz-legend-fail.hz-fs-warn {
+    display: flex;
+    position: absolute;
+    left:  calc(var(--fs-gap) + env(safe-area-inset-left, 0px));
+    bottom: calc(55% + 12px + 44px); /* sheet height + button lift + button (36px) + gap (8px) */
+    z-index: 1000;
+    width: fit-content;
+    max-width: calc(100vw - 2 * var(--fs-gap));
+    margin: 0;
+    background: linear-gradient(rgba(245, 158, 11, 0.14), rgba(245, 158, 11, 0.14)), rgba(23, 23, 26, 0.94);
+    pointer-events: none;
+  }
+}
+.map-fullscreen-inner.map-is-light .hz-legend-fail.hz-fs-warn {
+  color: #92400e;
+  background: #fff7e6;
+  border-color: rgba(180, 83, 9, 0.45);
+}
+/* hidden while a Base map or Hazard panel is open, same as the card */
+body:has(.msw-panel) .hz-fs-warn { visibility: hidden; }
+
+/* Short phones: drop the note and source lines first; title + classes (+ the failed warning) stay */
+@media (max-width: 768px) and (max-height: 600px) {
+  .hz-legend-card .hz-legend-opt { display: none; }
 }
 
 /* ── Light base maps: soft frosted chrome (the station drawer stays dark for now) ── */
@@ -10233,6 +10353,24 @@ body:has(.msw-panel) .hz-legend-card { visibility: hidden; transition-delay: 0s;
   .hz-strip-fail .hz-strip-act { color: var(--amber); border-left-color: rgba(245, 158, 11, 0.45); }
   /* the strip steps aside while a panel is open */
   .map-wrap:has(.msw-panel) .hz-strip { display: none; }
+}
+
+/* Phone dashboard map panels: as wide as the button row, one column, smaller text */
+@media (max-width: 768px) {
+  .msw-panel-compact { padding: 6px; }
+  .msw-panel-compact .msw-title { font-size: 9px; padding: 0 3px 4px; }
+  .msw-panel-compact .msw-list { grid-template-columns: 1fr; gap: 2px; }
+  .msw-panel-compact .msw-opt { height: 24px; padding: 0 4px; gap: 6px; border-radius: 8px; }
+  .msw-panel-compact .msw-swatch { width: 22px; height: 16px; border-radius: 4px; }
+  .msw-panel-compact .msw-opt-name { font-size: 10px; white-space: nowrap; }
+  .msw-panel-compact .msw-hz-dot { width: 8px; height: 8px; margin: 0 2px; }
+  .msw-panel-compact .msw-change { font-size: 10px; }
+  .msw-panel-compact .msw-change svg { display: none; }
+  .msw-legend-compact .msw-legend-title { font-size: 10px; line-height: 1.3; margin: 6px 3px 4px; }
+  .msw-legend-compact .msw-legend-grid { grid-template-columns: 1fr; gap: 0; margin: 0 3px; }
+  .msw-legend-compact .msw-legend-row { font-size: 10px; min-height: 16px; align-items: center; }
+  .msw-legend-compact .msw-legend-grid .msw-legend-swatch { width: 12px; height: 8px; margin-top: 0; }
+  .msw-legend-compact .hz-legend-fail { font-size: 10px; padding: 4px 6px; margin: 6px 0 0; }
 }
 
 =========================================

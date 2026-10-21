@@ -4341,6 +4341,9 @@ export default function App() {
   const dashMapRef = useRef(null);
   const mapCardRef = useRef();
   const [copiedId, setCopiedId] = useState(null);
+  // Phone only (CSS decides): which station list groups are expanded
+  const [rsbOpen, setRsbOpen] = useState({ live: true, manual: false });
+  const focusRafRef = useRef(0); // the running "scroll to station" animation, so it can be cancelled
   const avatarBtnRef = useRef();
   const copiedTimerRef = useRef(null);
 
@@ -5345,6 +5348,176 @@ const waterChartOptions = useMemo(() => ({
       .toLocaleTimeString("en-PH", { timeZone: "Asia/Manila", hour:"2-digit", minute:"2-digit", second:"2-digit" })
   : null;
 
+  // Station detail card in the right sidebar. `where` is "inline" (under its own row, phones)
+  // or "bottom" (pinned under the list, desktop). CSS shows one copy and hides the other.
+  const renderStationDetail = (f, where) => {
+    if (!f) return null;
+    const cls = `rsb-detail rsb-detail-${where}`;
+    const mapLink = where === "inline" ? (
+      <button type="button" className="rsb-detail-up"
+        onClick={() => {
+          const sp = mapCardRef.current?.closest(".main");
+          if (sp) sp.scrollTo({ top: 0, behavior: "smooth" });
+        }}>
+        ↑ Map
+      </button>
+    ) : null;
+
+    if (!f.isLive) {
+      const isServiceable = f.manualStatus === "serviceable";
+      return (
+        <div className={cls}>
+          <div className="rsb-detail-title" style={{ display:"flex", alignItems:"center", gap:6 }}>
+            {f.name}
+            <span style={{ fontSize:9, fontWeight:700, fontFamily:"var(--mono)", color: isServiceable ? "var(--blue)" : "var(--text-3)", display:"inline-flex", alignItems:"center", gap:4 }}>
+              {isServiceable ? (
+                "● MANUAL"
+              ) : (
+                <>
+                  <span style={{ width:6, height:6, borderRadius:"50%", border:"1.3px solid var(--text-3)", display:"inline-block", flexShrink:0 }} />
+                  MANUAL
+                </>
+              )}
+            </span>
+            {mapLink}
+          </div>
+          <div className="rsb-stat">
+            <span>Status</span>
+            <strong style={{ color: isServiceable ? "var(--blue)" : "var(--text-3)" }}>
+              {isServiceable ? "SERVICEABLE" : "UNSERVICEABLE"}
+            </strong>
+          </div>
+          <div className="rsb-stat"><span>Location</span><strong>{f.location || "—"}</strong></div>
+          <div className="rsb-stat">
+            <span>Coordinates</span>
+            <strong style={{ fontFamily: "var(--mono)", fontSize: 10 }}>{fmtCoord(f.lat)}, {fmtCoord(f.lng)}</strong>
+          </div>
+        </div>
+      );
+    }
+
+    const sirenOn = sirens[f.id];
+    const isActuallyLive = f.isLive && isHardwareOnline;
+    const displayStatus = getDisplayStatus(f.status, f.waterLevel, isActuallyLive, thresholds);
+    const cfg     = STATUS_CONFIG[displayStatus] || STATUS_CONFIG["safe"];
+    const canSiren = can(user.role, "sirenControl");
+    return (
+      <div className={cls} style={{ "--status-color": isActuallyLive ? cfg.color : "var(--text-3)" }}>
+        <div className="rsb-detail-title" style={{ display:"flex", alignItems:"center", gap:6 }}>
+          {f.name}
+          <span style={{ fontSize:9, fontWeight:700, fontFamily:"var(--mono)",
+            color: isActuallyLive ? "var(--green)" : "var(--text-3)" }}>
+            {isActuallyLive ? "● LIVE" : "◌ WAITING"}
+          </span>
+          {mapLink}
+        </div>
+        <div className="rsb-stat"><span>Water Level</span><strong style={{ color: isActuallyLive ? cfg.color : "var(--text-3)" }}>{isActuallyLive ? formatWaterLevel(f.waterLevel, user.unit_preference) : "—"}</strong></div>
+        <div className="rsb-stat"><span>Status</span><strong style={{ color: isActuallyLive ? cfg.color : "var(--text-3)" }}>{isActuallyLive ? cfg.label : "WAITING"}</strong></div>
+        <div className="rsb-stat">
+          <span>Last sync</span>
+          <strong style={{ color: !isActuallyLive ? "var(--text-3)" : "var(--text-1)" }}>
+            {lastUpdatedStr ? lastUpdatedStr : "—"}
+          </strong>
+        </div>
+        <div className="rsb-stat">
+          <span>Today's highest</span>
+          <strong>{todayStats[`fews_${f.id}`]?.high != null ? formatWaterLevel(todayStats[`fews_${f.id}`].high, user.unit_preference) : "—"}</strong>
+        </div>
+        <div className="rsb-stat">
+          <span>Today's lowest</span>
+          <strong>{todayStats[`fews_${f.id}`]?.low != null ? formatWaterLevel(todayStats[`fews_${f.id}`].low, user.unit_preference) : "—"}</strong>
+        </div>
+        <div className="rsb-stat">
+          <span>Warning at</span>
+          <strong style={{ color: "var(--amber)" }}>{formatWaterLevel(thresholds.warning, user.unit_preference)}</strong>
+        </div>
+        <div className="rsb-stat">
+          <span>Critical at</span>
+          <strong style={{ color: "var(--red)" }}>{formatWaterLevel(thresholds.danger, user.unit_preference)}</strong>
+        </div>
+        <div className="rsb-stat">
+          <span>Coordinates</span>
+          <strong style={{ fontFamily: "var(--mono)", fontSize: 10 }}>{f.lat}, {f.lng}</strong>
+        </div>
+        {canSiren && (
+          <div className="rsb-siren">
+            <div className="rsb-siren-label">Siren Control</div>
+            <div className="rsb-siren-row">
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: sirenOn && isActuallyLive ? "var(--red)" : (isActuallyLive ? "var(--text-2)" : "var(--text-3)") }}>
+                {sirenOn && isActuallyLive ? (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
+                ) : (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
+                )}
+                {sirenOn && isActuallyLive ? "Active" : "Off"}
+              </span>
+              <button
+                type="button"
+                className={`siren-btn ${sirenOn && isActuallyLive ? "siren-on" : "siren-off"}`}
+                onClick={() => toggleSiren(f.id)}
+                disabled={!isActuallyLive || sirenLoading[f.id]}
+              >
+                {sirenLoading[f.id]
+                  ? <span className="btn-spinner" style={{ width: 10, height: 10, borderWidth: 1.5, borderTopColor: sirenOn && isActuallyLive ? "#fff" : "var(--text-2)", borderColor: sirenOn && isActuallyLive ? "rgba(255,255,255,0.25)" : "rgba(126,146,180,0.25)" }} />
+                  : sirenOn && isActuallyLive ? "SILENCE" : "MANUAL ON"}
+              </button>
+            </div>
+            <div className="rsb-siren-note">
+              {!isActuallyLive ? "Available if fews is live" : sirenOn ? "Tap to silence" : "Tap to manually activate"}
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  // Phone: tapping a map marker expands that station's group, then scrolls the page to its row and card.
+  // Desktop keeps the old behavior (just select / deselect).
+  const focusStationRow = (f) => {
+    const deselect = selectedFEWS === f.id;
+    setSelectedFEWS(deselect ? null : f.id);
+    if (deselect || !isMobileViewport()) return;
+    setRsbOpen(p => ({ ...p, [f.isLive ? "live" : "manual"]: true }));
+    cancelAnimationFrame(focusRafRef.current);
+    // The group opens and the card grows while we scroll, so instead of one jump to a
+    // measured spot, ease toward the card's live position every frame until it settles.
+    focusRafRef.current = requestAnimationFrame(() => {
+      const row = document.querySelector(`.rsb-item[data-station-id="${CSS.escape(String(f.id))}"]`);
+      const sc  = row?.closest(".main");
+      if (!row || !sc) return;
+      const stop = () => {
+        cancelAnimationFrame(focusRafRef.current);
+        sc.removeEventListener("touchstart", stop);
+        sc.removeEventListener("wheel", stop);
+      };
+      // touching or wheeling the page hands control back to the user
+      sc.addEventListener("touchstart", stop, { passive: true });
+      sc.addEventListener("wheel", stop, { passive: true });
+      const calcTarget = () => {
+        const card = row.nextElementSibling?.classList.contains("rsb-detail-inline") ? row.nextElementSibling : null;
+        const sr = sc.getBoundingClientRect();
+        const rr = row.getBoundingClientRect();
+        const bottom   = (card || row).getBoundingClientRect().bottom;
+        const visibleH = sr.height - 60; // roughly the bottom nav bar
+        const centered = sc.scrollTop + ((rr.top + bottom) / 2 - sr.top) - visibleH / 2;
+        const rowStaysVisible = sc.scrollTop + (rr.top - sr.top) - 12; // a tall card never pushes its row off the top
+        return Math.max(0, Math.min(centered, rowStaysVisible));
+      };
+      let t0 = 0, last = 0;
+      const step = (now) => {
+        if (!t0) t0 = now;
+        const dt   = last ? now - last : 16;
+        last = now;
+        const diff = calcTarget() - sc.scrollTop;
+        sc.scrollTop += diff * (1 - Math.exp(-dt / 90)); // same easing on 60 and 120 Hz screens
+        const elapsed = now - t0;
+        if ((elapsed > 450 && Math.abs(diff) < 1) || elapsed > 1500) { stop(); return; }
+        focusRafRef.current = requestAnimationFrame(step);
+      };
+      focusRafRef.current = requestAnimationFrame(step);
+    });
+  };
+
   if (!isLoggedIn) return <Login onLogin={handleLogin} />;
 
   return (
@@ -5654,7 +5827,7 @@ const waterChartOptions = useMemo(() => ({
                       return (
                         <Marker key={f.id} position={[f.lat, f.lng]} icon={icon}
                           ref={el => { markerRefs.current[f.id] = el; }}
-                          eventHandlers={{ click: () => setSelectedFEWS(selectedFEWS === f.id ? null : f.id) }}>
+                          eventHandlers={{ click: () => focusStationRow(f) }}>
                           <Popup minWidth={180} maxWidth={260} autoPan={false}>
                             <div style={{ fontFamily:"sans-serif", padding:"2px 0" }}>
                               {f.isLive ? (
@@ -5912,19 +6085,10 @@ const waterChartOptions = useMemo(() => ({
                     const displayStatus = f.isLive ? getDisplayStatus(f.status, f.waterLevel, isActuallyLive, thresholds) : f.status;
                     const cfg   = STATUS_CONFIG[displayStatus] || STATUS_CONFIG["safe"];
                     return (
-                      <button key={f.id} className={`rsb-item ${isSel ? "selected" : ""}`}
-                        onClick={() => {
-                          const newSel = isSel ? null : f.id;
-                          setSelectedFEWS(newSel);
-                          if (newSel && window.innerWidth <= 768 && mapCardRef.current) {
-                            const scrollParent = mapCardRef.current.closest(".main");
-                            if (scrollParent) {
-                              scrollParent.scrollTo({ top: 0, behavior: "smooth" });
-                            } else {
-                              mapCardRef.current.scrollIntoView({ behavior: "smooth", block: "start" });
-                            }
-                          }
-                        }}
+                      <React.Fragment key={f.id}>
+                      <button className={`rsb-item ${isSel ? "selected" : ""}`}
+                        data-station-id={String(f.id)}
+                        onClick={() => setSelectedFEWS(isSel ? null : f.id)}
                         style={{ "--status-color": f.isLive ? cfg.color : "#7e92b4" }}>
                         <div className="rsb-dot" style={{
                           background: f.isLive
@@ -5958,135 +6122,44 @@ const waterChartOptions = useMemo(() => ({
                           </div>
                         )}
                       </button>
+                      {isSel && renderStationDetail(f, "inline")}
+                      </React.Fragment>
                     );
                   };
 
                   return (
                     <>
                       {liveFews.length > 0 && (
-                        <div className="rsb-section">
-                          <div className="rsb-section-label">Live · {liveFews.length}</div>
-                          <div className="rsb-section-items">{liveFews.map(renderItem)}</div>
+                        <div className={`rsb-section ${rsbOpen.live ? "" : "rsb-section-collapsed"}`}>
+                          <button type="button" className="rsb-section-label rsb-section-toggle"
+                            aria-expanded={rsbOpen.live}
+                            onClick={() => setRsbOpen(p => ({ ...p, live: !p.live }))}>
+                            <span>Live · {liveFews.length}</span>
+                            <svg className="rsb-section-chev" width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true">
+                              <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          </button>
+                          <div className="rsb-section-items"><div className="rsb-section-inner">{liveFews.map(renderItem)}</div></div>
                         </div>
                       )}
                       {manualFews.length > 0 && (
-                        <div className="rsb-section">
-                          <div className="rsb-section-label">Manual · {manualFews.length}</div>
-                          <div className="rsb-section-items">{manualFews.map(renderItem)}</div>
+                        <div className={`rsb-section ${rsbOpen.manual ? "" : "rsb-section-collapsed"}`}>
+                          <button type="button" className="rsb-section-label rsb-section-toggle"
+                            aria-expanded={rsbOpen.manual}
+                            onClick={() => setRsbOpen(p => ({ ...p, manual: !p.manual }))}>
+                            <span>Manual · {manualFews.length}</span>
+                            <svg className="rsb-section-chev" width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true">
+                              <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+                            </svg>
+                          </button>
+                          <div className="rsb-section-items"><div className="rsb-section-inner">{manualFews.map(renderItem)}</div></div>
                         </div>
                       )}
                     </>
                   );
                 })()}
               </div>
-              {selectedFEWS && (() => {
-                const f       = allFews.find(s => s.id === selectedFEWS);
-
-                if (!f.isLive) {
-                  const isServiceable = f.manualStatus === "serviceable";
-                  return (
-                    <div className="rsb-detail">
-                      <div className="rsb-detail-title" style={{ display:"flex", alignItems:"center", gap:6 }}>
-                        {f.name}
-                        <span style={{ fontSize:9, fontWeight:700, fontFamily:"var(--mono)", color: isServiceable ? "var(--blue)" : "var(--text-3)", display:"inline-flex", alignItems:"center", gap:4 }}>
-                          {isServiceable ? (
-                            "● MANUAL"
-                          ) : (
-                            <>
-                              <span style={{ width:6, height:6, borderRadius:"50%", border:"1.3px solid var(--text-3)", display:"inline-block", flexShrink:0 }} />
-                              MANUAL
-                            </>
-                          )}
-                        </span>
-                      </div>
-                      <div className="rsb-stat">
-                        <span>Status</span>
-                        <strong style={{ color: isServiceable ? "var(--blue)" : "var(--text-3)" }}>
-                          {isServiceable ? "SERVICEABLE" : "UNSERVICEABLE"}
-                        </strong>
-                      </div>
-                      <div className="rsb-stat"><span>Location</span><strong>{f.location || "—"}</strong></div>
-                      <div className="rsb-stat">
-                        <span>Coordinates</span>
-                        <strong style={{ fontFamily: "var(--mono)", fontSize: 10 }}>{fmtCoord(f.lat)}, {fmtCoord(f.lng)}</strong>
-                      </div>
-                    </div>
-                  );
-                }
-
-                const sirenOn = sirens[f.id];
-                const isActuallyLive = f.isLive && isHardwareOnline;
-                const displayStatus = getDisplayStatus(f.status, f.waterLevel, isActuallyLive, thresholds);
-                const cfg     = STATUS_CONFIG[displayStatus] || STATUS_CONFIG["safe"];
-                const canSiren = can(user.role, "sirenControl");
-                return (
-                  <div className="rsb-detail" style={{ "--status-color": isActuallyLive ? cfg.color : "var(--text-3)" }}>
-                    <div className="rsb-detail-title" style={{ display:"flex", alignItems:"center", gap:6 }}>
-                      {f.name}
-                      <span style={{ fontSize:9, fontWeight:700, fontFamily:"var(--mono)",
-                        color: isActuallyLive ? "var(--green)" : "var(--text-3)" }}>
-                        {isActuallyLive ? "● LIVE" : "◌ WAITING"}
-                      </span>
-                    </div>
-                    <div className="rsb-stat"><span>Water Level</span><strong style={{ color: isActuallyLive ? cfg.color : "var(--text-3)" }}>{isActuallyLive ? formatWaterLevel(f.waterLevel, user.unit_preference) : "—"}</strong></div>
-                    <div className="rsb-stat"><span>Status</span><strong style={{ color: isActuallyLive ? cfg.color : "var(--text-3)" }}>{isActuallyLive ? cfg.label : "WAITING"}</strong></div>
-                    <div className="rsb-stat">
-                      <span>Last sync</span>
-                      <strong style={{ color: !isActuallyLive ? "var(--text-3)" : "var(--text-1)" }}>
-                        {lastUpdatedStr ? lastUpdatedStr : "—"}
-                      </strong>
-                    </div>
-                    <div className="rsb-stat">
-                      <span>Today's highest</span>
-                      <strong>{todayStats[`fews_${f.id}`]?.high != null ? formatWaterLevel(todayStats[`fews_${f.id}`].high, user.unit_preference) : "—"}</strong>
-                    </div>
-                    <div className="rsb-stat">
-                      <span>Today's lowest</span>
-                      <strong>{todayStats[`fews_${f.id}`]?.low != null ? formatWaterLevel(todayStats[`fews_${f.id}`].low, user.unit_preference) : "—"}</strong>
-                    </div>
-                    <div className="rsb-stat">
-                      <span>Warning at</span>
-                      <strong style={{ color: "var(--amber)" }}>{formatWaterLevel(thresholds.warning, user.unit_preference)}</strong>
-                    </div>
-                    <div className="rsb-stat">
-                      <span>Critical at</span>
-                      <strong style={{ color: "var(--red)" }}>{formatWaterLevel(thresholds.danger, user.unit_preference)}</strong>
-                    </div>
-                    <div className="rsb-stat">
-                      <span>Coordinates</span>
-                      <strong style={{ fontFamily: "var(--mono)", fontSize: 10 }}>{f.lat}, {f.lng}</strong>
-                    </div>
-                    {canSiren && (
-                      <div className="rsb-siren">
-                        <div className="rsb-siren-label">Siren Control</div>
-                        <div className="rsb-siren-row">
-                          <span style={{ display: "inline-flex", alignItems: "center", gap: 6, color: sirenOn && isActuallyLive ? "var(--red)" : (isActuallyLive ? "var(--text-2)" : "var(--text-3)") }}>
-                            {sirenOn && isActuallyLive ? (
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M15.54 8.46a5 5 0 0 1 0 7.07"/><path d="M19.07 4.93a10 10 0 0 1 0 14.14"/></svg>
-                            ) : (
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><line x1="23" y1="9" x2="17" y2="15"/><line x1="17" y1="9" x2="23" y2="15"/></svg>
-                            )}
-                            {sirenOn && isActuallyLive ? "Active" : "Off"}
-                          </span>
-                          <button
-                            type="button"
-                            className={`siren-btn ${sirenOn && isActuallyLive ? "siren-on" : "siren-off"}`}
-                            onClick={() => toggleSiren(f.id)}
-                            disabled={!isActuallyLive || sirenLoading[f.id]}
-                          >
-                            {sirenLoading[f.id]
-                              ? <span className="btn-spinner" style={{ width: 10, height: 10, borderWidth: 1.5, borderTopColor: sirenOn && isActuallyLive ? "#fff" : "var(--text-2)", borderColor: sirenOn && isActuallyLive ? "rgba(255,255,255,0.25)" : "rgba(126,146,180,0.25)" }} />
-                              : sirenOn && isActuallyLive ? "SILENCE" : "MANUAL ON"}
-                          </button>
-                        </div>
-                        <div className="rsb-siren-note">
-                          {!isActuallyLive ? "Available if fews is live" : sirenOn ? "Tap to silence" : "Tap to manually activate"}
-                        </div>
-                      </div>
-                    )}
-                  </div>
-                );
-              })()}
+              {selectedFEWS && renderStationDetail(allFews.find(s => s.id === selectedFEWS), "bottom")}
             </aside>
           </div>
         )}
