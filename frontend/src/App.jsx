@@ -960,9 +960,9 @@ function StatisticsPage({ userRole, token, manualFews, unitPref, thresholds, thr
       <div className="page-card stats-controls-card">
         <div className="stats-date-controls">
           {[
-            { key: "30d", label: "Last 30 days",   short: "30 days" },
-            { key: "90d", label: "Last 90 days",   short: "90 days" },
-            { key: "12m", label: "Last 12 months", short: "12 months" },
+            { key: "30d", label: "Last 30 days",   short: "Last 30 days" },
+            { key: "90d", label: "Last 90 days",   short: "Last 90 days" },
+            { key: "12m", label: "Last 12 months", short: "Last 12 months" },
           ].map(p => (
             <button key={p.key} className={`stats-preset-btn ${preset === p.key ? "stats-preset-active" : ""}`} onClick={() => { setPreset(p.key); setCustomFrom(""); setCustomTo(""); }}>
               <span className="wl-full">{p.label}</span>
@@ -3229,11 +3229,11 @@ function ManualFewsCard({ m, canControl, token, manualEditing, setManualEditing,
         </div>
       </div>
 
-      <div className="uc-stats-row">
-        <div className="uc-stat">
+      <div className={`uc-stats-row ${ed ? "uc-stats-editing" : ""}`}>
+        <div className="uc-stat uc-stat-wide">
           <span className="uc-stat-label">Coordinates</span>
           {ed ? (
-            <div style={{ display: "flex", gap: 4 }}>
+            <div className="uc-coord-inputs" style={{ display: "flex", gap: 4 }}>
               <input className="uc-inline-input" type="number" step="any" value={ed.latitude}
                 onChange={e => setManualEditing(prev => ({ ...prev, [m.id]: { ...prev[m.id], latitude: e.target.value } }))} />
               <input className="uc-inline-input" type="number" step="any" value={ed.longitude}
@@ -3499,7 +3499,7 @@ function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userNa
                 </div>
               </div>
 
-              <div className="uc-stats-row">
+              <div className={`uc-stats-row ${ed ? "uc-stats-editing" : ""}`}>
                 <div className="uc-stat">
                   <span className="uc-stat-label">Water Level</span>
                   <span className="uc-stat-val" style={{ color: isActuallyLive ? cfg.color : "var(--text-3)" }}>
@@ -3510,7 +3510,7 @@ function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userNa
                   <span className="uc-stat-label">Coordinates</span>
                   <span className="uc-stat-val" style={{ fontFamily:"var(--mono)", fontSize:10 }}>{fmtCoord(f.lat)}, {fmtCoord(f.lng)}</span>
                 </div>
-                <div className="uc-stat">
+                <div className="uc-stat uc-stat-wide">
                   <span className="uc-stat-label">Installed</span>
                   {ed ? (
                     <CustomDatePicker

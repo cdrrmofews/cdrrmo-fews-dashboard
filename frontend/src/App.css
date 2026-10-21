@@ -2192,7 +2192,7 @@ body {
   .stats-date-controls .stats-preset-btn {
     flex: 0 0 auto;
     min-width: 0;
-    padding: 0 10px;
+    padding: 0 8px;
     font-size: 9px;
     white-space: nowrap;
     overflow: hidden;
@@ -2750,6 +2750,67 @@ body {
   .uc-desc-textarea { font-size: 11px; padding: 10px 12px; }
   .uc-save-info-btn { padding: 3px 12px; font-size: 11px; }
   .uc-edit-btn      { font-size: 10px; padding: 3px 8px; }
+
+  /* ── Unit Control: edit mode (phone) ── */
+  .uc-stats-row.uc-stats-editing {
+    grid-template-columns: repeat(2, minmax(0, 1fr)); /* minmax(0) stops inputs stretching the card */
+    overflow: hidden;
+  }
+  .uc-stats-editing .uc-stat {
+    min-width: 0;
+    gap: 6px;
+    border-right: none;
+  }
+  /* full-width cells: coordinates (manual), installed (live), both technician fields */
+  .uc-stats-editing .uc-stat.uc-stat-wide,
+  .uc-stats-editing .uc-stat:has(> .uc-inline-input) {
+    grid-column: 1 / -1;
+  }
+  /* divider between two cells sharing a row */
+  .uc-stats-editing .uc-stat:not(.uc-stat-wide) + .uc-stat:not(.uc-stat-wide):not(:has(> .uc-inline-input)) {
+    border-left: 1px solid var(--border);
+  }
+
+  /* text inputs, date button and status dropdown all look the same */
+  .uc-stats-editing .uc-inline-input {
+    height: 36px;
+    min-width: 0;
+    padding: 0 10px;
+    border-radius: 8px;
+    font-size: 16px !important; /* 16px stops iPhones zooming in on focus */
+    font-weight: 500;
+  }
+  .uc-stats-editing .uc-coord-inputs { gap: 8px !important; }
+  .uc-stats-editing .uc-coord-inputs .uc-inline-input { flex: 1 1 0; }
+  .uc-stats-editing .uc-stat .cdp-trigger,
+  .uc-stats-editing .uc-stat .mu-dd-trigger {
+    height: 36px;
+    padding: 0 10px;
+    gap: 6px;
+    border-radius: 8px;
+    background: rgba(56, 189, 248, 0.06);
+    border: 1px solid rgba(56, 189, 248, 0.3);
+    font-size: 12px;
+    font-weight: 500;
+  }
+  .uc-stats-editing .uc-stat .cdp-icon { display: none; } /* the emoji icon looks out of place next to the status dropdown */
+  .uc-stats-editing .uc-stat .cdp-val,
+  .uc-stats-editing .uc-stat .cdp-placeholder {
+    font-size: 12px;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* description box: about 6 lines, so nothing is cut off */
+  .uc-desc-section .uc-desc-textarea { min-height: 168px; font-size: 16px !important; }
+
+  /* calendar popup: bigger touch targets (280px wide, keep in sync with JS Change 4) */
+  .cdp-calendar-portal { width: 280px; }
+  .cdp-calendar-portal .cdp-cell { font-size: 13px; }
+  .cdp-calendar-portal .cdp-nav { width: 32px; height: 32px; }
+  .cdp-calendar-portal .cdp-picker-arrow { font-size: 11px; } /* the tiny ▾ was rendering as a dot */
 
   /* ── Logs filters: search full row 1, dropdowns+download row 2 ── */
   .logs-filters-row {
