@@ -605,6 +605,14 @@ function ExportMenu({ token, activeFilters, exporting, setExporting, showToast }
     return () => document.removeEventListener("mousedown", handler);
   }, []);
 
+  // Phone: the page scrolls under the menu, so close it on scroll like the other dropdowns
+  useEffect(() => {
+    if (!open) return;
+    const handleScroll = () => { if (isMobileViewport()) setOpen(false); };
+    window.addEventListener("scroll", handleScroll, true);
+    return () => window.removeEventListener("scroll", handleScroll, true);
+  }, [open]);
+
   const buildFilterSummary = () => {
     const parts = [];
     if (activeFilters.search)          parts.push(`Search: "${activeFilters.search}"`);
@@ -1613,7 +1621,8 @@ function CustomDatePicker({ value, onChange, placeholder = "Select date of birth
   const toggleOpen = () => {
     if (!open && triggerRef.current) {
       const r = triggerRef.current.getBoundingClientRect();
-      const left = Math.max(8, Math.min(r.left, window.innerWidth - 224 - 8));
+      const calW = isMobileViewport() ? 240 : 224; // phone width: keep in sync with .cdp-calendar-portal in App.css
+      const left = Math.max(8, Math.min(r.left, window.innerWidth - calW - 8));
       const openUp = window.innerHeight - r.bottom < 300;
       setCalPos(openUp
         ? { left, top: "auto", bottom: window.innerHeight - r.top + 6 }
@@ -3421,14 +3430,14 @@ function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userNa
         const confirmId  = thrConfirm;
         const confirmThr = thresholds[confirmId];
         return (
-          <div className="modal-overlay">
+          <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget && !thrSaving[confirmId]) setThrConfirm(null); }}>
             <div className="modal-box">
               <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
                 <div className="modal-icon" style={{ color: "var(--amber)", marginBottom: 0, display: "flex" }}>{SETTINGS_ICONS.m_warn}</div>
                 <div className="modal-title">Update Alert Thresholds?</div>
               </div>
               <div className="modal-msg">
-                Warning will be set to <strong style={{ color: "var(--amber)" }}>{formatWaterLevel(confirmThr?.warning, unitPreference)}</strong> and Danger to <strong style={{ color: "var(--red)" }}>{formatWaterLevel(confirmThr?.danger, unitPreference)}</strong>. This will also update the Arduino device.
+                Warning will be set to <strong style={{ color: "var(--amber)" }}>{formatWaterLevel(confirmThr?.warning, unitPreference)}</strong> and Critical to <strong style={{ color: "var(--red)" }}>{formatWaterLevel(confirmThr?.danger, unitPreference)}</strong>. This will also update the Arduino device.
               </div>
               <div className="modal-actions">
                 <button className="modal-btn modal-cancel"

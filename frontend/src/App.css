@@ -2803,13 +2803,13 @@ body {
     white-space: nowrap;
   }
 
-  /* description box: about 6 lines, so nothing is cut off */
-  .uc-desc-section .uc-desc-textarea { min-height: 168px; font-size: 16px !important; }
+  /* description box: about 6 lines plus padding, so nothing is cut off */
+  .uc-desc-section .uc-desc-textarea { min-height: 180px; font-size: 16px !important; }
 
-  /* calendar popup: bigger touch targets (280px wide, keep in sync with JS Change 4) */
-  .cdp-calendar-portal { width: 280px; }
-  .cdp-calendar-portal .cdp-cell { font-size: 13px; }
-  .cdp-calendar-portal .cdp-nav { width: 32px; height: 32px; }
+  /* calendar popup: 240px wide (keep in sync with calW in CustomDatePicker.toggleOpen in App.jsx) */
+  .cdp-calendar-portal { width: 240px; }
+  .cdp-calendar-portal .cdp-cell { font-size: 11px; }
+  .cdp-calendar-portal .cdp-nav { width: 28px; height: 28px; }
   .cdp-calendar-portal .cdp-picker-arrow { font-size: 11px; } /* the tiny ▾ was rendering as a dot */
 
   /* ── Logs filters: search full row 1, dropdowns+download row 2 ── */
