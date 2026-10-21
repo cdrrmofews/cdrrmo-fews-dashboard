@@ -756,12 +756,12 @@ function buildTrendChartData(waterLevel) {
   };
 }
 
-function TrendChart({ waterLevel, unitPref, thresholds }) {
+function TrendChart({ waterLevel, unitPref, thresholds, thresholdsLoaded }) {
   const chartRef = useRef(null);
   const wrapRef  = useRef(null);
   const options  = useMemo(
-    () => buildTrendChartOptions(waterLevel, unitPref, thresholds),
-    [waterLevel, unitPref, thresholds.warning, thresholds.danger]
+    () => buildTrendChartOptions(waterLevel, unitPref, thresholds, thresholdsLoaded),
+    [waterLevel, unitPref, thresholds.warning, thresholds.danger, thresholdsLoaded]
   );
 
   // Data changed (new bucket, new range) — the chart instance is reused
@@ -798,7 +798,7 @@ function TrendChart({ waterLevel, unitPref, thresholds }) {
 
 const TREND_STEP_CM = { cm: 50, m: 50, ft: 30.48, in: 25.4 };
 
-function buildTrendChartOptions(waterLevel, unitPref, thresholds) {
+function buildTrendChartOptions(waterLevel, unitPref, thresholds, thresholdsLoaded) {
   const warn   = thresholds.warning;
   const danger = thresholds.danger;
   const highs  = waterLevel.series.map(s => s.high).filter(v => v != null);
@@ -806,9 +806,11 @@ function buildTrendChartOptions(waterLevel, unitPref, thresholds) {
 
   // Warning line is always shown. Critical only once the data has reached Warning.
   const showCritical = dataMax >= warn;
-  const rawTop = showCritical
-    ? Math.max(danger * 1.1, dataMax * 1.1)
-    : Math.max(warn * 1.15, dataMax * 1.1);
+  const rawTop = !thresholdsLoaded
+    ? Math.max(100, dataMax * 1.1)
+    : showCritical
+      ? Math.max(danger * 1.1, dataMax * 1.1)
+      : Math.max(warn * 1.15, dataMax * 1.1);
   const yMax = Math.ceil(rawTop / 50) * 50;
   const fmt  = (v) => formatWaterLevel(v, unitPref);
 
@@ -838,7 +840,7 @@ function buildTrendChartOptions(waterLevel, unitPref, thresholds) {
     maintainAspectRatio: false,
     plugins: {
       legend: { display: false },
-      annotation: { annotations },
+      annotation: { annotations: thresholdsLoaded ? annotations : {} },
       tooltip: {
         backgroundColor: "#202024", titleColor: "#fff", bodyColor: "#9aa0a8",
         borderColor: "rgba(255,255,255,0.12)", borderWidth: 1,
@@ -872,7 +874,7 @@ const BREAKDOWN_SEGS = [
   { key: "critical_pct", label: "Critical", color: "#ef4444" },
 ];
 
-function StatisticsPage({ userRole, token, manualFews, unitPref, thresholds }) {
+function StatisticsPage({ userRole, token, manualFews, unitPref, thresholds, thresholdsLoaded }) {
   const [preset, setPreset]         = useState("30d");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo]     = useState("");
@@ -947,7 +949,7 @@ function StatisticsPage({ userRole, token, manualFews, unitPref, thresholds }) {
   const previous = summarize(prevWaterLevel, prevStatusBreakdown, prevUptime);
 
   // Same status logic as the Dashboard chart dots
-  const peakColor = current?.peak == null ? undefined
+  const peakColor = (current?.peak == null || !thresholdsLoaded) ? undefined
     : current.peak > thresholds.danger  ? "#ef4444"
     : current.peak > thresholds.warning ? "#f97316"
     : current.peak < getBaselineCutoff(thresholds) ? "#e2e8f0"
@@ -958,12 +960,13 @@ function StatisticsPage({ userRole, token, manualFews, unitPref, thresholds }) {
       <div className="page-card stats-controls-card">
         <div className="stats-date-controls">
           {[
-            { key: "30d", label: "Last 30 days" },
-            { key: "90d", label: "Last 90 days" },
-            { key: "12m", label: "Last 12 months" },
+            { key: "30d", label: "Last 30 days",   short: "30 days" },
+            { key: "90d", label: "Last 90 days",   short: "90 days" },
+            { key: "12m", label: "Last 12 months", short: "12 months" },
           ].map(p => (
             <button key={p.key} className={`stats-preset-btn ${preset === p.key ? "stats-preset-active" : ""}`} onClick={() => { setPreset(p.key); setCustomFrom(""); setCustomTo(""); }}>
-              {p.label}
+              <span className="wl-full">{p.label}</span>
+              <span className="wl-abbr">{p.short}</span>
             </button>
           ))}
           <DateRangeFilter
@@ -975,7 +978,9 @@ function StatisticsPage({ userRole, token, manualFews, unitPref, thresholds }) {
         </div>
         {hasValidRange && shadow && (
           <div className="stats-compare-note">
-            Showing {fmtBucketLabel(range.from, "day")} – {fmtBucketLabel(range.to, "day")} · Compared with {fmtBucketLabel(shadow.from, "day")} – {fmtBucketLabel(shadow.to, "day")}{loading && waterLevel ? " · Updating…" : ""}
+            <span className="wl-full">Showing {fmtBucketLabel(range.from, "day")} – {fmtBucketLabel(range.to, "day")} · Compared with {fmtBucketLabel(shadow.from, "day")} – {fmtBucketLabel(shadow.to, "day")}</span>
+            <span className="wl-abbr">{fmtBucketLabel(range.from, "day")} – {fmtBucketLabel(range.to, "day")} vs {fmtBucketLabel(shadow.from, "day")} – {fmtBucketLabel(shadow.to, "day")}</span>
+            {loading && waterLevel ? " · Updating…" : ""}
           </div>
         )}
       </div>
@@ -1023,7 +1028,7 @@ function StatisticsPage({ userRole, token, manualFews, unitPref, thresholds }) {
             </div>
             {waterLevel?.series?.length ? (
               <div className="stats-chart-wrap">
-                <TrendChart waterLevel={waterLevel} unitPref={unitPref} thresholds={thresholds} />
+                <TrendChart waterLevel={waterLevel} unitPref={unitPref} thresholds={thresholds} thresholdsLoaded={thresholdsLoaded} />
               </div>
             ) : (
               <div className="stats-chart-empty">No water level data for this range.</div>
@@ -3714,7 +3719,7 @@ function DateRangeFilter({ from, to, onChange, emptyLabel = "All Dates" }) {
     if (!from && !to) { onChange({ from: iso, to: iso }); }
     else if (from && to && from === to) {
       if (iso === from) { onChange({ from: "", to: "" }); }
-      else { const [a, b] = iso < from ? [iso, from] : [from, iso]; onChange({ from: a, to: b }); }
+      else { const [a, b] = iso < from ? [iso, from] : [from, iso]; onChange({ from: a, to: b }); setOpen(false); }
     } else { onChange({ from: iso, to: iso }); }
   };
 
@@ -4442,6 +4447,7 @@ export default function App() {
     }
   }, [sirens[1], user.audio_enabled]);
   const [thresholds, setThresholds] = useState({ warning: 200, danger: 300 });
+  const [thresholdsLoaded, setThresholdsLoaded] = useState(false); // false until /units has answered once
   const [fews1Info, setFews1Info] = useState({});
   const { showToast, ToastContainer: AppToastContainer } = useToast();
 
@@ -4520,9 +4526,10 @@ export default function App() {
     if (!token) return;
     let timeoutId = null;
     let failCount = 0;
+    let loadedOnce = false; // until the first good answer, fetch on every page
 
     const pollUnits = () => {
-        if (activeNavRef.current !== "Dashboard") {
+        if (loadedOnce && activeNavRef.current !== "Dashboard") {
             timeoutId = setTimeout(pollUnits, 15000);
             return;
         }
@@ -4551,6 +4558,8 @@ export default function App() {
                         warning: fews1Row.threshold_warning ?? 200,
                         danger:  fews1Row.threshold_danger  ?? 300,
                     });
+                    loadedOnce = true;
+                    setThresholdsLoaded(true);
                     setFews1Info({
                         description:   fews1Row.description,
                         installed_date: fews1Row.installed_date,
@@ -6350,7 +6359,7 @@ const waterChartOptions = useMemo(() => ({
             </div>
           )}
 
-        {activeNav === "Statistics"  && <StatisticsPage userRole={user.role} token={token} manualFews={manualFews} unitPref={user.unit_preference} thresholds={thresholds} />}
+        {activeNav === "Statistics"  && <StatisticsPage userRole={user.role} token={token} manualFews={manualFews} unitPref={user.unit_preference} thresholds={thresholds} thresholdsLoaded={thresholdsLoaded} />}
         {activeNav === "UnitControl" && <UnitControlPage allFews={allFews} manualFews={manualFews} fews1Connected={isHardwareOnline} userRole={user.role} userName={user.name} unitPreference={user.unit_preference} addLog={addLog} token={token} onThresholdSaved={(t) => setThresholds(t)} onManualUnitSaved={(updated) => setManualFews(prev => prev.map(m => m.device_id === updated.device_id ? updated : m))} />}
         {activeNav === "Logs"        && <LogsPage token={token} userRole={user.role} showToast={showToast} />}
         {activeNav === "Settings"    && <SettingsPage
