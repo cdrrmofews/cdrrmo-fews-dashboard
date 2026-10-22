@@ -2692,7 +2692,7 @@ body {
 
   /* ── Settings — Manage Users ── */
   .mu-row      { flex-wrap: wrap; gap: 10px; }
-  .mu-info     { min-width: 0; flex: 1 1 100%; }
+  .mu-info     { min-width: 0; flex: 1 1 0; }
   .mu-controls { display: flex; flex-wrap: nowrap; width: 100%; gap: 6px; align-items: center; }
   .mu-dd-wrap  { flex: 1 1 0 !important; min-width: 0 !important; }
   .mu-dd-trigger { font-size: 12px; height: 34px; }
@@ -2712,7 +2712,7 @@ body {
   .sms-table-row        { display: grid; grid-template-columns: 1fr 64px; grid-template-rows: auto auto auto; gap: 2px 12px; padding: 10px 12px; }
   .sms-table-row .sms-name                 { grid-column: 1; grid-row: 1; font-size: 12px; }
   .sms-table-row .sms-role-text            { grid-column: 1; grid-row: 2; font-size: 10px; color: var(--text-3); display: block; }
-  .sms-table-row > span:nth-child(3)       { grid-column: 1; grid-row: 3; font-size: 10px; color: var(--text-3); display: block; }
+  .sms-table-row > span:nth-child(3)       { grid-column: 1; grid-row: 3; font-size: 10px !important; color: var(--text-3) !important; display: block; }
   .sms-table-row > div:last-child          { grid-column: 2; grid-row: 1 / 4; align-self: center; }
   /* Mobile: show phone inline in name, hide separate phone column */
   .sms-phone-inline { display: inline; color: var(--text-3); font-weight: 400; font-size: 0.85em; }

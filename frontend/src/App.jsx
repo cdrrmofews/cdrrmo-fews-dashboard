@@ -251,25 +251,51 @@ class ErrorBoundary extends React.Component {
 }
 
 // --- PULL TO REFRESH ---
+// Defined once at module level, so React never swaps the spinner element while the app re-renders.
+function PullIndicator() {
+  return (
+    <div className="ptr-indicator">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
+        strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="23 4 23 10 17 10"/>
+        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
+      </svg>
+    </div>
+  );
+}
+
 function usePullToRefresh(onRefresh) {
-  const indicatorRef = useRef(null);
-  const startYRef    = useRef(0);
-  const pullingRef   = useRef(false);
+  const startYRef  = useRef(0);
+  const pullingRef = useRef(false);
 
   useEffect(() => {
-    const indicator = indicatorRef.current;
-    if (!indicator) return;
+    // Looked up on every touch: the spinner and the scroller only exist after login.
+    const getEls = () => ({
+      indicator: document.querySelector(".ptr-indicator"),
+      scroller:  document.querySelector(".main"),
+    });
+    const hide = (indicator) => {
+      indicator.classList.remove("ptr-visible");
+      indicator.querySelector("svg").style.transform = "";
+    };
 
     const onTouchStart = (e) => {
-      if (e.target?.closest?.(".map-fullscreen-overlay, .msw-panel")) return;
-      if (window.scrollY === 0 || document.documentElement.scrollTop === 0) {
-        startYRef.current = e.touches[0].clientY;
-        pullingRef.current = true;
-      }
+      pullingRef.current = false;
+      if (!isMobileViewport()) return; // phone only
+      // not on the map, the drawer, a panel or a popup: those drag or scroll on their own
+      if (e.target?.closest?.(".map-fullscreen-overlay, .msw-panel, .map-wrap, .sidebar, .sidebar-backdrop, .modal-overlay")) return;
+      const { indicator, scroller } = getEls();
+      if (!indicator || !scroller || scroller.scrollTop > 0) return; // only from the very top of the page
+      startYRef.current = e.touches[0].clientY;
+      pullingRef.current = true;
     };
 
     const onTouchMove = (e) => {
       if (!pullingRef.current) return;
+      const { indicator, scroller } = getEls();
+      if (!indicator || !scroller) return;
+      // the page started scrolling, so this is a normal scroll and not a pull
+      if (scroller.scrollTop > 0) { pullingRef.current = false; hide(indicator); return; }
       const dy = e.touches[0].clientY - startYRef.current;
       if (dy > 10) {
         indicator.classList.add("ptr-visible");
@@ -282,43 +308,41 @@ function usePullToRefresh(onRefresh) {
 
     const onTouchEnd = (e) => {
       if (!pullingRef.current) return;
-      const dy = e.changedTouches[0].clientY - startYRef.current;
       pullingRef.current = false;
+      const { indicator } = getEls();
+      if (!indicator) return;
+      const dy = e.changedTouches[0].clientY - startYRef.current;
 
       if (dy > 60) {
         indicator.classList.add("ptr-spinning");
         setTimeout(() => {
-          indicator.classList.remove("ptr-visible");
           indicator.classList.remove("ptr-spinning");
-          indicator.querySelector("svg").style.transform = "";
+          hide(indicator);
           onRefresh();
         }, 400);
       } else {
-        indicator.classList.remove("ptr-visible");
-        indicator.querySelector("svg").style.transform = "";
+        hide(indicator);
       }
     };
 
-    document.addEventListener("touchstart", onTouchStart, { passive: true });
-    document.addEventListener("touchmove",  onTouchMove,  { passive: true });
-    document.addEventListener("touchend",   onTouchEnd,   { passive: true });
+    const onTouchCancel = () => {
+      pullingRef.current = false;
+      const { indicator } = getEls();
+      if (indicator) hide(indicator);
+    };
+
+    document.addEventListener("touchstart",  onTouchStart,  { passive: true });
+    document.addEventListener("touchmove",   onTouchMove,   { passive: true });
+    document.addEventListener("touchend",    onTouchEnd,    { passive: true });
+    document.addEventListener("touchcancel", onTouchCancel, { passive: true });
 
     return () => {
-      document.removeEventListener("touchstart", onTouchStart);
-      document.removeEventListener("touchmove",  onTouchMove);
-      document.removeEventListener("touchend",   onTouchEnd);
+      document.removeEventListener("touchstart",  onTouchStart);
+      document.removeEventListener("touchmove",   onTouchMove);
+      document.removeEventListener("touchend",    onTouchEnd);
+      document.removeEventListener("touchcancel", onTouchCancel);
     };
   }, [onRefresh]);
-
-  const PullIndicator = () => (
-    <div className="ptr-indicator" ref={indicatorRef}>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"
-        strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-        <polyline points="23 4 23 10 17 10"/>
-        <path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/>
-      </svg>
-    </div>
-  );
 
   return { PullIndicator };
 }
@@ -888,6 +912,7 @@ function StatisticsPage({ userRole, token, manualFews, unitPref, thresholds, thr
   const [customTo, setCustomTo]     = useState("");
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState(false);
+  const [refreshTick, setRefreshTick] = useState(0); // bumped by pull to refresh
 
   const [waterLevel, setWaterLevel]           = useState(null);
   const [statusBreakdown, setStatusBreakdown] = useState(null);
@@ -934,7 +959,14 @@ function StatisticsPage({ userRole, token, manualFews, unitPref, thresholds, thr
     }).finally(() => { if (!cancelled) setLoading(false); });
 
     return () => { cancelled = true; };
-  }, [range.from, range.to, token]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [range.from, range.to, token, refreshTick]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Pull to refresh: refetch the current range (old numbers stay on screen, dimmed, until the new ones arrive)
+  useEffect(() => {
+    const onPull = () => setRefreshTick(t => t + 1);
+    window.addEventListener("fews:refresh", onPull);
+    return () => window.removeEventListener("fews:refresh", onPull);
+  }, []);
 
   const summarize = (wl, sb, up) => {
     if (!wl || !Array.isArray(sb) || !up) return null;
@@ -1221,6 +1253,13 @@ function LogsPage({ token, userRole, showToast }) {
   useEffect(() => {
     const id = setInterval(() => fetchLogs(true), 30000);
     return () => clearInterval(id);
+  }, [fetchLogs]);
+
+  // Pull to refresh: refetch the current page and counts (same filters and page number)
+  useEffect(() => {
+    const onPull = () => fetchLogs(true);
+    window.addEventListener("fews:refresh", onPull);
+    return () => window.removeEventListener("fews:refresh", onPull);
   }, [fetchLogs]);
 
   const totalPages = Math.max(1, Math.ceil(counts.total / ROWS_PER_PAGE));
@@ -3320,6 +3359,24 @@ function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userNa
 
   const canControl = can(userRole, "unitControl");
 
+  // Pull to refresh: refetch the units, but never while something is being edited, a threshold change
+  // is unsaved, or its confirm popup is open (a refetch would overwrite those values)
+  const [refreshTick, setRefreshTick] = useState(0);
+  const busyRef = useRef(false);
+  busyRef.current =
+    Object.keys(editing).length > 0 ||
+    Object.keys(manualEditing).length > 0 ||
+    thrConfirm !== null ||
+    Object.keys(thresholds).some(id => {
+      const p = prevThresholds[id], t = thresholds[id];
+      return p && t && (t.warning !== p.warning || t.danger !== p.danger);
+    });
+  useEffect(() => {
+    const onPull = () => { if (!busyRef.current) setRefreshTick(t => t + 1); };
+    window.addEventListener("fews:refresh", onPull);
+    return () => window.removeEventListener("fews:refresh", onPull);
+  }, []);
+
   useEffect(() => {
     authFetch(`${API_BASE}/units`, { headers: { Authorization: `Bearer ${token}` } })
       .then(r => { if (!r.ok) throw new Error(r.status); return r.json(); })
@@ -3358,7 +3415,7 @@ function UnitControlPage({ allFews, manualFews, fews1Connected, userRole, userNa
         if (err?.message !== "Unauthorized") setLoadError(true);
       })
       .finally(() => setInitialLoad(false));
-  }, [token]);
+  }, [token, refreshTick]);
 
   const getDeviceId = (id) => "fews_" + id;
 
@@ -3890,6 +3947,17 @@ const SETTINGS_ICONS = {
   m_warn:     svgIcon(<><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></>, 22),
 };
 
+const NOTIF_COPY = {
+  push_enabled:   { on: "Push notifications will be sent to you for CRITICAL water level events.",
+                    off: "You will no longer receive push notifications for CRITICAL water level events." },
+  audio_enabled:  { on: "The siren sound will play on the dashboard while an alert is active.",
+                    off: "The siren sound will no longer play on the dashboard while an alert is active." },
+  banner_enabled: { on: "The scrolling red banner will be shown during CRITICAL events.",
+                    off: "The scrolling red banner will no longer be shown during CRITICAL events." },
+  ticker_enabled: { on: "The rolling 5-hour reading ticker will be shown on the dashboard.",
+                    off: "The rolling 5-hour reading ticker will be hidden from the dashboard." },
+};
+
 function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog }) {
   const [showEmail, setShowEmail]           = useState(false);
   const [showPassword, setShowPassword]     = useState(false);
@@ -3978,6 +4046,18 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
       .then(data => { setUsers(Array.isArray(data) ? data : []); })
       .catch(() => setLoadUsersError(true))
       .finally(() => setLoadingUsers(false));
+  }, [token]);
+
+  // Pull to refresh: silently refetch the user list (no "Loading users…" flash, unsaved role/department picks stay)
+  useEffect(() => {
+    const onPull = () => {
+      authFetch(`${API_BASE}/users`, { headers: { Authorization: `Bearer ${token}` } })
+        .then(r => r.json())
+        .then(data => { if (Array.isArray(data)) setUsers(data); })
+        .catch(() => {});
+    };
+    window.addEventListener("fews:refresh", onPull);
+    return () => window.removeEventListener("fews:refresh", onPull);
   }, [token]);
 
   useEffect(() => {
@@ -4097,9 +4177,9 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
       {confirmNotif && <ConfirmModal
         icon={confirmNotif.newVal ? SETTINGS_ICONS.m_bell : SETTINGS_ICONS.m_bell_off}
         iconColor={confirmNotif.newVal ? "var(--green)" : "var(--red)"}
-        title={confirmNotif.newVal ? `Turn on ${confirmNotif.label}?` : `Turn off ${confirmNotif.label}?`}
-        message={confirmNotif.newVal ? `You'll start receiving alerts for ${confirmNotif.label}.` : `You'll stop receiving alerts for ${confirmNotif.label}.`}
-        confirmLabel={confirmNotif.newVal ? "Yes, Turn On" : "Yes, Turn Off"}
+        title={confirmNotif.newVal ? `Enable ${confirmNotif.label}?` : `Disable ${confirmNotif.label}?`}
+        message={NOTIF_COPY[confirmNotif.key]?.[confirmNotif.newVal ? "on" : "off"] || (confirmNotif.newVal ? `${confirmNotif.label} will be enabled.` : `${confirmNotif.label} will be disabled.`)}
+        confirmLabel={confirmNotif.newVal ? "Yes, Enable" : "Yes, Disable"}
         confirmColor={confirmNotif.newVal ? "var(--green)" : "var(--red)"}
         confirmLoading={confirmNotifLoading}
         onConfirm={() => handleNotifToggle(confirmNotif.key, confirmNotif.newVal)}
@@ -4435,6 +4515,13 @@ export default function App() {
     const id = setInterval(fetchManualUnits, 60000);
     return () => clearInterval(id);
   }, [fetchManualUnits]);
+
+  // Pull to refresh: refetch the manual stations too
+  useEffect(() => {
+    const onPull = () => fetchManualUnits();
+    window.addEventListener("fews:refresh", onPull);
+    return () => window.removeEventListener("fews:refresh", onPull);
+  }, [fetchManualUnits]);
   const pollUnitsNowRef = useRef(null);
   const mapSavedAtRef = useRef(0); // when the user last picked a map (guards against the profile poll flipping it back)
   const [sirenLoading, setSirenLoading] = useState({});
@@ -4460,7 +4547,9 @@ export default function App() {
   const [fews1Info, setFews1Info] = useState({});
   const { showToast, ToastContainer: AppToastContainer } = useToast();
 
-  const handlePullRefresh = useCallback(() => {
+  // Re-fetches the data. The open page (Logs, Statistics...) listens for this event and refetches its own.
+  const refreshData = useCallback(() => {
+    window.dispatchEvent(new Event("fews:refresh"));
     fetch(`${API_BASE}/data/latest`)
       .then(r => r.json())
       .then(data => { if (data.fews_1) setFews1Live(data.fews_1); })
@@ -4489,6 +4578,33 @@ export default function App() {
       .catch(() => {});
     if (pollUnitsNowRef.current) pollUnitsNowRef.current();
   }, []);
+
+  // Pull: if a new frontend build exists, clear the caches and reload (same steps as the update toast).
+  // Otherwise just refresh the data. Any failure falls back to a plain data refresh.
+  const handlePullRefresh = useCallback(async () => {
+    try {
+      if ("serviceWorker" in navigator) {
+        const reg = await navigator.serviceWorker.getRegistration();
+        if (reg) {
+          const before = reg.active;
+          await reg.update();
+          if (reg.installing || reg.waiting || (reg.active && reg.active !== before)) {
+            const regs = await navigator.serviceWorker.getRegistrations();
+            await Promise.all(regs.map(r => r.unregister()));
+            if ("caches" in window) {
+              const keys = await caches.keys();
+              await Promise.all(keys.map(k => caches.delete(k)));
+            }
+            window.location.reload();
+            return;
+          }
+        }
+      }
+    } catch {
+      // no service worker, offline, or the check failed: fall through to the data refresh
+    }
+    refreshData();
+  }, [refreshData]);
 
   const { PullIndicator } = usePullToRefresh(handlePullRefresh);
 
