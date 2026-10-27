@@ -1,0 +1,2348 @@
+=========================================
+FILE: backend/mqtt_bridge.py
+=========================================
+
+import json
+import uuid
+import threading
+import time
+import traceback
+import os
+import paho.mqtt.client as mqtt
+import paho.mqtt.publish as mqtt_publish
+from database import get_db, release_db
+from urllib.parse import urlparse
+
+MQTT_BROKER             = os.environ.get("MQTT_BROKER", "broker.emqx.io")
+MQTT_PORT               = int(os.environ.get("MQTT_PORT", "1883"))
+MQTT_TOPIC              = "cdrrmo/fews1/data"
+MQTT_STATUS_TOPIC       = "cdrrmo/fews1/status"
+MQTT_SIREN_STATUS_TOPIC = "cdrrmo/fews1/siren_status"
+MQTT_HEARTBEAT_TOPIC    = "cdrrmo/fews1/heartbeat"
+OFFLINE_TIMEOUT         = 150  # 2.5 minutes in seconds
+
+# In-memory last online timestamp per station
+_last_online: dict = {}
+_offline_logged: dict = {}
+_threshold_cache: dict = {}
+STATION_NAMES: dict = {"fews_1": "FEWS 1"}
+STATION_LOCATIONS: dict = {"fews_1": "Bridge of Progress"}
+_critical_notified: dict = {}
+_warning_notified: dict = {}
+_prev_status: dict = {}
+_state_checked: dict = {}  # True once we know this station's offline state since the server started
+_offline_from_db: dict = {}  # True when the offline state had to be read from the database (server restarted)
+_broker_state = {"disconnected_at": 0.0}  # last time the bridge lost its EMQX connection
+
+def mark_station_online(station_id: str):
+    _last_online[station_id] = time.time()
+    _offline_logged[station_id] = False  # reset so next dropout gets logged
+    _state_checked[station_id] = True
+    _offline_from_db[station_id] = False
+
+def station_was_offline(station_id: str) -> bool:
+    """True if the station should count as offline right now.
+    Normally the in-memory flag knows. After a server restart the flag is empty, so on the
+    first message we ask the database: if the station's latest connectivity log says
+    'went offline', it never got its 'back online' log."""
+    if _offline_logged.get(station_id, False):
+        return True
+    if _state_checked.get(station_id, False):
+        return False
+    station_name = STATION_NAMES.get(station_id, station_id)
+    try:
+        conn = get_db()
+        cur  = conn.cursor()
+        try:
+            cur.execute("""
+                SELECT message FROM system_logs
+                WHERE station = %s AND type = 'connectivity'
+                ORDER BY timestamp DESC, id DESC
+                LIMIT 1
+            """, (station_name,))
+            row = cur.fetchone()
+        finally:
+            cur.close()
+            release_db(conn)
+        _state_checked[station_id] = True
+        from_db = bool(row and "went offline" in row["message"])
+        if from_db:
+            _offline_from_db[station_id] = True
+        return from_db
+    except Exception as e:
+        print(f"[BRIDGE] Offline-state check failed for {station_id}: {e}")
+        return False  # not marked as checked, so the next message tries again
+
+def back_online_text(station_id: str, station_name: str) -> str:
+    """Wording for the 'back online' log. Call it BEFORE mark_station_online(), which resets the state it reads.
+    Best guess only: if the server restarted during the gap, or the bridge recorded a broker
+    disconnect after the station's last message, the log blames the broker connection.
+    Otherwise no server-side cause was found, so it keeps the 'signal loss' wording."""
+    server_side = (
+        _offline_from_db.get(station_id, False)
+        or _broker_state["disconnected_at"] > _last_online.get(station_id, 0)
+    )
+    if server_side:
+        return f"{station_name} is back online after the server lost its broker connection"
+    return f"{station_name} is back online and transmitting data after signal loss"
+
+def get_last_online(station_id: str) -> float:
+    return _last_online.get(station_id, 0)
+
+def start_offline_watcher():
+    """Background thread — logs when a station stops sending heartbeats for 2.5 minutes."""
+    def watch():
+        while True:
+            time.sleep(30)  # check every 30 seconds
+            now = time.time()
+            for station_id, last in list(_last_online.items()):
+                age = now - last
+                already_logged = _offline_logged.get(station_id, False)
+                if age >= OFFLINE_TIMEOUT and not already_logged:
+                    _offline_logged[station_id] = True
+                    station_name = STATION_NAMES.get(station_id, station_id)
+                    try:
+                        conn = get_db()
+                        cur  = conn.cursor()
+                        try:
+                            cur.execute("""
+                                INSERT INTO system_logs (station, type, message, user_name)
+                                VALUES (%s, %s, %s, %s)
+                            """, (
+                                station_name,
+                                "connectivity",
+                                f"{station_name} went offline — no heartbeat received for 2.5 minutes",
+                                "System",
+                            ))
+                            conn.commit()
+                            print(f"[WATCHER] Offline logged for {station_id}")
+                            threading.Thread(
+                                target=send_push_notifications,
+                                args=(
+                                    "📡 CDRRMO FEWS OFFLINE",
+                                    f"{station_name} ({STATION_LOCATIONS.get(station_id, '')}) has gone offline. Please check the device.",
+                                ),
+                                daemon=True,
+                            ).start()
+                        finally:
+                            cur.close()
+                            release_db(conn)
+                    except Exception as e:
+                        print(f"[WATCHER] Error logging offline: {e}")
+                        
+    t = threading.Thread(target=watch, daemon=True)
+    t.start()
+    print("[WATCHER] Offline watcher thread started (2.5 min timeout)")
+
+def get_thresholds(device_id="fews_1"):
+    if device_id in _threshold_cache:
+        return _threshold_cache[device_id]
+    try:
+        conn = get_db()
+        cur  = conn.cursor()
+        try:
+            cur.execute(
+                "SELECT threshold_warning, threshold_danger FROM fews_units WHERE device_id = %s",
+                (device_id,)
+            )
+            row = cur.fetchone()
+            if row:
+                _threshold_cache[device_id] = (row["threshold_warning"], row["threshold_danger"])
+                return _threshold_cache[device_id]
+        finally:
+            cur.close()
+            release_db(conn)
+    except Exception as e:
+        print(f"[THRESHOLDS] Failed to fetch: {e}")
+    return 200, 300  # fallback defaults
+
+def invalidate_threshold_cache(device_id="fews_1"):
+    if device_id in _threshold_cache:
+        del _threshold_cache[device_id]
+
+def get_baseline_cutoff(threshold_warning):
+    return min(100, threshold_warning)
+
+def water_level_to_type(water_level_cm, threshold_warning=200, threshold_danger=300):
+    if water_level_cm is None:
+        return "info"
+    if water_level_cm > threshold_danger:
+        return "danger"
+    if water_level_cm > threshold_warning:
+        return "warning"
+    if water_level_cm < get_baseline_cutoff(threshold_warning):
+        return "baseline"
+    return "info"
+
+def water_level_to_status_label(water_level_cm, threshold_warning=200, threshold_danger=300):
+    if water_level_cm is None:
+        return "UNKNOWN"
+    if water_level_cm > threshold_danger:
+        return "CRITICAL"
+    if water_level_cm > threshold_warning:
+        return "WARNING"
+    if water_level_cm < get_baseline_cutoff(threshold_warning):
+        return "BASE"
+    return "NORMAL"
+
+def on_connect(client, userdata, flags, rc):
+    if rc == 0:
+        print("[BRIDGE] Connected to broker")
+        result, mid = client.subscribe(MQTT_TOPIC, qos=0)
+        print(f"[BRIDGE] Subscribed to {MQTT_TOPIC} result={result} mid={mid}")
+        result2, mid2 = client.subscribe(MQTT_STATUS_TOPIC, qos=0)
+        print(f"[BRIDGE] Subscribed to {MQTT_STATUS_TOPIC} result={result2} mid={mid2}")
+        result3, mid3 = client.subscribe(MQTT_SIREN_STATUS_TOPIC, qos=0)
+        print(f"[BRIDGE] Subscribed to {MQTT_SIREN_STATUS_TOPIC} result={result3} mid={mid3}")
+        result4, mid4 = client.subscribe(MQTT_HEARTBEAT_TOPIC, qos=0)
+        print(f"[BRIDGE] Subscribed to {MQTT_HEARTBEAT_TOPIC} result={result4} mid={mid4}")
+    else:
+        print(f"[BRIDGE] Connection failed rc={rc}")
+
+def on_message(client, userdata, msg):
+    try:
+        data = json.loads(msg.payload.decode())
+        print(f"[BRIDGE] Received on {msg.topic}: {data}")
+
+        # ── Handle heartbeat ──────────────────────────────────────────────────────
+        if msg.topic == MQTT_HEARTBEAT_TOPIC:
+            station_id = data.get("station_id")
+            if station_id:
+                was_offline = station_was_offline(station_id)  # check BEFORE mark (asks the DB after a restart)
+                station_name = STATION_NAMES.get(station_id, station_id)
+                back_msg = back_online_text(station_id, station_name) if was_offline else ""  # BEFORE mark, it reads state that mark resets
+                mark_station_online(station_id)                # resets flag after check
+                if was_offline:
+                    try:
+                        conn = get_db()
+                        cur  = conn.cursor()
+                        try:
+                            cur.execute("""
+                                INSERT INTO system_logs (station, type, message, user_name)
+                                VALUES (%s, %s, %s, %s)
+                            """, (
+                                station_name,
+                                "connectivity",
+                                back_msg,
+                                "System",
+                            ))
+                            conn.commit()
+                            print(f"[HB] Comeback logged for {station_id}")
+                            threading.Thread(
+                                target=send_push_notifications,
+                                args=(
+                                    "✅ CDRRMO FEWS BACK ONLINE",
+                                    f"{station_name} ({STATION_LOCATIONS.get(station_id, '')}) is back online and transmitting data.",
+                                ),
+                                daemon=True,
+                            ).start()
+                        finally:
+                            cur.close()
+                            release_db(conn)
+                    except Exception as e:
+                        print(f"[HB] Error logging comeback: {e}")
+            return
+
+        # ── Handle siren auto-off from Arduino ────────────────────────────────────
+        if msg.topic == MQTT_SIREN_STATUS_TOPIC:
+                if data.get("siren_auto_off") and data.get("station_id"):
+                    sid = data.get("station_id")
+                    station_name = STATION_NAMES.get(sid, sid)
+                    try:
+                        conn = get_db()
+                        cur  = conn.cursor()
+                        try:
+                            cur.execute(
+                                "UPDATE fews_units SET siren_state = FALSE, siren_auto_triggered = FALSE WHERE device_id = %s AND siren_auto_triggered = TRUE RETURNING siren_state",
+                                (sid,)
+                            )
+                            conn.commit()
+                            if cur.rowcount > 0:
+                                print(f"[BRIDGE] Siren auto-off synced for {sid}")
+                                cur.execute("""
+                                    INSERT INTO system_logs (station, type, message, user_name)
+                                    VALUES (%s, %s, %s, %s)
+                                """, (
+                                    station_name,
+                                    "system",
+                                    f"{station_name} siren has been automatically silenced by the device — water level returned to normal",
+                                    "System",
+                                ))
+                                conn.commit()
+                            else:
+                                print(f"[BRIDGE] Siren auto-off received — already cleared for {sid}, skipping log")
+                            print(f"[BRIDGE] Siren auto-off logged for {sid}")
+                        finally:
+                            cur.close()
+                            release_db(conn)
+                    except Exception as e:
+                        print(f"[BRIDGE] Siren auto-off DB error: {e}")
+                return
+
+        # ── Handle startup status message ─────────────────────────────────
+        if msg.topic == MQTT_STATUS_TOPIC:
+            if data.get("online") and data.get("station_id"):
+                station_id   = data.get("station_id")
+                station_name = STATION_NAMES.get(station_id, station_id)
+                was_offline  = station_was_offline(station_id)
+                was_online   = get_last_online(station_id)
+                mark_station_online(station_id)
+
+                conn = get_db()
+                cur  = conn.cursor()
+                try:
+                    if was_online == 0 or was_offline:
+                        cur.execute("""
+                            INSERT INTO system_logs (station, type, message, user_name)
+                            VALUES (%s, %s, %s, %s)
+                        """, (
+                            station_name,
+                            "connectivity",
+                            f"{station_name} is online and transmitting data",
+                            "System",
+                        ))
+                        conn.commit()
+                        print("[BRIDGE] Startup status logged")
+                finally:
+                    cur.close()
+                    release_db(conn)
+            return
+
+        station_id          = data.get("station_id")
+        water_level_cm      = data.get("water_level_cm")
+        status              = data.get("status")
+        latitude            = data.get("latitude")
+        longitude           = data.get("longitude")
+        is_immediate        = data.get("is_immediate", False)
+        safe_after_critical = data.get("safe_after_critical", False)
+
+        # ── TEMP OFFSET — remove once sensor is physically recalibrated ──
+        # Sensor is currently reading ~40cm low. Per supervisor's instruction,
+        # add a flat 40cm offset to every reading until the physical
+        # recalibration is done. Added 2026-08-07.
+        if water_level_cm is not None:  # TEMP OFFSET
+            water_level_cm += 40
+
+        conn = get_db()
+        cur  = conn.cursor()
+        try:
+            cur.execute("""
+                INSERT INTO sensor_readings
+                    (device_id, water_level_cm, status, latitude, longitude, is_immediate)
+                VALUES (%s, %s, %s, %s, %s, %s)
+            """, (
+                station_id,
+                water_level_cm,
+                status,
+                latitude,
+                longitude,
+                is_immediate,
+            ))
+
+            threshold_warning, threshold_danger = get_thresholds(station_id)
+            log_type     = water_level_to_type(water_level_cm, threshold_warning, threshold_danger)
+            status_label = water_level_to_status_label(water_level_cm, threshold_warning, threshold_danger)
+            station_name = STATION_NAMES.get(station_id, station_id)
+            water_str    = f"{water_level_cm} cm" if water_level_cm is not None else "N/A"
+
+            log_message = (
+                f"{station_name} reading — "
+                f"Water Level: {water_str} [{status_label}]"
+            )
+
+            was_offline = station_was_offline(station_id)  # asks the DB after a restart
+            back_msg = back_online_text(station_id, station_name) if was_offline else ""  # picked now: mark_station_online() runs after the commit
+
+            # "Back online" goes in first. clock_timestamp() gives each insert its own time
+            # (now() would be frozen for the whole transaction), so the Logs page, which sorts
+            # by timestamp, shows the reading above the "back online" line, in the right order.
+            if was_offline:
+                cur.execute("""
+                    INSERT INTO system_logs (station, type, message, user_name, timestamp)
+                    VALUES (%s, %s, %s, %s, clock_timestamp())
+                """, (
+                    station_name,
+                    "connectivity",
+                    back_msg,
+                    "System",
+                ))
+
+            cur.execute("""
+                INSERT INTO system_logs (station, type, message, user_name, timestamp)
+                VALUES (%s, %s, %s, %s, clock_timestamp())
+            """, (
+                station_name,
+                log_type,
+                log_message,
+                "System",
+            ))
+
+            conn.commit()
+            mark_station_online(station_id)
+            print(f"[BRIDGE] Saved → {station_id} {water_level_cm}cm {status} is_immediate={is_immediate} | Logged as [{log_type.upper()}]")
+
+            if was_offline:
+                threading.Thread(
+                    target=send_push_notifications,
+                    args=(
+                        "✅ CDRRMO FEWS BACK ONLINE",
+                        f"{station_name} ({STATION_LOCATIONS.get(station_id, '')}) is back online and transmitting data.",
+                    ),
+                    daemon=True,
+                ).start()
+
+            station_location = STATION_LOCATIONS.get(station_id, "")
+            prev_status = _prev_status.get(station_id, "")
+
+            if log_type == "danger":
+                print("[SMS] CRITICAL detected — SMS handled by Arduino directly")
+                if is_immediate and not _critical_notified.get(station_id, False):
+                    _critical_notified[station_id] = True
+                    _warning_notified[station_id] = False
+                    _prev_status[station_id + "_safe_notified"] = False
+                    threading.Thread(
+                        target=send_push_notifications,
+                        args=(
+                            "⚠ CDRRMO FEWS ALERT",
+                            f"{station_name} ({station_location}) — CRITICAL water level detected! Water is at {water_level_cm} cm. Immediate action required.",
+                        ),
+                        daemon=True,
+                    ).start()
+
+            elif log_type == "warning":
+                if (is_immediate or safe_after_critical) and not _warning_notified.get(station_id, False):
+                    _warning_notified[station_id] = True
+                    _prev_status[station_id + "_safe_notified"] = False
+                    if prev_status == "danger":
+                        threading.Thread(
+                            target=send_push_notifications,
+                            args=(
+                                "⚠ CDRRMO FEWS UPDATE",
+                                f"{station_name} ({station_location}) — Water level has dropped from CRITICAL to WARNING at {water_level_cm} cm. Continue monitoring.",
+                            ),
+                            daemon=True,
+                        ).start()
+                        _critical_notified[station_id] = False
+                    else:
+                        threading.Thread(
+                            target=send_push_notifications,
+                            args=(
+                                "⚠ CDRRMO FEWS ALERT",
+                                f"{station_name} ({station_location}) — Water level has reached WARNING. Water is at {water_level_cm} cm. Please monitor closely.",
+                            ),
+                            daemon=True,
+                        ).start()
+
+            elif log_type in ("info", "baseline"):
+                if prev_status in ("danger", "warning") and not _prev_status.get(station_id + "_safe_notified", False):
+                    _prev_status[station_id + "_safe_notified"] = True
+                    safe_msg = (
+                        "Situation is under control." if prev_status == "danger"
+                        else "Situation is normal."
+                    )
+                    threading.Thread(
+                        target=send_push_notifications,
+                        args=(
+                            "✅ CDRRMO FEWS UPDATE",
+                            f"{station_name} ({station_location}) — Water level has returned to NORMAL at {water_level_cm} cm. {safe_msg}",
+                        ),
+                        daemon=True,
+                    ).start()
+                _critical_notified[station_id] = False
+                _warning_notified[station_id] = False
+
+            _prev_status[station_id] = log_type
+            # Auto-siren ON: after 2min CRITICAL — skip if manually silenced or already active
+            if is_immediate and status == "CRITICAL":
+                try:
+                    cur.execute(
+                        "SELECT siren_manual_off, siren_state, siren_auto_triggered FROM fews_units WHERE device_id = %s",
+                        (station_id,)
+                    )
+                    unit_row = cur.fetchone()
+                    if unit_row and unit_row["siren_manual_off"]:
+                        cur.execute(
+                            "UPDATE fews_units SET siren_manual_off = FALSE WHERE device_id = %s",
+                            (station_id,)
+                        )
+                        conn.commit()
+                        unit_row = dict(unit_row)
+                        unit_row["siren_manual_off"] = False
+                        print(f"[BRIDGE] siren_manual_off cleared — new critical event for {station_id}")
+
+                    if unit_row and unit_row["siren_auto_triggered"]:
+                        print(f"[BRIDGE] Auto-siren already active for {station_id}, skipping duplicate log")
+                    elif unit_row and unit_row["siren_state"] and not unit_row["siren_auto_triggered"]:
+                        print(f"[BRIDGE] Auto-siren skipped — siren already manually ON for {station_id}")
+                    else:
+                        cur.execute(
+                            "UPDATE fews_units SET siren_state = TRUE, siren_auto_triggered = TRUE WHERE device_id = %s",
+                            (station_id,)
+                        )
+                        cur.execute("""
+                            INSERT INTO system_logs (station, type, message, user_name)
+                            VALUES (%s, %s, %s, %s)
+                        """, (
+                            station_name,
+                            "system",
+                            f"{station_name} siren has been automatically activated due to sustained CRITICAL water level",
+                            "System",
+                        ))
+                        conn.commit()
+                        print(f"[BRIDGE] Auto-siren ON written to DB for {station_id}")
+                except Exception as e:
+                    print(f"[BRIDGE] Failed to write auto-siren state: {e}")
+
+            # Auto-siren OFF: only clear on the confirmed safe-after-critical publish
+            if status != "CRITICAL" and safe_after_critical:
+                _critical_notified[station_id] = False
+                try:
+                    cur.execute(
+                        "SELECT siren_auto_triggered, siren_state FROM fews_units WHERE device_id = %s",
+                        (station_id,)
+                    )
+                    prev = cur.fetchone()
+                    cur.execute(
+                        "UPDATE fews_units SET siren_manual_off = FALSE, siren_state = FALSE, siren_auto_triggered = FALSE WHERE device_id = %s",
+                        (station_id,)
+                    )
+                    conn.commit()
+
+                    was_siren_on = prev and prev["siren_state"]   # covers BOTH manual and auto
+
+                    if was_siren_on:
+                        cur.execute("""
+                            INSERT INTO system_logs (station, type, message, user_name)
+                            VALUES (%s, %s, %s, %s)
+                        """, (
+                            station_name, "system",
+                            f"{station_name} siren has been automatically silenced — water level returned to {status_label}",
+                            "System",
+                        ))
+                        conn.commit()
+                    print(f"[BRIDGE] Auto-siren OFF cleared for {station_id}")
+                except Exception as e:
+                    print(f"[BRIDGE] Failed to clear auto-siren state: {e}")
+        finally:
+            cur.close()
+            release_db(conn)
+
+    except Exception as e:
+        print(f"[BRIDGE] Error: {e}")
+        traceback.print_exc()
+
+def on_disconnect(client, userdata, rc):
+    if rc != 0:
+        _broker_state["disconnected_at"] = time.time()
+        print(f"[BRIDGE] Unexpected disconnect rc={rc}, will auto-reconnect")
+
+def start_bridge():
+    while True:
+        try:
+            unique_id = "cdrrmo_bridge_server_01"
+            print(f"[BRIDGE] Client ID: {unique_id}")
+            client = mqtt.Client(client_id=unique_id, protocol=mqtt.MQTTv311, clean_session=False)
+            client.on_connect    = on_connect
+            client.on_message    = on_message
+            client.on_disconnect = on_disconnect
+            client.reconnect_delay_set(min_delay=1, max_delay=30)
+            client.connect(MQTT_BROKER, MQTT_PORT, keepalive=60)
+            client.loop_forever()
+        except Exception as e:
+            print(f"[BRIDGE] Crashed: {e} — restarting in 5s")
+            try:
+                client.loop_stop()
+                client.disconnect()
+            except Exception:
+                pass
+            time.sleep(5)
+
+def start_bridge_thread():
+    t = threading.Thread(target=start_bridge, daemon=True)
+    t.start()
+    print("[BRIDGE] Thread started")
+    start_offline_watcher()
+
+# ── NEW: Publish siren command to Arduino ─────────────────────────────────────
+def publish_siren(device_id: str, state: str):
+    topic = "cdrrmo/fews1/siren"
+    payload = json.dumps({"siren": state})
+    try:
+        mqtt_publish.single(
+            topic,
+            payload=payload,
+            hostname=MQTT_BROKER,
+            port=MQTT_PORT,
+            protocol=mqtt.MQTTv311,
+        )
+        print(f"[SIREN] Published '{state}' to {topic}")
+    except Exception as e:
+        print(f"[SIREN] Failed to publish: {e}")
+
+def send_push_notifications(title: str, body: str):
+    """Send Web Push to all subscribed browsers/PWAs."""
+    vapid_private = os.environ.get("VAPID_PRIVATE_KEY", "")
+    vapid_claims  = {"sub": "mailto:cdrrmo@batangas.gov.ph"}
+    if not vapid_private:
+        print("[PUSH] VAPID_PRIVATE_KEY not set — skipping push")
+        return
+    try:
+        from pywebpush import webpush, WebPushException
+        conn = get_db()
+        cur  = conn.cursor()
+        try:
+            cur.execute("""
+                SELECT ps.sub_json
+                FROM push_subscriptions ps
+                JOIN users u ON u.id = ps.user_id
+                WHERE u.notif_push_enabled = TRUE
+            """)
+            rows = cur.fetchall()
+        finally:
+            cur.close()
+            release_db(conn)
+        payload = json.dumps({"title": title, "body": body})
+        sent = 0
+        failed = 0
+        for row in rows:
+            try:
+                sub = json.loads(row["sub_json"])
+                endpoint = sub.get("endpoint", "")
+                parsed = urlparse(endpoint)
+                aud = f"{parsed.scheme}://{parsed.netloc}"
+                webpush(
+                    subscription_info=sub,
+                    data=payload,
+                    vapid_private_key=vapid_private,
+                    vapid_claims={"sub": "mailto:cdrrmo@batangas.gov.ph", "aud": aud},
+                )
+                sent += 1
+            except Exception as e:
+                failed += 1
+                print(f"[PUSH] Failed to send to one subscription: {e}")
+        print(f"[PUSH] Sent {sent} notifications, {failed} failed")
+    except Exception as e:
+        print(f"[PUSH] Error: {e}")
+
+def publish_config(device_id: str, threshold_warning: int, threshold_danger: int):
+    topic = "cdrrmo/fews1/config"
+    payload = json.dumps({"warning": threshold_warning, "danger": threshold_danger})
+    try:
+        mqtt_publish.single(
+            topic,
+            payload=payload,
+            hostname=MQTT_BROKER,
+            port=MQTT_PORT,
+            protocol=mqtt.MQTTv311,
+            retain=True,
+            qos=1,
+        )
+        invalidate_threshold_cache(device_id)
+        print(f"[CONFIG] Published thresholds warning={threshold_warning} danger={threshold_danger} to {topic}")
+    except Exception as e:
+        print(f"[CONFIG] Failed to publish: {e}")
+# ─────────────────────────────────────────────────────────────────────────────
+
+=========================================
+FILE: backend/main.py
+=========================================
+
+from fastapi import FastAPI, HTTPException, Depends, Header
+from mqtt_bridge import start_bridge_thread
+from fastapi.middleware.cors import CORSMiddleware
+
+import jwt
+from pydantic import BaseModel
+
+from database import get_db, release_db, init_db
+from auth import hash_password, verify_password, create_token, decode_token
+
+from starlette.middleware.base import BaseHTTPMiddleware
+from starlette.requests import Request
+
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
+import os, uuid, base64, re, time, threading, json
+from supabase import create_client
+
+from datetime import datetime
+
+from models import (
+    LoginRequest, CreateUserRequest, UpdateUserRequest,
+    UpdateProfileRequest, ChangeEmailRequest, ChangePasswordRequest,
+    ChangePhoneRequest, SmsEnabledRequest, CreateLogRequest,
+    SirenRequest, UpdateUnitRequest, PushSubscribeRequest,
+    UpdateNotifPrefsRequest, UpdateManualUnitRequest,
+    UpdateDisplayPrefsRequest,
+)
+
+DEPLOY_TIME          = datetime.utcnow().isoformat()
+SUPABASE_URL         = os.environ.get("SUPABASE_URL")
+SUPABASE_SERVICE_KEY = os.environ.get("SUPABASE_SERVICE_KEY")
+supabase             = create_client(SUPABASE_URL, SUPABASE_SERVICE_KEY) if SUPABASE_URL and SUPABASE_SERVICE_KEY else None
+
+# --- APP SETUP ---
+
+app = FastAPI()
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "https://cdrrmo-fews.vercel.app",
+        "http://localhost:5173",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin"
+        return response
+
+app.add_middleware(SecurityHeadersMiddleware)
+
+limiter = Limiter(key_func=get_remote_address)
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+VALID_ROLES = {"Admin", "Operator"}
+LOG_TYPES_BY_ROLE = {
+    "Admin":    ["info", "baseline", "warning", "danger", "connectivity", "system"],
+    "Operator": ["info", "baseline", "warning", "danger", "connectivity"],
+}
+
+# Philippine mobile numbers only. Accepts 09XXXXXXXXX, 9XXXXXXXXX,
+# 639XXXXXXXXX and +639XXXXXXXXX (spaces and dashes allowed) and returns
+# the stored form +639XXXXXXXXX, or None if the number is not valid.
+# Keep in sync with normalizePhMobile() in the frontend App.jsx.
+PH_PHONE_ERROR = "Enter a Philippine mobile number, like 09171234567."
+
+def normalize_ph_mobile(raw):
+    digits = re.sub(r"[\s\-]", "", raw or "")
+    m = re.fullmatch(r"(?:\+?63|0)?(9[0-9]{9})", digits)
+    return f"+63{m.group(1)}" if m else None
+
+@app.on_event("startup")
+def startup():
+    threading.Thread(target=cleanup_logs, daemon=True).start()
+    print("[CLEANUP] Log retention thread started (365 days)")
+    try:
+        init_db()
+        conn = get_db()
+        cur  = conn.cursor()
+        try:
+            cur.execute("SELECT id FROM fews_units WHERE device_id = 'fews_1'")
+            if not cur.fetchone():
+                cur.execute("""
+                    INSERT INTO fews_units (device_id, name, location, installed_date, hw_technician, sw_technician, description, threshold_warning, threshold_danger)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    "fews_1", "FEWS 1", "Bridge of Progress", "-",
+                    "Engr. Andrew Van Ryan / Engr. Katrina Rivera",
+                    "Zhenrel Ocampo",
+                    "Deployed at the Bridge of Progress along Calumpang River, Batangas City. Monitors the water level of the river passing beneath the bridge to provide early flood warnings for the surrounding community.",
+                    200, 300
+                ))
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS manual_fews_units (
+                    id             SERIAL PRIMARY KEY,
+                    device_id      TEXT UNIQUE NOT NULL,
+                    name           TEXT NOT NULL,
+                    location       TEXT NOT NULL,
+                    latitude       DOUBLE PRECISION NOT NULL,
+                    longitude      DOUBLE PRECISION NOT NULL,
+                    status         TEXT NOT NULL DEFAULT 'serviceable',
+                    description    TEXT DEFAULT '',
+                    hw_technician  TEXT DEFAULT '',
+                    installed_date TEXT DEFAULT '',
+                    created_at     TIMESTAMPTZ DEFAULT NOW(),
+                    updated_at     TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+            cur.execute("SELECT COUNT(*) as cnt FROM manual_fews_units")
+            if cur.fetchone()["cnt"] == 0:
+                manual_seed = [
+                    ("manual_1",  "FEWS 1",  "Cuta Sitio Buhanginan",                 13.746451, 121.061156, "serviceable",   "Monitors the river segment along Sitio Buhanginan in Barangay Cuta, providing early flood warning for nearby residential areas."),
+                    ("manual_2",  "FEWS 2",  "Kumintang Ibaba Sitio Ferry",           13.761058, 121.066804, "unserviceable", "Deployed near the ferry crossing in Sitio Ferry, Kumintang Ibaba. Currently unserviceable due to stolen wire and sensor components; repair pending."),
+                    ("manual_3",  "FEWS 3",  "Libjo Old San Vicente",                 13.732562, 121.073700, "serviceable",   "Monitors water levels along the river in Old San Vicente, Barangay Libjo, supporting flood early warning for the community."),
+                    ("manual_4",  "FEWS 4",  "Malitam",                               13.747917, 121.055238, "serviceable",   "Installed along the riverbank in Barangay Malitam to monitor rising water levels and alert nearby residents of potential flooding."),
+                    ("manual_5",  "FEWS 5",  "Pallocan East",                         13.755576, 121.079892, "serviceable",   "Monitors the river passing through Barangay Pallocan East, providing flood alerts to residents along the waterway."),
+                    ("manual_6",  "FEWS 6",  "Pallocan West Sitio Ternate",           13.748540, 121.065023, "serviceable",   "Deployed in Sitio Ternate, Pallocan West. Scheduled for replacement of its liquid level controller."),
+                    ("manual_7",  "FEWS 7",  "Pallocan West Sitio Ternate Creek",     13.749544, 121.065986, "serviceable",   "Monitors the creek in Sitio Ternate, Pallocan West. Scheduled for replacement of one siren unit."),
+                    ("manual_8",  "FEWS 8",  "Poblacion 1",                           13.754366, 121.062169, "serviceable",   "Monitors river conditions within Barangay Poblacion 1 to support early flood warning for the town center."),
+                    ("manual_9",  "FEWS 9",  "Poblacion 2",                           13.755707, 121.062567, "serviceable",   "Monitors river conditions within Barangay Poblacion 2 to support early flood warning for the town center."),
+                    ("manual_10", "FEWS 10", "Poblacion 3",                           13.756666, 121.063044, "serviceable",   "Monitors river conditions within Barangay Poblacion 3 to support early flood warning for the town center."),
+                    ("manual_11", "FEWS 11", "Poblacion 4",                           13.759262, 121.064646, "serviceable",   "Monitors river conditions within Barangay Poblacion 4 to support early flood warning for the town center."),
+                    ("manual_12", "FEWS 12", "Poblacion 24",                          13.759710, 121.053972, "unserviceable", "Monitors river conditions within Barangay Poblacion 24. Currently unserviceable — one unit was reported unserviceable following a resident complaint."),
+                    ("manual_13", "FEWS 13", "San Isidro Sitio Gitna",                13.737219, 121.072214, "unserviceable", "Monitors the creek in Sitio Gitna, Barangay San Isidro. Currently unserviceable and dismantled due to ongoing creek construction work."),
+                    ("manual_14", "FEWS 14", "San Isidro Sitio Gitna Little Simlong", 13.736153, 121.072892, "unserviceable", "Monitors the creek near Little Simlong, Sitio Gitna, Barangay San Isidro. Currently unserviceable and dismantled due to ongoing creek construction work."),
+                    ("manual_15", "FEWS 15", "Talahib Pandayan",                      13.641939, 121.143401, "serviceable",   "Monitors flood-prone areas in Barangay Talahib Pandayan. Slated for relocation to a more effective monitoring site."),
+                    ("manual_16", "FEWS 16", "Tierra Verde Ville Entrance",           13.752524, 121.070501, "serviceable",   "Installed at the entrance of Tierra Verde Ville subdivision to monitor rising water levels in the surrounding area."),
+                    ("manual_17", "FEWS 17", "Tierra Verde Ville Inside",             13.751590, 121.071212, "serviceable",   "Installed within Tierra Verde Ville subdivision to monitor rising water levels in the surrounding area."),
+                    ("manual_18", "FEWS 18", "Wawa – COURT",                          13.761058, 121.052390, "unserviceable", "Monitors river conditions near the court area in Barangay Wawa. Currently unserviceable and slated for relocation."),
+                ]
+                for device_id, name, location, lat, lng, status, desc in manual_seed:
+                    cur.execute("""
+                        INSERT INTO manual_fews_units
+                            (device_id, name, location, latitude, longitude, status, description, hw_technician)
+                        VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
+                    """, (device_id, name, location, lat, lng, status, desc,
+                          "Monitoring, Information and Analytics Division"))
+                print("[STARTUP] Seeded 18 manual FEWS units")
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS push_subscriptions (
+                    id         SERIAL PRIMARY KEY,
+                    endpoint   TEXT UNIQUE NOT NULL,
+                    sub_json   TEXT NOT NULL,
+                    created_at TIMESTAMPTZ DEFAULT NOW()
+                )
+            """)
+            cur.execute("""
+                ALTER TABLE users
+                ADD COLUMN IF NOT EXISTS notif_push_enabled   BOOLEAN DEFAULT TRUE,
+                ADD COLUMN IF NOT EXISTS notif_audio_enabled  BOOLEAN DEFAULT TRUE,
+                ADD COLUMN IF NOT EXISTS notif_banner_enabled BOOLEAN DEFAULT TRUE,
+                ADD COLUMN IF NOT EXISTS notif_ticker_enabled BOOLEAN DEFAULT TRUE,
+                ADD COLUMN IF NOT EXISTS unit_preference       TEXT DEFAULT 'cm',
+                ADD COLUMN IF NOT EXISTS map_preference        TEXT DEFAULT 'dark'
+            """)
+            cur.execute("""
+                ALTER TABLE push_subscriptions
+                  ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)
+            """)
+            conn.commit()
+        except Exception as e:
+            print(f"[STARTUP] Migration error: {e}")
+            conn.rollback()
+        finally:
+            cur.close()
+            release_db(conn)
+    except Exception as e:
+        print(f"[STARTUP] DB connection failed, continuing anyway: {e}")
+    start_bridge_thread()
+
+# --- AUTH HELPERS ---
+
+def get_current_user(authorization: str = Header(...)):
+    try:
+        scheme, token = authorization.split()
+    except ValueError:
+        raise HTTPException(status_code=401, detail="Invalid auth scheme")
+    if scheme.lower() != "bearer":
+        raise HTTPException(status_code=401, detail="Invalid auth scheme")
+
+    try:
+        payload = decode_token(token)
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Session expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+    user_id = int(payload["sub"])
+    token_version = payload.get("token_version", 0)
+
+    try:
+        conn = get_db()
+    except Exception:
+        raise HTTPException(status_code=503, detail="Database temporarily unavailable, please retry")
+
+    cur = conn.cursor()
+    try:
+        cur.execute("SELECT token_version FROM users WHERE id = %s", (user_id,))
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=401, detail="User no longer exists")
+        if row["token_version"] != token_version:
+            raise HTTPException(status_code=401, detail="Session expired")
+    finally:
+        cur.close()
+        release_db(conn)
+
+    return payload
+
+def require_admin(user=Depends(get_current_user)):
+    if user.get("role") != "Admin":
+        raise HTTPException(status_code=403, detail="Admin access required")
+    return user
+
+# --- AUTH ---
+
+@app.post("/login")
+@limiter.limit("10/minute")
+def login(request: Request, req: LoginRequest):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        cur.execute(
+            "SELECT * FROM users WHERE email = %s OR name = %s",
+            (req.username, req.username)
+        )
+        user = cur.fetchone()
+        if not user or not verify_password(req.password, user["password"]):
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        token = create_token(user["id"], user["role"], user["token_version"], req.remember_me)
+
+        cur.execute("""
+            INSERT INTO system_logs (station, type, message, user_name)
+            VALUES (%s, %s, %s, %s)
+        """, (
+            "System", "system",
+            f"{user['name']} ({user['role']}, {user['department']}) has logged in to the system",
+            user["name"]
+        ))
+        conn.commit()
+
+        return {
+            "token":      token,
+            "username":   user["name"],
+            "role":       user["role"],
+            "department": user["department"],
+            "email":      user["email"],
+            "id":         user["id"],
+            "photo":      user.get("photo"),
+            "phone":      user.get("phone"),
+            "notif_push_enabled":   user.get("notif_push_enabled", True),
+            "notif_audio_enabled":  user.get("notif_audio_enabled", True),
+            "notif_banner_enabled": user.get("notif_banner_enabled", True),
+            "notif_ticker_enabled": user.get("notif_ticker_enabled", True),
+            "unit_preference":      user.get("unit_preference", "cm"),
+            "map_preference":       user.get("map_preference") or "dark",
+        }
+    finally:
+        cur.close()
+        release_db(conn)
+
+@app.post("/logout")
+def logout(user=Depends(get_current_user)):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        user_id = int(user["sub"])
+        cur.execute("SELECT name, role, department FROM users WHERE id = %s", (user_id,))
+        row = cur.fetchone()
+        cur.execute(
+            "UPDATE users SET token_version = token_version + 1 WHERE id = %s",
+            (user_id,)
+        )
+        if row:
+            cur.execute("""
+                INSERT INTO system_logs (station, type, message, user_name)
+                VALUES (%s, %s, %s, %s)
+            """, (
+                "System", "system",
+                f"{row['name']} ({row['role']}, {row['department']}) has logged out of the system",
+                row["name"],
+            ))
+        conn.commit()
+        return {"ok": True}
+    finally:
+        cur.close()
+        release_db(conn)
+
+# --- PROFILE ---
+
+@app.put("/users/me")
+def update_profile(req: UpdateProfileRequest, user=Depends(get_current_user)):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        user_id = int(user["sub"])
+        fields = []
+        values = []
+        if req.name is not None:
+            fields.append("name = %s")
+            values.append(req.name)
+
+        if req.photo is not None:
+            # If it's a base64 image, upload to Supabase Storage
+            if req.photo.startswith("data:image/"):
+                if supabase is None:
+                    raise HTTPException(status_code=500, detail="Storage not configured.")
+                try:
+                    header, data = req.photo.split(",", 1)
+                    decoded = base64.b64decode(data)
+                    if len(decoded) > 5 * 1024 * 1024:
+                        raise HTTPException(status_code=400, detail="Photo must be under 5MB.")
+                    mime_match = re.search(r"data:(image/\w+);base64", header)
+                    mime_type  = mime_match.group(1) if mime_match else "image/jpeg"
+                    ext        = mime_type.split("/")[1]
+                    filename   = f"user_{user_id}_{uuid.uuid4().hex[:8]}.{ext}"
+                    supabase.storage.from_("avatars").upload(
+                        filename,
+                        decoded,
+                        {"content-type": mime_type, "upsert": "true"}
+                    )
+                    photo_url = f"{SUPABASE_URL}/storage/v1/object/public/avatars/{filename}"
+                except HTTPException:
+                    raise
+                except Exception as e:
+                    raise HTTPException(status_code=500, detail=f"Photo upload failed: {e}")
+                fields.append("photo = %s")
+                values.append(photo_url)
+            else:
+                # Already a URL, save as-is
+                fields.append("photo = %s")
+                values.append(req.photo)
+
+        if not fields:
+            raise HTTPException(status_code=400, detail="Nothing to update")
+        values.append(user_id)
+        cur.execute(
+            f"UPDATE users SET {', '.join(fields)} WHERE id = %s RETURNING id, name, email, role, department, photo",
+            values
+        )
+        conn.commit()
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="User not found")
+        return row
+    finally:
+        cur.close()
+        release_db(conn)
+
+@app.put("/users/me/email")
+def change_email(req: ChangeEmailRequest, user=Depends(get_current_user)):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        user_id = int(user["sub"])
+        cur.execute("SELECT id FROM users WHERE email = %s AND id != %s", (req.email, user_id))
+        if cur.fetchone():
+            raise HTTPException(status_code=400, detail="Email already in use by another account.")
+        cur.execute(
+            "UPDATE users SET email = %s WHERE id = %s RETURNING id, name, email, role, department, photo",
+            (req.email, user_id)
+        )
+        conn.commit()
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="User not found")
+        return row
+    finally:
+        cur.close()
+        release_db(conn)
+
+@app.put("/users/me/password")
+def change_password(req: ChangePasswordRequest, user=Depends(get_current_user)):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        user_id = int(user["sub"])
+        cur.execute("SELECT * FROM users WHERE id = %s", (user_id,))
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="User not found")
+        if not verify_password(req.current_password, row["password"]):
+            raise HTTPException(status_code=400, detail="Current password is incorrect.")
+        if len(req.new_password) < 6:
+            raise HTTPException(status_code=400, detail="New password must be at least 6 characters.")
+        cur.execute(
+            "UPDATE users SET password = %s, token_version = token_version + 1 WHERE id = %s RETURNING id",
+            (hash_password(req.new_password), user_id)
+        )
+        conn.commit()
+        return {"ok": True}
+    finally:
+        cur.close()
+        release_db(conn)
+
+@app.put("/users/me/phone")
+def change_phone(req: ChangePhoneRequest, user=Depends(get_current_user)):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        phone = normalize_ph_mobile(req.phone)
+        if not phone:
+            raise HTTPException(status_code=400, detail=PH_PHONE_ERROR)
+        user_id = int(user["sub"])
+        cur.execute(
+            "UPDATE users SET phone = %s WHERE id = %s RETURNING id, name, email, role, department, photo, phone",
+            (phone, user_id)
+        )
+        conn.commit()
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="User not found")
+        return row
+    finally:
+        cur.close()
+        release_db(conn)
+
+@app.put("/users/me/notifications")
+def update_notif_prefs(req: UpdateNotifPrefsRequest, user=Depends(get_current_user)):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        user_id = int(user["sub"])
+        fields = []
+        values = []
+        if req.push_enabled   is not None: fields.append("notif_push_enabled = %s");   values.append(req.push_enabled)
+        if req.audio_enabled  is not None: fields.append("notif_audio_enabled = %s");  values.append(req.audio_enabled)
+        if req.banner_enabled is not None: fields.append("notif_banner_enabled = %s"); values.append(req.banner_enabled)
+        if req.ticker_enabled is not None: fields.append("notif_ticker_enabled = %s"); values.append(req.ticker_enabled)
+        if not fields:
+            raise HTTPException(status_code=400, detail="Nothing to update")
+        values.append(user_id)
+        cur.execute(
+            f"""UPDATE users SET {', '.join(fields)} WHERE id = %s
+                RETURNING id, notif_push_enabled, notif_audio_enabled, notif_banner_enabled, notif_ticker_enabled""",
+            values
+        )
+        conn.commit()
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="User not found")
+        return row
+    finally:
+        cur.close()
+        release_db(conn)
+
+@app.put("/users/me/display")
+def update_display_prefs(req: UpdateDisplayPrefsRequest, user=Depends(get_current_user)):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        user_id = int(user["sub"])
+        if req.unit_preference not in ("cm", "m", "ft", "in"):
+            raise HTTPException(status_code=400, detail="Invalid unit preference.")
+        cur.execute(
+            "UPDATE users SET unit_preference = %s WHERE id = %s RETURNING id, unit_preference",
+            (req.unit_preference, user_id)
+        )
+        conn.commit()
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="User not found")
+        return row
+    finally:
+        cur.close()
+        release_db(conn)
+
+# Base-map choice for the dashboard / fullscreen map (one per user)
+VALID_MAP_PREFS = {"light", "dark", "bright", "terrain", "positron", "osm"}
+
+class UpdateMapPrefRequest(BaseModel):
+    map_preference: str
+
+@app.put("/users/me/map")
+def update_map_pref(req: UpdateMapPrefRequest, user=Depends(get_current_user)):
+    if req.map_preference not in VALID_MAP_PREFS:
+        raise HTTPException(status_code=400, detail="Invalid map preference.")
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        user_id = int(user["sub"])
+        cur.execute(
+            "UPDATE users SET map_preference = %s WHERE id = %s RETURNING id, map_preference",
+            (req.map_preference, user_id)
+        )
+        conn.commit()
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="User not found")
+        return row
+    finally:
+        cur.close()
+        release_db(conn)
+
+@app.put("/users/{user_id}/sms")
+def update_sms_enabled(user_id: int, req: SmsEnabledRequest, admin=Depends(require_admin)):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        cur.execute(
+            "UPDATE users SET sms_enabled = %s WHERE id = %s RETURNING id",
+            (req.sms_enabled, user_id)
+        )
+        conn.commit()
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="User not found")
+        return {"ok": True}
+    finally:
+        cur.close()
+        release_db(conn)
+
+# --- SENSOR DATA ---
+
+@app.get("/data/latest")
+def latest():
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT DISTINCT ON (device_id) *
+            FROM sensor_readings
+            ORDER BY device_id, timestamp DESC
+        """)
+        rows = cur.fetchall()
+        result = {}
+        for row in rows:
+            key = row["device_id"].lower().replace("-", "_").replace(" ", "_")
+            result[key] = dict(row)
+        return result
+    finally:
+        cur.close()
+        release_db(conn)
+
+@app.get("/data/history")
+def history():
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT device_id, water_level_cm, timestamp
+            FROM sensor_readings
+            WHERE device_id = 'fews_1'
+            AND timestamp >= NOW() - INTERVAL '5 hours 40 minutes'
+            ORDER BY timestamp ASC
+        """)
+        rows = cur.fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        cur.close()
+        release_db(conn)
+
+@app.get("/data/today-range")
+def today_range():
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT device_id, MIN(water_level_cm) as low, MAX(water_level_cm) as high
+            FROM sensor_readings
+            WHERE (timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date =
+                  (NOW() AT TIME ZONE 'Asia/Manila')::date
+            GROUP BY device_id
+        """)
+        rows = cur.fetchall()
+        result = {}
+        for row in rows:
+            key = row["device_id"].lower().replace("-", "_").replace(" ", "_")
+            result[key] = {"high": row["high"], "low": row["low"]}
+        return result
+    finally:
+        cur.close()
+        release_db(conn)
+
+@app.get("/status/fews1")
+def fews1_status():
+    from mqtt_bridge import get_last_online
+    last = get_last_online("fews_1")
+    if last == 0:
+        return { "online": False, "last_seen": None }
+    age = time.time() - last
+    return {
+        "online":    age < 180,
+        "last_seen": last,
+    }
+# --- SYSTEM LOGS ---
+
+@app.post("/logs")
+def create_log(req: CreateLogRequest, user=Depends(get_current_user)):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        cur.execute("""
+            INSERT INTO system_logs (station, type, message, user_name)
+            VALUES (%s, %s, %s, %s)
+            RETURNING id, station, type, message, user_name, timestamp
+        """, (req.station, req.type, req.message, req.user_name))
+        conn.commit()
+        return cur.fetchone()
+    finally:
+        cur.close()
+        release_db(conn)
+
+def cleanup_logs():
+    """Delete logs older than 365 days. Runs on startup and every 24h."""
+    while True:
+        conn = None
+        try:
+            conn = get_db()
+            cur  = conn.cursor()
+            try:
+                cur.execute("""
+                    DELETE FROM system_logs
+                    WHERE timestamp < NOW() - INTERVAL '365 days'
+                """)
+                deleted = cur.rowcount
+                conn.commit()
+                if deleted > 0:
+                    print(f"[CLEANUP] Deleted {deleted} logs older than 365 days")
+            finally:
+                cur.close()
+                release_db(conn)
+        except Exception as e:
+            print(f"[CLEANUP] Error: {e}")
+            if conn:
+                release_db(conn)
+            time.sleep(300)  # retry in 5 minutes on failure
+            continue
+        time.sleep(86400)  # 24 hours
+
+def _build_log_filters(
+    search:    str,
+    station:   str,
+    type:      str,
+    date_from: str,
+    date_to:   str,
+    user_role: str,
+):
+    filters = []
+    params  = []
+
+    if search:
+        filters.append("(message ILIKE %s OR station ILIKE %s)")
+        params.extend([f"%{search}%", f"%{search}%"])
+    if station:
+        filters.append("station = %s")
+        params.append(station)
+    allowed_log_types = LOG_TYPES_BY_ROLE.get(user_role, LOG_TYPES_BY_ROLE["Operator"])
+    if type and type in allowed_log_types:
+        filters.append("type = %s")
+        params.append(type)
+    elif type and type not in allowed_log_types:
+        filters.append("type = ANY(%s)")
+        params.append(allowed_log_types)
+    else:
+        filters.append("type = ANY(%s)")
+        params.append(allowed_log_types)
+    if date_from:
+        filters.append("(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date >= %s::date")
+        params.append(date_from)
+    if date_to:
+        filters.append("(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date <= %s::date")
+        params.append(date_to)
+
+    where = ("WHERE " + " AND ".join(filters)) if filters else ""
+    return filters, params, where
+
+@app.get("/logs")
+def get_logs(
+    limit:     int = 30,
+    offset:    int = 0,
+    search:    str = "",
+    station:   str = "",
+    type:      str = "",
+    date_from: str = "",
+    date_to:   str = "",
+    user=Depends(get_current_user)
+):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        filters, params, where = _build_log_filters(
+            search, station, type, date_from, date_to, user.get("role", "Operator")
+        )
+
+        # Get counts per type + total
+        cur.execute(f"""
+            SELECT type, COUNT(*) as count
+            FROM system_logs
+            {where}
+            GROUP BY type
+        """, params)
+        type_counts = { row["type"]: row["count"] for row in cur.fetchall() }
+
+        # Get paginated rows
+        cur.execute(f"""
+            SELECT id, station, type, message, user_name, timestamp
+            FROM system_logs
+            {where}
+            ORDER BY timestamp DESC
+            LIMIT %s OFFSET %s
+        """, params + [min(limit, 100), offset])
+        rows = cur.fetchall()
+
+        return {
+            "rows":   [dict(r) for r in rows],
+            "counts": {
+                "info":         type_counts.get("info",         0),
+                "baseline":     type_counts.get("baseline",     0),
+                "warning":      type_counts.get("warning",      0),
+                "danger":       type_counts.get("danger",       0),
+                "connectivity": type_counts.get("connectivity", 0),
+                "system":       type_counts.get("system",       0),
+                "total":        sum(type_counts.values()),
+            }
+        }
+    finally:
+        cur.close()
+        release_db(conn)
+
+@app.get("/logs/export")
+def export_logs(
+    search:    str = "",
+    station:   str = "",
+    type:      str = "",
+    date_from: str = "",
+    date_to:   str = "",
+    user=Depends(get_current_user)
+):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        filters, params, where = _build_log_filters(
+            search, station, type, date_from, date_to, user.get("role", "Operator")
+        )
+
+        cur.execute(f"""
+            SELECT id, station, type, message, user_name, timestamp
+            FROM system_logs
+            {where}
+            ORDER BY timestamp DESC
+        """, params)
+        rows = cur.fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        cur.close()
+        release_db(conn)
+
+# --- STATISTICS ---
+
+STATUS_TYPE_LABELS = {
+    "baseline": "BASE",
+    "info":     "NORMAL",
+    "warning":  "WARNING",
+    "danger":   "CRITICAL",
+}
+
+@app.get("/stats/status-breakdown")
+def stats_status_breakdown(
+    date_from: str = "",
+    date_to:   str = "",
+    user=Depends(get_current_user)
+):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        filters = ["type = ANY(%s)"]
+        params  = [list(STATUS_TYPE_LABELS.keys())]
+        if date_from:
+            filters.append("(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date >= %s::date")
+            params.append(date_from)
+        if date_to:
+            filters.append("(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date <= %s::date")
+            params.append(date_to)
+        where = "WHERE " + " AND ".join(filters)
+
+        cur.execute(f"""
+            SELECT
+                date_trunc('week', (timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila'))::date AS week_start,
+                type,
+                COUNT(*) AS count
+            FROM system_logs
+            {where}
+            GROUP BY week_start, type
+            ORDER BY week_start ASC
+        """, params)
+        rows = cur.fetchall()
+
+        weeks = {}
+        for row in rows:
+            wk = row["week_start"].isoformat()
+            if wk not in weeks:
+                weeks[wk] = {"BASE": 0, "NORMAL": 0, "WARNING": 0, "CRITICAL": 0, "total": 0}
+            label = STATUS_TYPE_LABELS.get(row["type"])
+            if label:
+                weeks[wk][label] += row["count"]
+                weeks[wk]["total"] += row["count"]
+
+        result = []
+        for wk in sorted(weeks.keys()):
+            w = weeks[wk]
+            total = w["total"] or 1  # avoid div-by-zero on an empty week
+            result.append({
+                "week_start":     wk,
+                "base_pct":       round(w["BASE"]     / total * 100, 1),
+                "normal_pct":     round(w["NORMAL"]   / total * 100, 1),
+                "warning_pct":    round(w["WARNING"]  / total * 100, 1),
+                "critical_pct":   round(w["CRITICAL"] / total * 100, 1),
+                "total_readings": w["total"],
+            })
+        return result
+    finally:
+        cur.close()
+        release_db(conn)
+
+@app.get("/stats/uptime")
+def stats_uptime(
+    date_from: str = "",
+    date_to:   str = "",
+    user=Depends(get_current_user)
+):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        filters = ["type = 'connectivity'"]
+        params  = []
+        if date_from:
+            filters.append("(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date >= %s::date")
+            params.append(date_from)
+        if date_to:
+            filters.append("(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date <= %s::date")
+            params.append(date_to)
+        where = "WHERE " + " AND ".join(filters)
+
+        cur.execute(f"""
+            SELECT message, timestamp
+            FROM system_logs
+            {where}
+            ORDER BY timestamp ASC
+        """, params)
+        rows = cur.fetchall()
+
+        if date_from:
+            range_start = datetime.fromisoformat(date_from)
+        else:
+            cur.execute("SELECT MIN(timestamp) AS earliest FROM sensor_readings")
+            earliest_row = cur.fetchone()
+            range_start = earliest_row["earliest"] if earliest_row and earliest_row["earliest"] else None
+
+        range_end = datetime.fromisoformat(date_to) if date_to else datetime.utcnow()
+
+        incidents      = []
+        offline_since  = None
+        for row in rows:
+            if "went offline" in row["message"]:
+                if offline_since is None:
+                    offline_since = row["timestamp"]
+                else:
+                    # A new "went offline" arrived while a prior incident was
+                    # still open — its closing "back online" log is missing
+                    # (this is what caused durations like 361h). Check
+                    # sensor_readings for real proof the station came back
+                    # online in between before treating this as two incidents.
+                    cur.execute("""
+                        SELECT MIN(timestamp) AS recovered_at
+                        FROM sensor_readings
+                        WHERE device_id = 'fews_1' AND timestamp > %s AND timestamp < %s
+                    """, (offline_since, row["timestamp"]))
+                    recovery_row = cur.fetchone()
+                    recovered_at = recovery_row["recovered_at"] if recovery_row else None
+                    if recovered_at is not None:
+                        # Confirmed real recovery in between — close the first
+                        # incident here and start tracking a new one.
+                        incidents.append({
+                            "start_ts":     offline_since.isoformat(),
+                            "duration_sec": (recovered_at - offline_since).total_seconds(),
+                            "ongoing":      False,
+                        })
+                        offline_since = row["timestamp"]
+                    # else: no reading found in between — the station likely
+                    # never actually recovered, so this "went offline" is
+                    # probably a stale duplicate. Keep the original
+                    # offline_since and ignore this row.
+            else:
+                if offline_since is not None:
+                    incidents.append({
+                        "start_ts":     offline_since.isoformat(),
+                        "duration_sec": (row["timestamp"] - offline_since).total_seconds(),
+                        "ongoing":      False,
+                    })
+                    offline_since = None
+
+        # A dangling "went offline" with no matching "back online" usually means
+        # the backend restarted and lost its in-memory offline-tracking state
+        # (see mqtt_bridge.py's _offline_logged dict) rather than a real ongoing
+        # outage. Before treating it as ongoing, check sensor_readings — if a
+        # reading exists after this timestamp, the device was clearly back up
+        # by then, so use that reading's time as the effective recovery point.
+        if offline_since is not None:
+            cur.execute("""
+                SELECT MIN(timestamp) AS recovered_at
+                FROM sensor_readings
+                WHERE device_id = 'fews_1' AND timestamp > %s
+            """, (offline_since,))
+            recovery_row = cur.fetchone()
+            recovered_at = recovery_row["recovered_at"] if recovery_row else None
+
+            if recovered_at is not None:
+                incidents.append({
+                    "start_ts":     offline_since.isoformat(),
+                    "duration_sec": (recovered_at - offline_since).total_seconds(),
+                    "ongoing":      False,
+                })
+            else:
+                incidents.append({
+                    "start_ts":     offline_since.isoformat(),
+                    "duration_sec": (range_end - offline_since).total_seconds(),
+                    "ongoing":      True,
+                })
+
+        total_seconds   = (range_end - range_start).total_seconds() if range_start else 0
+        downtime_seconds = sum(i["duration_sec"] for i in incidents)
+        uptime_pct = round((1 - downtime_seconds / total_seconds) * 100, 2) if total_seconds > 0 else 100.0
+
+        MIN_DISPLAY_SEC = 300  # 5 minutes — filters the LIST only, not the uptime % above
+        worst_incidents = sorted(
+            [i for i in incidents if i["duration_sec"] >= MIN_DISPLAY_SEC],
+            key=lambda i: i["start_ts"],
+            reverse=True
+        )
+
+        return {
+            "uptime_pct":       uptime_pct,
+            "total_incidents":  len(incidents),
+            "worst_incidents":  worst_incidents,
+        }
+    finally:
+        cur.close()
+        release_db(conn)
+
+@app.get("/stats/water-level")
+def stats_water_level(
+    date_from: str = "",
+    date_to:   str = "",
+    user=Depends(get_current_user)
+):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        filters = ["device_id = 'fews_1'"]
+        params  = []
+        if date_from:
+            filters.append("(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date >= %s::date")
+            params.append(date_from)
+        if date_to:
+            filters.append("(timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila')::date <= %s::date")
+            params.append(date_to)
+        where = "WHERE " + " AND ".join(filters)
+
+        if date_from and date_to:
+            span_days = (datetime.fromisoformat(date_to) - datetime.fromisoformat(date_from)).days
+        else:
+            cur.execute(f"""
+                SELECT MIN(timestamp) AS earliest, MAX(timestamp) AS latest
+                FROM sensor_readings {where}
+            """, params)
+            row = cur.fetchone()
+            span_days = (row["latest"] - row["earliest"]).days if row and row["earliest"] and row["latest"] else 0
+
+        bucket = "day" if span_days <= 60 else "week" if span_days <= 180 else "month"
+
+        cur.execute(f"""
+            SELECT
+                date_trunc('{bucket}', (timestamp AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Manila'))::date AS bucket_start,
+                MAX(water_level_cm) AS high,
+                AVG(water_level_cm) AS avg,
+                MIN(water_level_cm) AS low
+            FROM sensor_readings
+            {where}
+            GROUP BY bucket_start
+            ORDER BY bucket_start ASC
+        """, params)
+        rows = cur.fetchall()
+
+        return {
+            "bucket": bucket,
+            "series": [
+                {
+                    "bucket_start": r["bucket_start"].isoformat(),
+                    "high": round(r["high"], 1) if r["high"] is not None else None,
+                    "avg":  round(r["avg"], 1)  if r["avg"]  is not None else None,
+                    "low":  round(r["low"], 1)  if r["low"]  is not None else None,
+                }
+                for r in rows
+            ],
+        }
+    finally:
+        cur.close()
+        release_db(conn)
+
+# --- USER MANAGEMENT (Admin only) ---
+
+@app.get("/users")
+def list_users(user=Depends(get_current_user)):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT id, name, email, role, department, photo, phone, sms_enabled, created_at,
+                   notif_push_enabled, notif_audio_enabled, notif_banner_enabled, notif_ticker_enabled,
+                   unit_preference, map_preference
+            FROM users ORDER BY id
+        """)
+        return cur.fetchall()
+    finally:
+        cur.close()
+        release_db(conn)
+
+@app.post("/users")
+def create_user(req: CreateUserRequest, admin=Depends(require_admin)):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        if req.role not in VALID_ROLES:
+            raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {', '.join(VALID_ROLES)}")
+        cur.execute("SELECT id FROM users WHERE email = %s", (req.email,))
+        if cur.fetchone():
+            raise HTTPException(status_code=400, detail="Email already exists")
+        phone = None
+        if req.phone and req.phone.strip():
+            phone = normalize_ph_mobile(req.phone)
+            if not phone:
+                raise HTTPException(status_code=400, detail=PH_PHONE_ERROR)
+        cur.execute("""
+            INSERT INTO users (name, email, password, role, department, phone)
+            VALUES (%s, %s, %s, %s, %s, %s)
+            RETURNING id, name, email, role, department, phone
+        """, (req.name, req.email, hash_password(req.password), req.role, req.department, phone))
+        conn.commit()
+        return cur.fetchone()
+    finally:
+        cur.close()
+        release_db(conn)
+
+@app.put("/users/{user_id}")
+def update_user(user_id: int, req: UpdateUserRequest, admin=Depends(require_admin)):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        fields = []
+        values = []
+        if req.role is not None:
+            if req.role not in VALID_ROLES:
+                raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {', '.join(VALID_ROLES)}")
+            fields.append("role = %s")
+            values.append(req.role)
+        if req.department is not None:
+            fields.append("department = %s")
+            values.append(req.department)
+        if not fields:
+            raise HTTPException(status_code=400, detail="Nothing to update")
+        values.append(user_id)
+        cur.execute(
+            f"UPDATE users SET {', '.join(fields)} WHERE id = %s RETURNING id, name, email, role, department",
+            values
+        )
+        conn.commit()
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="User not found")
+        return row
+    finally:
+        cur.close()
+        release_db(conn)
+
+@app.delete("/users/{user_id}")
+def delete_user(user_id: int, admin=Depends(require_admin)):
+    admin_id = int(admin["sub"])
+    if user_id == admin_id:
+        raise HTTPException(status_code=400, detail="You cannot delete your own account.")
+
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        cur.execute("SELECT role FROM users WHERE id = %s", (user_id,))
+        target = cur.fetchone()
+        if not target:
+            raise HTTPException(status_code=404, detail="User not found")
+
+        if target["role"] == "Admin":
+            cur.execute("SELECT COUNT(*) as cnt FROM users WHERE role = 'Admin'")
+            count = cur.fetchone()["cnt"]
+            if count <= 1:
+                raise HTTPException(status_code=400, detail="Cannot remove the last Admin account.")
+
+        cur.execute(
+            "UPDATE users SET token_version = token_version + 1 WHERE id = %s",
+            (user_id,)
+        )
+        cur.execute("DELETE FROM users WHERE id = %s RETURNING id", (user_id,))
+        conn.commit()
+        if not cur.fetchone():
+            raise HTTPException(status_code=404, detail="User not found")
+        return {"ok": True}
+    finally:
+        cur.close()
+        release_db(conn)
+
+@app.get("/version")
+def get_version():
+    return {"deployed_at": DEPLOY_TIME}
+
+@app.get("/")
+def root():
+    return {"ok": True}
+
+# --- PUSH NOTIFICATIONS ---
+
+VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY", "")
+VAPID_PUBLIC_KEY  = os.environ.get("VAPID_PUBLIC_KEY", "")
+VAPID_CLAIMS      = {"sub": "mailto:cdrrmo@batangas.gov.ph"}
+
+@app.get("/push/vapid-public-key")
+def get_vapid_public_key():
+    return {"publicKey": VAPID_PUBLIC_KEY}
+
+@app.post("/push/subscribe")
+def push_subscribe(req: PushSubscribeRequest, user=Depends(get_current_user)):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        endpoint = req.subscription.get("endpoint", "")
+        if not endpoint:
+            raise HTTPException(status_code=400, detail="Invalid subscription")
+        user_id = int(user["sub"])
+        cur.execute("""
+            INSERT INTO push_subscriptions (endpoint, sub_json, user_id)
+            VALUES (%s, %s, %s)
+            ON CONFLICT (endpoint) DO UPDATE SET sub_json = EXCLUDED.sub_json, user_id = EXCLUDED.user_id
+        """, (endpoint, json.dumps(req.subscription), user_id))
+        conn.commit()
+        print(f"[PUSH] Subscription saved for user {user_id}")
+        return {"ok": True}
+    finally:
+        cur.close()
+        release_db(conn)
+
+@app.delete("/push/unsubscribe")
+def push_unsubscribe(req: PushSubscribeRequest, user=Depends(get_current_user)):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        endpoint = req.subscription.get("endpoint", "")
+        cur.execute("DELETE FROM push_subscriptions WHERE endpoint = %s", (endpoint,))
+        conn.commit()
+        return {"ok": True}
+    finally:
+        cur.close()
+        release_db(conn)
+
+# --- FEWS UNITS ---
+
+@app.get("/units")
+def get_units(user=Depends(get_current_user)):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        cur.execute("SELECT * FROM fews_units ORDER BY id")
+        return cur.fetchall()
+    finally:
+        cur.close()
+        release_db(conn)
+
+@app.put("/units/{device_id}")
+def update_unit(device_id: str, req: UpdateUnitRequest, user=Depends(get_current_user)):
+    if user["role"] not in ("Admin", "Operator"):
+        raise HTTPException(status_code=403, detail="Not authorized")
+
+    # Operators cannot edit unit information or alert thresholds (Admin only)
+    if user["role"] == "Operator":
+        if any(v is not None for v in [
+            req.installed_date, req.hw_technician, req.sw_technician, req.description,
+            req.threshold_warning, req.threshold_danger,
+        ]):
+            raise HTTPException(status_code=403, detail="Only Admins can update unit information or alert thresholds.")
+
+    # Server-side threshold validation
+    w = req.threshold_warning
+    d = req.threshold_danger
+    if w is not None:
+        if w < 100 or w % 100 != 0:
+            raise HTTPException(status_code=400, detail="Warning threshold must be a multiple of 100 and at least 100.")
+    if d is not None:
+        if d > 600 or d % 100 != 0:
+            raise HTTPException(status_code=400, detail="Danger threshold must be a multiple of 100 and at most 600.")
+    if w is not None and d is not None:
+        if d < w + 100:
+            raise HTTPException(status_code=400, detail="Danger threshold must be at least Warning + 100.")
+
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        fields, values = [], []
+        if req.installed_date    is not None: fields.append("installed_date = %s");    values.append(req.installed_date)
+        if req.hw_technician     is not None: fields.append("hw_technician = %s");     values.append(req.hw_technician)
+        if req.sw_technician     is not None: fields.append("sw_technician = %s");     values.append(req.sw_technician)
+        if req.description       is not None: fields.append("description = %s");       values.append(req.description)
+        if req.threshold_warning is not None: fields.append("threshold_warning = %s"); values.append(req.threshold_warning)
+        if req.threshold_danger  is not None: fields.append("threshold_danger = %s");  values.append(req.threshold_danger)
+        if not fields:
+            raise HTTPException(status_code=400, detail="No fields to update")
+        fields.append("updated_at = NOW()")
+        values.append(device_id)
+        cur.execute(f"UPDATE fews_units SET {', '.join(fields)} WHERE device_id = %s RETURNING *", values)
+        conn.commit()
+        row = cur.fetchone()
+        if not row:
+            raise HTTPException(status_code=404, detail="Unit not found")
+
+        # Publish new thresholds to Arduino if thresholds were updated
+        if req.threshold_warning is not None or req.threshold_danger is not None:
+            from mqtt_bridge import publish_config
+            publish_config(device_id, row["threshold_warning"], row["threshold_danger"])
+
+        return row
+    finally:
+        cur.close()
+        release_db(conn)
+
+# --- MANUAL FEWS UNITS ---
+
+@app.get("/manual-units")
+def get_manual_units(user=Depends(get_current_user)):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        cur.execute("SELECT * FROM manual_fews_units ORDER BY id")
+        return cur.fetchall()
+    finally:
+        cur.close()
+        release_db(conn)
+
+@app.put("/manual-units/{device_id}")
+def update_manual_unit(device_id: str, req: UpdateManualUnitRequest, admin=Depends(require_admin)):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        cur.execute("SELECT * FROM manual_fews_units WHERE device_id = %s", (device_id,))
+        existing = cur.fetchone()
+        if not existing:
+            raise HTTPException(status_code=404, detail="Manual unit not found")
+
+        fields, values = [], []
+        if req.latitude       is not None: fields.append("latitude = %s");       values.append(req.latitude)
+        if req.longitude      is not None: fields.append("longitude = %s");      values.append(req.longitude)
+        if req.installed_date is not None: fields.append("installed_date = %s"); values.append(req.installed_date)
+        if req.status         is not None: fields.append("status = %s");         values.append(req.status)
+        if req.hw_technician  is not None: fields.append("hw_technician = %s");  values.append(req.hw_technician)
+        if req.description    is not None: fields.append("description = %s");    values.append(req.description)
+        if not fields:
+            raise HTTPException(status_code=400, detail="No fields to update")
+        fields.append("updated_at = NOW()")
+        values.append(device_id)
+
+        cur.execute(
+            f"UPDATE manual_fews_units SET {', '.join(fields)} WHERE device_id = %s RETURNING *",
+            values
+        )
+        row = cur.fetchone()
+
+        admin_id = int(admin["sub"])
+        cur.execute("SELECT name FROM users WHERE id = %s", (admin_id,))
+        admin_row  = cur.fetchone()
+        admin_name = admin_row["name"] if admin_row else "Unknown"
+
+        if req.status is not None and req.status != existing["status"]:
+            message = (
+                f"Manual {row['name']} ({row['location']}) status changed from "
+                f"{existing['status'].capitalize()} to {row['status'].capitalize()} by {admin_name}"
+            )
+        else:
+            message = f"Manual {row['name']} ({row['location']}) station information updated by {admin_name}"
+
+        cur.execute("""
+            INSERT INTO system_logs (station, type, message, user_name)
+            VALUES (%s, %s, %s, %s)
+        """, ("Manual FEWS", "system", message, admin_name))
+
+        conn.commit()
+        return row
+    except HTTPException:
+        conn.rollback()
+        raise
+    finally:
+        cur.close()
+        release_db(conn)
+
+# --- SIREN CONTROL ---
+
+@app.post("/siren/{device_id}")
+def control_siren(device_id: str, req: SirenRequest, user=Depends(get_current_user)):
+    from mqtt_bridge import publish_siren
+    publish_siren(device_id, req.state)
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        cur.execute(
+            "UPDATE fews_units SET siren_state = %s, siren_auto_triggered = FALSE, siren_manual_off = %s WHERE device_id = %s",
+            (req.state == "on", req.state == "off", device_id)
+        )
+        cur.execute("SELECT name, location FROM fews_units WHERE device_id = %s", (device_id,))
+        unit = cur.fetchone()
+        user_id = int(user["sub"])
+        cur.execute("SELECT name FROM users WHERE id = %s", (user_id,))
+        user_row = cur.fetchone()
+        user_name = user_row["name"] if user_row else "Unknown"
+        station_name = unit["name"] if unit else device_id
+        location     = unit["location"] if unit else ""
+        action_msg = (
+            f"{station_name} ({location}) siren has been manually activated by {user_name}"
+            if req.state == "on"
+            else f"{station_name} ({location}) siren has been silenced by {user_name}"
+        )
+        cur.execute("""
+            INSERT INTO system_logs (station, type, message, user_name)
+            VALUES (%s, %s, %s, %s)
+        """, (station_name, "system", action_msg, user_name))
+        conn.commit()
+    finally:
+        cur.close()
+        release_db(conn)
+    return {"ok": True}
+
+=========================================
+FILE: backend/database.py
+=========================================
+
+import psycopg2
+import psycopg2.extras
+import psycopg2.pool
+import os
+import time
+import threading
+
+DATABASE_URL = os.environ.get("DATABASE_URL")
+if not DATABASE_URL:
+    raise RuntimeError("[DB] DATABASE_URL environment variable is not set")
+
+_pool = None
+_pool_fail_count = 0
+_pool_lock = threading.Lock()
+_resetting = False
+MAX_POOL_FAILS = 3
+
+def get_pool():
+    global _pool
+    if _pool is not None:
+        return _pool
+    _pool = psycopg2.pool.ThreadedConnectionPool(
+        minconn=1,
+        maxconn=15,
+        dsn=DATABASE_URL + "?connect_timeout=30",
+        cursor_factory=psycopg2.extras.RealDictCursor
+    )
+    print("[DB] Connection pool created successfully")
+    return _pool
+
+def reset_pool():
+    global _pool, _pool_fail_count, _resetting
+    with _pool_lock:
+        if _resetting:
+            return
+        _resetting = True
+        _pool_fail_count = 0
+
+    print("[DB] Resetting connection pool...")
+    try:
+        with _pool_lock:
+            old_pool = _pool  # save reference
+            print(f"[DB] Destroying old pool id={id(old_pool)}")
+            _pool = None
+
+        time.sleep(2)  # let in-flight requests finish
+
+        # NOW close the old pool after requests have had time to complete
+        if old_pool is not None:
+            try:
+                old_pool.closeall()
+            except Exception:
+                pass
+
+        with _pool_lock:
+            get_pool()
+            print(f"[DB] New pool id={id(_pool)}")
+    except Exception as e:
+        print(f"[DB] Pool reset failed: {e}")
+    finally:
+        with _pool_lock:
+            _resetting = False
+
+def get_db():
+    global _pool_fail_count
+    try:
+        with _pool_lock:
+            pool = get_pool()
+            conn = pool.getconn()
+            print(f"[DB] Got conn id={id(conn)} from pool id={id(pool)}")
+        conn.autocommit = False
+        with _pool_lock:
+            _pool_fail_count = 0
+        return conn
+    except psycopg2.pool.PoolError as e:
+        print(f"[DB] Pool exhausted: {e}")
+        raise psycopg2.OperationalError("Database pool exhausted, try again shortly")
+    except psycopg2.OperationalError as e:
+        with _pool_lock:
+            _pool_fail_count += 1
+            count = _pool_fail_count
+            should_reset = count >= MAX_POOL_FAILS and not _resetting
+        print(f"[DB] Connection failed ({count}/{MAX_POOL_FAILS}): {e}")
+        if should_reset:
+            print("[DB] Too many failures — forcing pool reset")
+            t = threading.Thread(target=reset_pool, daemon=True)
+            t.start()
+        raise
+    except Exception as e:
+        print(f"[DB] Unexpected error getting connection: {e}")
+        raise
+
+def release_db(conn):
+    if conn is None:
+        return
+    pool = None
+    try:
+        if not conn.closed:
+            try:
+                conn.rollback()
+            except Exception:
+                pass
+        with _pool_lock:
+            pool = get_pool()
+            print(f"[DB] Releasing conn id={id(conn)} to pool id={id(pool)}")
+            print(f"[DB] Pool stats: used={len(pool._used)}, free={len(pool._pool)}")
+            pool.putconn(conn)
+            print(f"[DB] Released successfully")
+    except Exception as e:
+        print(f"[DB] Failed to release connection: {e}")
+        print(f"[DB] conn id={id(conn)}, pool id={id(pool) if pool else 'None'}")
+        if pool is not None:
+            try:
+                print(f"[DB] conn in pool._used: {id(conn) in [id(c) for c in pool._used.values()]}")
+            except Exception:
+                pass
+        try:
+            conn.close()
+        except Exception:
+            pass
+
+def close_pool():
+    global _pool
+    with _pool_lock:
+        if _pool is not None:
+            try:
+                _pool.closeall()
+                print("[DB] Connection pool closed")
+            except Exception as e:
+                print(f"[DB] Error closing pool: {e}")
+            finally:
+                _pool = None
+
+def init_db():
+    conn = None
+    for attempt in range(3):
+        try:
+            conn = get_db()
+            break
+        except psycopg2.OperationalError as e:
+            print(f"[DB] init_db attempt {attempt + 1}/3 failed: {e}")
+            if attempt < 2:
+                time.sleep(5)
+            else:
+                print("[DB] init_db giving up — DB unavailable at startup")
+                return
+
+    if conn is None:
+        return
+
+    try:
+        print("[DB] Database connection verified successfully")
+    finally:
+        release_db(conn)
+
+=========================================
+FILE: backend/auth.py
+=========================================
+
+import bcrypt
+import jwt
+import os
+from datetime import datetime, timedelta, timezone
+
+SECRET_KEY = os.environ.get("SECRET_KEY")
+if not SECRET_KEY:
+    raise RuntimeError("[AUTH] SECRET_KEY environment variable is not set")
+ALGORITHM = "HS256"
+
+def hash_password(plain: str) -> str:
+    return bcrypt.hashpw(plain.encode(), bcrypt.gensalt()).decode()
+
+def verify_password(plain: str, hashed: str) -> bool:
+    return bcrypt.checkpw(plain.encode(), hashed.encode())
+
+def create_token(user_id: int, role: str, token_version: int = 0, remember_me: bool = False) -> str:
+    expiry = timedelta(days=30) if remember_me else timedelta(hours=12)
+    payload = {
+        "sub":           str(user_id),
+        "role":          role,
+        "token_version": token_version,
+        "exp":           datetime.now(timezone.utc) + expiry,
+    }
+    return jwt.encode(payload, SECRET_KEY, algorithm=ALGORITHM)
+
+def decode_token(token: str) -> dict:
+    return jwt.decode(token, SECRET_KEY, algorithms=[ALGORITHM])
+
+=========================================
+FILE: backend/models.py
+=========================================
+
+from pydantic import BaseModel
+from typing import Optional, Literal
+
+
+class LoginRequest(BaseModel):
+    username:    str
+    password:    str
+    remember_me: bool = False
+
+class CreateUserRequest(BaseModel):
+    name:       str
+    email:      str
+    password:   str
+    role:       str = "Operator"
+    department: str = "Operations"
+    phone:      Optional[str] = None
+
+class UpdateUserRequest(BaseModel):
+    role:       Optional[str] = None
+    department: Optional[str] = None
+
+class UpdateProfileRequest(BaseModel):
+    name:  Optional[str] = None
+    photo: Optional[str] = None
+
+class ChangeEmailRequest(BaseModel):
+    email: str
+
+class ChangePasswordRequest(BaseModel):
+    current_password: str
+    new_password:     str
+
+class ChangePhoneRequest(BaseModel):
+    phone: str
+
+class SmsEnabledRequest(BaseModel):
+    sms_enabled: bool
+
+class CreateLogRequest(BaseModel):
+    station:   str = "System"
+    type:      str = "system"
+    message:   str
+    user_name: Optional[str] = None
+
+class SirenRequest(BaseModel):
+    state: Literal["on", "off"]
+
+class UpdateUnitRequest(BaseModel):
+    installed_date:    Optional[str]   = None
+    hw_technician:     Optional[str]   = None
+    sw_technician:     Optional[str]   = None
+    description:       Optional[str]   = None
+    threshold_warning: Optional[int]   = None
+    threshold_danger:  Optional[int]   = None
+    
+# AFTER — end of models.py
+class PushSubscribeRequest(BaseModel):
+    subscription: dict
+
+class UpdateNotifPrefsRequest(BaseModel):
+    push_enabled:   Optional[bool] = None
+    audio_enabled:  Optional[bool] = None
+    banner_enabled: Optional[bool] = None
+    ticker_enabled: Optional[bool] = None
+
+class UpdateDisplayPrefsRequest(BaseModel):
+    unit_preference: Literal["cm", "m", "ft", "in"]
+
+class UpdateManualUnitRequest(BaseModel):
+    latitude:       Optional[float] = None
+    longitude:      Optional[float] = None
+    installed_date: Optional[str]   = None
+    status:         Optional[Literal["serviceable", "unserviceable"]] = None
+    hw_technician:  Optional[str]   = None
+    description:    Optional[str]   = None
+
+=========================================
+FILE: backend/requirements.txt
+=========================================
+
+annotated-doc==0.0.4
+annotated-types==0.7.0
+anyio==4.12.1
+bcrypt==5.0.0
+cachetools==6.2.6
+certifi==2026.2.25
+cffi==2.0.0
+charset-normalizer==3.4.6
+click==8.3.1
+colorama==0.4.6
+cryptography==46.0.5
+Deprecated==1.3.1
+deprecation==2.1.0
+fastapi==0.135.2
+fsspec==2026.2.0
+h11==0.16.0
+h2==4.3.0
+hpack==4.1.0
+httpcore==1.0.9
+httpx==0.28.1
+hyperframe==6.1.0
+idna==3.11
+limits==5.8.0
+markdown-it-py==4.0.0
+mdurl==0.1.2
+mmh3==5.2.1
+multidict==6.7.1
+packaging==26.0
+paho-mqtt==2.1.0
+pywebpush==2.0.0
+postgrest==2.28.3
+propcache==0.4.1
+psycopg2-binary==2.9.11
+pycparser==3.0
+pydantic==2.12.5
+pydantic_core==2.41.5
+Pygments==2.19.2
+pyiceberg==0.11.1
+PyJWT==2.12.1
+pyparsing==3.3.2
+pyroaring==1.0.4
+python-dateutil==2.9.0.post0
+python-multipart==0.0.22
+realtime==2.28.3
+requests==2.32.5
+rich==14.3.3
+six==1.17.0
+slowapi==0.1.9
+starlette==1.0.0
+storage3==2.28.3
+StrEnum==0.4.15
+strictyaml==1.7.3
+supabase==2.28.3
+supabase-auth==2.28.3
+supabase-functions==2.28.3
+tenacity==9.1.4
+typing-inspection==0.4.2
+typing_extensions==4.15.0
+urllib3==2.6.3
+uvicorn==0.42.0
+websockets==15.0.1
+wrapt==2.1.2
+yarl==1.23.0
+zstandard==0.25.0
+
+
+=========================================
+FILE: backend/render.yaml
+=========================================
+
+# render.yaml — place this in your /backend folder when deploying to Render
+# Render will auto-detect this file and configure the service.
+
+services:
+  - type: web
+    name: cdrrmo-fews-backend
+    runtime: python-3.11.0
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn main:app --host 0.0.0.0 --port $PORT
+
+

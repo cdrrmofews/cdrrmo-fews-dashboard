@@ -157,7 +157,7 @@ def invalidate_threshold_cache(device_id="fews_1"):
         del _threshold_cache[device_id]
 
 def get_baseline_cutoff(threshold_warning):
-    return min(100, threshold_warning)
+    return min(125, threshold_warning)
 
 def water_level_to_type(water_level_cm, threshold_warning=200, threshold_danger=300):
     if water_level_cm is None:

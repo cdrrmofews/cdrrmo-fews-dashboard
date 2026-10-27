@@ -484,7 +484,7 @@ const STATUS_CONFIG = {
   CRITICAL: { color: "#ef4444", bg: "rgba(239,68,68,0.12)",  label: "CRITICAL" },
 };
 
-const BASELINE_CM = 100;
+const BASELINE_CM = 125;
 
 function getBaselineCutoff(thresholds) {
   return Math.min(BASELINE_CM, thresholds.warning);
@@ -906,13 +906,14 @@ const BREAKDOWN_SEGS = [
   { key: "critical_pct", label: "Critical", color: "#ef4444" },
 ];
 
-function StatisticsPage({ userRole, token, manualFews, unitPref, thresholds, thresholdsLoaded }) {
+function StatisticsPage({ userRole, token, manualFews, unitPref, thresholds, thresholdsLoaded, showToast }) {
   const [preset, setPreset]         = useState("30d");
   const [customFrom, setCustomFrom] = useState("");
   const [customTo, setCustomTo]     = useState("");
   const [loading, setLoading]       = useState(true);
   const [error, setError]           = useState(false);
   const [refreshTick, setRefreshTick] = useState(0); // bumped by pull to refresh
+  const [pdfBusy, setPdfBusy] = useState(false);
 
   const [waterLevel, setWaterLevel]           = useState(null);
   const [statusBreakdown, setStatusBreakdown] = useState(null);
@@ -988,6 +989,21 @@ function StatisticsPage({ userRole, token, manualFews, unitPref, thresholds, thr
   const current  = summarize(waterLevel, statusBreakdown, uptime);
   const previous = summarize(prevWaterLevel, prevStatusBreakdown, prevUptime);
 
+  // Export is only available once the numbers for the chosen range are loaded
+  const canExport = !!(hasValidRange && shadow && current && previous && waterLevel && statusBreakdown && uptime && !loading && !error);
+  const handleExportPdf = async () => {
+    if (!canExport || pdfBusy) return;
+    setPdfBusy(true);
+    try {
+      await exportStatsToPDF(
+        { range, shadow, unitPref, thresholds, thresholdsLoaded, current, previous, waterLevel, statusBreakdown, uptime, manualFews },
+        showToast
+      );
+    } finally {
+      setPdfBusy(false);
+    }
+  };
+
   // Same status logic as the Dashboard chart dots
   const peakColor = (current?.peak == null || !thresholdsLoaded) ? undefined
     : current.peak > thresholds.danger  ? "#ef4444"
@@ -1015,6 +1031,17 @@ function StatisticsPage({ userRole, token, manualFews, unitPref, thresholds, thr
             emptyLabel="Custom range"
             onChange={(v) => { setCustomFrom(v.from); setCustomTo(v.to); setPreset("custom"); }}
           />
+          <button type="button" className="stats-export-btn" onClick={handleExportPdf}
+            disabled={!canExport || pdfBusy} title="Export to PDF" aria-label="Export to PDF">
+            {pdfBusy
+              ? <span className="btn-spinner" style={{ borderColor: "rgba(56,189,248,0.3)", borderTopColor: "#38bdf8" }} />
+              : (
+                <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+                  <path d="M7.5 1v9M4 7l3.5 3.5L11 7M2 13h11" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              )}
+            <span className="stats-export-label">Export to PDF</span>
+          </button>
         </div>
         {hasValidRange && shadow && (
           <div className="stats-compare-note">
@@ -1614,6 +1641,455 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
     .then(() => load("https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"))
     .then(doIt)
     .catch(() => showToast("PDF export failed — could not load required library. Check your internet connection."));
+}
+
+// ─── STATISTICS PDF ───────────────────────────────────────────────────────────
+// One A4 landscape page, drawn with jsPDF only (same CDN script the Logs PDF uses, no new library).
+function loadScriptOnce(src, isReady) {
+  return new Promise((res, rej) => {
+    if (isReady()) { res(); return; }
+    const s = document.createElement("script");
+    s.src = src; s.onload = res; s.onerror = rej;
+    document.head.appendChild(s);
+  });
+}
+
+// Same wording and rules as DeltaBadge, but returns plain data for the PDF.
+// dir: 1 = up, -1 = down, 0 = no arrow. The arrow is drawn as a triangle (the built-in PDF fonts have no ▲ ▼).
+function statsDelta(current, previous, mode = "neutral", pointsMode = false, precision = 1) {
+  const GOOD = [21, 128, 61], BAD = [185, 28, 28], FLAT = [100, 116, 139];
+  if (current == null) return { dir: 0, text: "", rgb: FLAT };
+  if (previous == null) return { dir: 0, text: "No prior-period data", rgb: FLAT };
+  const pick = (isUp) =>
+    mode === "goodUp" ? (isUp ? GOOD : BAD) : mode === "goodDown" ? (isUp ? BAD : GOOD) : FLAT;
+  if (previous === 0) {
+    if (current === 0) return { dir: 0, text: "No change vs prior period", rgb: FLAT };
+    const isUp = current > 0;
+    const amount = Number.isInteger(current) ? Math.abs(current) : Math.abs(current).toFixed(precision);
+    return { dir: isUp ? 1 : -1, text: `${amount}${pointsMode ? " pts" : ""} more than prior period`, rgb: pick(isUp) };
+  }
+  const diff = pointsMode ? (current - previous) : ((current - previous) / Math.abs(previous)) * 100;
+  if (Math.abs(diff) < 0.05) return { dir: 0, text: "No change vs prior period", rgb: FLAT };
+  const isUp = diff > 0;
+  return {
+    dir: isUp ? 1 : -1,
+    text: `${Math.abs(diff).toFixed(precision)}${pointsMode ? " pts" : "%"} vs prior period`,
+    rgb: pick(isUp),
+  };
+}
+
+function exportStatsToPDF(opts, showToast = () => {}) {
+  return new Promise((resolve) => {
+    const build = (logo) => {
+      try {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
+        const pageW   = doc.internal.pageSize.getWidth();
+        const pageH   = doc.internal.pageSize.getHeight();
+        const M       = 30;
+        const centerX = pageW / 2;
+        const fmtLong = (iso) => new Date(iso + "T00:00:00").toLocaleDateString("en-PH", { month: "short", day: "numeric", year: "numeric" });
+
+        // ── Header (same look as the Logs PDF) ──
+        let y = 24;
+        if (logo && logo.naturalWidth && logo.naturalHeight) {
+          const bh = 94;
+          const bw = Math.min(pageW - M * 2, bh * (logo.naturalWidth / logo.naturalHeight));
+          doc.addImage(logo, "PNG", (pageW - bw) / 2, y, bw, bh, "cdrrmoLogo");
+          y += bh - 10; // the banner image has empty space at the bottom, same trick as the Logs PDF
+        }
+        doc.setDrawColor(0, 0, 0);
+        doc.setLineWidth(0.5);
+        doc.line(M, y, pageW - M, y);
+
+        y += 13;
+        doc.setFont("times", "bold");
+        doc.setFontSize(11);
+        doc.setTextColor(0, 0, 0);
+        doc.text("FEWS STATISTICS REPORT", centerX, y, { align: "center" });
+
+        y += 11;
+        doc.setFont("times", "normal");
+        doc.setFontSize(8);
+        doc.setTextColor(80, 80, 80);
+        doc.text(
+          `Range: ${fmtLong(opts.range.from)} – ${fmtLong(opts.range.to)}  ·  Compared with: ${fmtLong(opts.shadow.from)} – ${fmtLong(opts.shadow.to)}`,
+          centerX, y, { align: "center" }
+        );
+        y += 10;
+        doc.text(
+          `Generated: ${new Date().toLocaleString("en-PH", { timeZone: "Asia/Manila" })}  ·  FEWS 1  ·  Unit: ${opts.unitPref}`,
+          centerX, y, { align: "center" }
+        );
+        y += 12;
+
+        const contentTop    = y;           // the body of the page starts here
+        const contentBottom = pageH - 24;  // and must end above this line
+
+        // ── Layout shared by every card (steps 3 and 4 reuse these) ──
+        const gap    = 8;
+        const kpiH   = 46;
+        const bodyY  = contentTop + kpiH + gap;
+        const bodyH  = contentBottom - bodyY;
+        const leftX  = M;
+        const leftW  = Math.round((pageW - M * 2 - gap) * 0.62);
+        const rightX = leftX + leftW + gap;
+        const rightW = pageW - M - rightX;
+        const halfH  = (bodyH - gap) / 2;     // the two cards in the left column
+        const trendY  = bodyY;
+        const weeklyY = bodyY + halfH + gap;
+        const splitH  = 74;                   // the three cards in the right column
+        const manualH = 56;
+        const manualY = bodyY + splitH + gap;
+        const incY    = manualY + manualH + gap;
+        const incH    = contentBottom - incY;
+
+        const RGB = {
+          base: [226, 232, 240], normal: [253, 224, 71], warning: [249, 115, 22], critical: [239, 68, 68],
+          ink: [15, 23, 42], mute: [71, 85, 105], line: [203, 213, 225], edge: [148, 163, 184],
+        };
+        const card = (x, cy, w, h, title) => {
+          doc.setDrawColor(...RGB.line);
+          doc.setLineWidth(0.6);
+          doc.rect(x, cy, w, h);
+          if (title) {
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(8);
+            doc.setTextColor(...RGB.ink);
+            doc.text(title, x + 8, cy + 13);
+          }
+        };
+
+        const { current, previous, thresholds, thresholdsLoaded, unitPref } = opts;
+
+        // ── Four summary boxes ──
+        // Peak color follows the same rule as the Statistics page (Base / Normal / Warning / Critical), in deeper shades for paper
+        const peakRgb = (current?.peak == null || !thresholdsLoaded) ? RGB.ink
+          : current.peak > thresholds.danger  ? [185, 28, 28]
+          : current.peak > thresholds.warning ? [194, 65, 12]
+          : current.peak < getBaselineCutoff(thresholds) ? [71, 85, 105]
+          : [161, 98, 7];
+        const kpis = [
+          { label: "AVERAGE WATER LEVEL", value: current?.avg  != null ? formatWaterLevel(current.avg, unitPref)  : "—", rgb: RGB.ink, delta: statsDelta(current?.avg,  previous?.avg,  "neutral") },
+          { label: "PEAK READING",        value: current?.peak != null ? formatWaterLevel(current.peak, unitPref) : "—", rgb: peakRgb, delta: statsDelta(current?.peak, previous?.peak, "neutral") },
+          { label: "WEEKS WITH ALERTS",   value: current ? `${current.weeksWithAlerts} of ${current.totalWeeks}` : "—",  rgb: RGB.ink, delta: statsDelta(current?.weeksWithAlerts, previous?.weeksWithAlerts, "goodDown") },
+          { label: "FEWS 1 UPTIME",       value: current?.uptimePct != null ? `${current.uptimePct}%` : "—",             rgb: RGB.ink, delta: statsDelta(current?.uptimePct, previous?.uptimePct, "goodUp", true, 2) },
+        ];
+        const kpiW = (pageW - M * 2 - gap * 3) / 4;
+        kpis.forEach((k, i) => {
+          const x = M + i * (kpiW + gap);
+          card(x, contentTop, kpiW, kpiH, null);
+          doc.setFont("helvetica", "bold");
+          doc.setFontSize(6.5);
+          doc.setTextColor(...RGB.mute);
+          doc.text(k.label, x + 8, contentTop + 12);
+          doc.setFontSize(15);
+          doc.setTextColor(...k.rgb);
+          doc.text(String(k.value), x + 8, contentTop + 29);
+          const d = k.delta;
+          if (d.text) {
+            let tx = x + 8;
+            if (d.dir !== 0) {
+              const ty = contentTop + 38.5;
+              doc.setFillColor(...d.rgb);
+              if (d.dir > 0) doc.triangle(tx, ty + 2.25, tx + 4.5, ty + 2.25, tx + 2.25, ty - 2.25, "F");
+              else           doc.triangle(tx, ty - 2.25, tx + 4.5, ty - 2.25, tx + 2.25, ty + 2.25, "F");
+              tx += 8;
+            }
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(7);
+            doc.setTextColor(...d.rgb);
+            doc.text(d.text, tx, contentTop + 41);
+          }
+        });
+
+        // ── Status split, whole range (weekly percentages weighted by each week's readings) ──
+        card(rightX, bodyY, rightW, splitH, "Status split, whole range");
+        const sb = Array.isArray(opts.statusBreakdown) ? opts.statusBreakdown : [];
+        const segs = [
+          { label: "Base",     key: "base_pct",     rgb: RGB.base },
+          { label: "Normal",   key: "normal_pct",   rgb: RGB.normal },
+          { label: "Warning",  key: "warning_pct",  rgb: RGB.warning },
+          { label: "Critical", key: "critical_pct", rgb: RGB.critical },
+        ];
+        const totalReadings = sb.reduce((a, w) => a + (w.total_readings || 0), 0);
+        const shares = segs.map(s =>
+          totalReadings ? sb.reduce((a, w) => a + (w[s.key] || 0) * (w.total_readings || 0), 0) / totalReadings : 0
+        );
+        const barX = rightX + 8, barW = rightW - 16, barY = bodyY + 22;
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7.5);
+        if (totalReadings > 0) {
+          let bx = barX;
+          shares.forEach((p, i) => {
+            const w = barW * p / 100;
+            if (w <= 0) return;
+            doc.setFillColor(...segs[i].rgb);
+            doc.rect(bx, barY, w, 14, "F");
+            bx += w;
+          });
+          doc.setDrawColor(...RGB.edge);
+          doc.setLineWidth(0.5);
+          doc.rect(barX, barY, barW, 14);
+          segs.forEach((s, i) => {
+            const lx = barX + (i % 2) * (barW / 2);
+            const ly = barY + 26 + Math.floor(i / 2) * 11;
+            doc.setFillColor(...s.rgb);
+            doc.setDrawColor(...RGB.edge);
+            doc.setLineWidth(0.4);
+            doc.rect(lx, ly - 5.5, 6, 6, "FD");
+            const p = shares[i];
+            doc.setTextColor(...RGB.ink);
+            doc.text(`${s.label} ${p > 0 && p < 1 ? "<1" : Math.round(p)}%`, lx + 10, ly);
+          });
+        } else {
+          doc.setTextColor(...RGB.mute);
+          doc.text("No status data for this range.", barX, barY + 10);
+        }
+
+        // ── Manual station health ──
+        card(rightX, manualY, rightW, manualH, "Manual station health");
+        const mf = Array.isArray(opts.manualFews) ? opts.manualFews : [];
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7.5);
+        if (mf.length) {
+          const ok  = mf.filter(m => m.status === "serviceable").length;
+          const pct = Math.round((ok / mf.length) * 100);
+          const mY  = manualY + 22;
+          doc.setFillColor(100, 116, 139);
+          doc.rect(barX, mY, barW, 10, "F");
+          if (ok > 0) {
+            doc.setFillColor(56, 189, 248);
+            doc.rect(barX, mY, barW * (ok / mf.length), 10, "F");
+          }
+          doc.setDrawColor(...RGB.edge);
+          doc.setLineWidth(0.5);
+          doc.rect(barX, mY, barW, 10);
+          doc.setTextColor(...RGB.ink);
+          doc.text(`${ok} of ${mf.length} serviceable (${pct}%)`, barX, manualY + 46);
+        } else {
+          doc.setTextColor(...RGB.mute);
+          doc.text("No manual station data.", barX, manualY + 32);
+        }
+
+        // ── Water level trend (drawn with lines, print colors) ──
+        card(leftX, trendY, leftW, halfH, "Water level trend");
+        const wl     = opts.waterLevel;
+        const series = Array.isArray(wl?.series) ? wl.series : [];
+        const trendColors = { high: [124, 58, 237], avg: [13, 148, 136], low: [100, 116, 139] };
+
+        // legend, top right of the card (drawn right to left, so it reads High · Average · Low)
+        let lgx = leftX + leftW - 8;
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7);
+        [["Low", trendColors.low], ["Average", trendColors.avg], ["High", trendColors.high]].forEach(([name, c]) => {
+          const tw = doc.getTextWidth(name);
+          doc.setTextColor(...RGB.ink);
+          doc.text(name, lgx - tw, trendY + 13);
+          doc.setFillColor(...c);
+          doc.rect(lgx - tw - 9, trendY + 7, 6, 6, "F");
+          lgx -= tw + 9 + 8;
+        });
+
+        const tpx = leftX + 42, tpw = leftW - 42 - 12;
+        const tpy = trendY + 24, tph = halfH - 24 - 20;
+        if (series.length) {
+          // same axis rules as the on-screen trend chart
+          const highs   = series.map(s => s.high).filter(v => v != null);
+          const dataMax = highs.length ? Math.max(...highs) : 0;
+          const showCritical = thresholdsLoaded && dataMax >= thresholds.warning;
+          const rawTop = !thresholdsLoaded ? Math.max(100, dataMax * 1.1)
+            : showCritical ? Math.max(thresholds.danger * 1.1, dataMax * 1.1)
+            : Math.max(thresholds.warning * 1.15, dataMax * 1.1);
+          const yMax   = Math.ceil(rawTop / 50) * 50;
+          const stepCm = Math.ceil(yMax / 4 / 50) * 50;
+          const yOf = (v) => tpy + tph - (v / yMax) * tph;
+          const xOf = (i) => series.length === 1 ? tpx + tpw / 2 : tpx + (i * tpw) / (series.length - 1);
+
+          // grid and y labels
+          doc.setDrawColor(226, 232, 240);
+          doc.setLineWidth(0.4);
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(6.5);
+          doc.setTextColor(...RGB.mute);
+          for (let v = 0; v <= yMax; v += stepCm) {
+            doc.line(tpx, yOf(v), tpx + tpw, yOf(v));
+            doc.text(formatWaterLevel(v, unitPref), tpx - 4, yOf(v) + 2, { align: "right" });
+          }
+
+          // Warning line always, Critical only once the data reached Warning (same as the screen)
+          const thrLine = (v, rgb, label) => {
+            const ty = yOf(v);
+            doc.setDrawColor(...rgb);
+            doc.setLineWidth(0.9);
+            doc.setLineDashPattern([3, 2], 0);
+            doc.line(tpx, ty, tpx + tpw, ty);
+            doc.setLineDashPattern([], 0);
+            doc.setFont("helvetica", "bold");
+            doc.setFontSize(6.5);
+            const tw = doc.getTextWidth(label);
+            doc.setFillColor(255, 255, 255);
+            doc.rect(tpx + tpw - tw - 8, ty - 9, tw + 6, 8, "F");
+            doc.setTextColor(...rgb);
+            doc.text(label, tpx + tpw - 5, ty - 3, { align: "right" });
+          };
+          if (thresholdsLoaded) {
+            thrLine(thresholds.warning, [194, 65, 12], `Warning ${formatWaterLevel(thresholds.warning, unitPref)}`);
+            if (showCritical) thrLine(thresholds.danger, [185, 28, 28], `Critical ${formatWaterLevel(thresholds.danger, unitPref)}`);
+          }
+
+          // the three lines (a gap in the data breaks the line)
+          const drawSeries = (key, rgb) => {
+            doc.setDrawColor(...rgb);
+            doc.setFillColor(...rgb);
+            doc.setLineWidth(1.1);
+            let prev = null;
+            series.forEach((s, i) => {
+              const v = s[key];
+              if (v == null) { prev = null; return; }
+              const x = xOf(i), y = yOf(v);
+              if (prev) doc.line(prev.x, prev.y, x, y);
+              prev = { x, y };
+            });
+            if (series.length <= 45) {
+              series.forEach((s, i) => { if (s[key] != null) doc.circle(xOf(i), yOf(s[key]), 1.3, "F"); });
+            }
+          };
+          drawSeries("low",  trendColors.low);
+          drawSeries("avg",  trendColors.avg);
+          drawSeries("high", trendColors.high);
+
+          // x labels: first, middle, last
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(6.5);
+          doc.setTextColor(...RGB.mute);
+          const lblY = tpy + tph + 11;
+          const lbl  = (i) => fmtBucketLabel(series[i].bucket_start, wl.bucket);
+          const mid  = Math.floor((series.length - 1) / 2);
+          doc.text(lbl(0), tpx, lblY);
+          if (series.length > 2) doc.text(lbl(mid), xOf(mid), lblY, { align: "center" });
+          if (series.length > 1) doc.text(lbl(series.length - 1), tpx + tpw, lblY, { align: "right" });
+        } else {
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(8);
+          doc.setTextColor(...RGB.mute);
+          doc.text("No water level data for this range.", leftX + leftW / 2, trendY + halfH / 2, { align: "center" });
+        }
+
+        // ── Status breakdown by week (one column per week, scales from 5 to 53 weeks) ──
+        card(leftX, weeklyY, leftW, halfH, "Status breakdown by week");
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7);
+        doc.setTextColor(...RGB.mute);
+        doc.text("each column = 100% of that week", leftX + leftW - 8, weeklyY + 13, { align: "right" });
+        if (sb.length) {
+          const wpx = leftX + 10, wpw = leftW - 20;
+          const wpy = weeklyY + 22, wph = halfH - 22 - 20;
+          const n      = sb.length;
+          const colGap = n > 30 ? 1 : 4;
+          const colW   = Math.min(48, (wpw - colGap * (n - 1)) / n);
+          const total  = n * colW + (n - 1) * colGap;
+          const x0     = wpx + (wpw - total) / 2;
+          sb.forEach((w, i) => {
+            const cx  = x0 + i * (colW + colGap);
+            const sum = segs.reduce((a, s) => a + (w[s.key] || 0), 0) || 1;
+            let cy = wpy + wph;
+            segs.forEach(s => {
+              const v = w[s.key] || 0;
+              const h = (v / sum) * wph;
+              if (h <= 0) return;
+              cy -= h;
+              doc.setFillColor(...s.rgb);
+              doc.rect(cx, cy, colW, h, "F");
+              if (colW >= 22 && h >= 9) {
+                doc.setFont("helvetica", "bold");
+                doc.setFontSize(6.5);
+                doc.setTextColor(10, 10, 11);
+                doc.text(`${Math.round(v)}%`, cx + colW / 2, cy + h / 2 + 2.2, { align: "center" });
+              }
+            });
+            doc.setDrawColor(...RGB.edge);
+            doc.setLineWidth(0.4);
+            doc.rect(cx, wpy, colW, wph);
+          });
+          // week labels: first, middle, last
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(6.5);
+          doc.setTextColor(...RGB.mute);
+          const wkY   = wpy + wph + 11;
+          const wkLbl = (i) => `Wk of ${fmtBucketLabel(sb[i].week_start < opts.range.from ? opts.range.from : sb[i].week_start, "week")}`;
+          const wmid  = Math.floor((n - 1) / 2);
+          doc.text(wkLbl(0), x0, wkY);
+          if (n > 2) doc.text(wkLbl(wmid), x0 + wmid * (colW + colGap) + colW / 2, wkY, { align: "center" });
+          if (n > 1) doc.text(wkLbl(n - 1), x0 + total, wkY, { align: "right" });
+        } else {
+          doc.setFont("helvetica", "normal");
+          doc.setFontSize(8);
+          doc.setTextColor(...RGB.mute);
+          doc.text("No status data for this range.", leftX + leftW / 2, weeklyY + halfH / 2, { align: "center" });
+        }
+
+        // ── Offline incidents: as many as fit, the rest become one "+N more" line ──
+        card(rightX, incY, rightW, incH, "Offline incidents (5 min or more)");
+        const incidents = Array.isArray(opts.uptime?.worst_incidents) ? opts.uptime.worst_incidents : []; // latest first
+        const rowH      = 11;
+        const rowsFit   = Math.floor((incH - 26 - 6) / rowH);
+        const fitAll    = incidents.length <= rowsFit;
+        const shown     = fitAll ? incidents.length : Math.max(0, rowsFit - 1);
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(7.5);
+        if (incidents.length === 0) {
+          doc.setTextColor(...RGB.mute);
+          doc.text("No offline incidents of 5+ minutes in this range.", rightX + 8, incY + 30);
+        } else {
+          incidents.slice(0, shown).forEach((inc, i) => {
+            const ry = incY + 30 + i * rowH;
+            doc.setFont("helvetica", "normal");
+            doc.setTextColor(...RGB.ink);
+            doc.text(fmtIncidentStart(inc.start_ts), rightX + 8, ry);
+            doc.setFont("helvetica", "bold");
+            doc.setTextColor(...(inc.ongoing ? [185, 28, 28] : [180, 83, 9]));
+            const dur = fmtDuration(inc.duration_sec);
+            doc.text(dur, rightX + rightW - 8, ry, { align: "right" });
+            if (inc.ongoing) {
+              doc.setFontSize(6);
+              doc.text("ONGOING", rightX + rightW - 8 - doc.getTextWidth(dur) - 4, ry, { align: "right" });
+              doc.setFontSize(7.5);
+            }
+          });
+          if (!fitAll) {
+            const sumSec = incidents.reduce((a, inc) => a + inc.duration_sec, 0);
+            doc.setFont("helvetica", "normal");
+            doc.setFontSize(7);
+            doc.setTextColor(...RGB.mute);
+            doc.text(
+              `+${incidents.length - shown} more · ${incidents.length} total · ${fmtDuration(sumSec)} offline`,
+              rightX + 8, incY + 30 + shown * rowH
+            );
+          }
+        }
+
+        doc.save(`FEWS_Statistics_${opts.range.from}_to_${opts.range.to}.pdf`);
+        resolve();
+      } catch (e) {
+        console.error("[Stats PDF]", e);
+        showToast("PDF export failed — could not build the report. Try again.");
+        resolve();
+      }
+    };
+
+    loadScriptOnce("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js", () => !!window.jspdf?.jsPDF)
+      .then(() => {
+        const logo = new Image();
+        logo.onload  = () => build(logo);
+        logo.onerror = () => build(null);
+        logo.src = "/logo3.png";
+      })
+      .catch(() => {
+        showToast("PDF export failed — could not load required library. Check your internet connection.");
+        resolve();
+      });
+  });
 }
 
 // ─── CUSTOM DATE PICKER ───────────────────────────────────────────────────────
@@ -5428,8 +5904,8 @@ const waterChartOptions = useMemo(() => ({
       },
       annotation: {
         annotations: {
-          zoneLow:     { type: "box", drawTime: "beforeDatasetsDraw", yMin: 0,                    yMax: Math.min(100, thresholds.warning), backgroundColor: "rgba(226,232,240,0.55)", borderWidth: 0 },
-          zoneSafe:    { type: "box", drawTime: "beforeDatasetsDraw", yMin: Math.min(100, thresholds.warning), yMax: thresholds.warning, backgroundColor: "rgba(253,224,71,0.60)",  borderWidth: 0 },
+          zoneLow:     { type: "box", drawTime: "beforeDatasetsDraw", yMin: 0,                    yMax: getBaselineCutoff(thresholds), backgroundColor: "rgba(226,232,240,0.55)", borderWidth: 0 },
+          zoneSafe:    { type: "box", drawTime: "beforeDatasetsDraw", yMin: getBaselineCutoff(thresholds), yMax: thresholds.warning, backgroundColor: "rgba(253,224,71,0.60)",  borderWidth: 0 },
           zoneWarning: { type: "box", drawTime: "beforeDatasetsDraw", yMin: thresholds.warning,   yMax: thresholds.danger,  backgroundColor: "rgba(249,115,22,0.60)", borderWidth: 0 },
           zoneCritical:{ type: "box", drawTime: "beforeDatasetsDraw", yMin: thresholds.danger,    yMax: 700,                backgroundColor: "rgba(239,68,68,0.60)",  borderWidth: 0 },
           lineWarning: { type: "line", yMin: thresholds.warning, yMax: thresholds.warning, borderColor: "rgba(249,115,22,0.80)", borderWidth: 2, borderDash: [4, 4], label: { display: false } },
@@ -6484,7 +6960,7 @@ const waterChartOptions = useMemo(() => ({
             </div>
           )}
 
-        {activeNav === "Statistics"  && <StatisticsPage userRole={user.role} token={token} manualFews={manualFews} unitPref={user.unit_preference} thresholds={thresholds} thresholdsLoaded={thresholdsLoaded} />}
+        {activeNav === "Statistics"  && <StatisticsPage userRole={user.role} token={token} manualFews={manualFews} unitPref={user.unit_preference} thresholds={thresholds} thresholdsLoaded={thresholdsLoaded} showToast={showToast} />}
         {activeNav === "UnitControl" && <UnitControlPage allFews={allFews} manualFews={manualFews} fews1Connected={isHardwareOnline} userRole={user.role} userName={user.name} unitPreference={user.unit_preference} addLog={addLog} token={token} onThresholdSaved={(t) => setThresholds(t)} onManualUnitSaved={(updated) => setManualFews(prev => prev.map(m => m.device_id === updated.device_id ? updated : m))} />}
         {activeNav === "Logs"        && <LogsPage token={token} userRole={user.role} showToast={showToast} />}
         {activeNav === "Settings"    && <SettingsPage

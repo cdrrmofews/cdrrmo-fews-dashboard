@@ -4317,3 +4317,40 @@ body:has(.msw-panel) .hz-fs-warn { visibility: hidden; }
   .msw-legend-compact .msw-legend-grid .msw-legend-swatch { width: 12px; height: 8px; margin-top: 0; }
   .msw-legend-compact .hz-legend-fail { font-size: 10px; padding: 4px 6px; margin: 6px 0 0; }
 }
+
+/* ── Statistics: Export to PDF button ── */
+.stats-export-btn {
+  margin-left: auto;
+  height: 36px;
+  padding: 0 14px;
+  gap: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 14px;
+  background: rgba(56,189,248,0.10);
+  color: var(--blue);
+  border: 1px solid rgba(56,189,248,0.25);
+  font-family: var(--font);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.2s, opacity 0.2s;
+}
+.stats-export-btn:hover:not(:disabled) { background: rgba(56,189,248,0.18); }
+.stats-export-btn:disabled { opacity: 0.45; cursor: default; }
+.stats-export-btn svg { flex-shrink: 0; }
+
+@media (max-width: 768px) {
+  .stats-export-label { display: none; }
+  .stats-date-controls .stats-export-btn {
+    flex: 0 0 32px;
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 8px;
+    margin-left: 0;
+  }
+}
