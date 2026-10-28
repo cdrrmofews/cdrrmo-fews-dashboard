@@ -624,6 +624,141 @@ const READING_TYPES = ["baseline", "info", "warning", "danger"];
 
 const ROWS_PER_PAGE = 30;
 
+// ─── PUSH TO DMS ──────────────────────────────────────────────────────────────
+// First and last day of a calendar month, from "2026-09"
+function monthRange(period) {
+  const [y, m] = period.split("-").map(Number);
+  const last = new Date(y, m, 0).getDate();
+  return { from: `${period}-01`, to: `${period}-${String(last).padStart(2, "0")}` };
+}
+
+// Same numbers as summarize() inside StatisticsPage (a copy, so the page code stays untouched)
+function summarizeStatsData(wl, sb, up) {
+  if (!wl || !Array.isArray(sb) || !up) return null;
+  const series = Array.isArray(wl.series) ? wl.series : [];
+  const highs  = series.map(s => s.high).filter(v => v != null);
+  const peak   = highs.length ? Math.max(...highs) : null;
+  const avgs   = series.map(s => s.avg).filter(v => v != null);
+  const avg    = avgs.length ? avgs.reduce((a, v) => a + v, 0) / avgs.length : null;
+  return {
+    avg:  avg  != null ? Math.round(avg * 10) / 10 : null,
+    peak: peak != null ? Math.round(peak * 10) / 10 : null,
+    weeksWithAlerts: sb.filter(w => w.warning_pct > 0 || w.critical_pct > 0).length,
+    totalWeeks: sb.length,
+    uptimePct: up.uptime_pct,
+  };
+}
+
+function logsPdfBlob(rows, summary) {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error("PDF build timed out")), 60000);
+    exportToPDF(rows, summary,
+      (msg)  => { clearTimeout(t); reject(new Error(msg)); },
+      (blob) => { clearTimeout(t); resolve(blob); });
+  });
+}
+
+// One month of readings (Base, Normal, Warning, Critical only). null = no readings that month.
+async function buildMonthlyLogsPdf(period, token) {
+  const { from, to } = monthRange(period);
+  const params = new URLSearchParams({ date_from: from, date_to: to });
+  const res = await authFetch(`${API_BASE}/logs/export?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) throw new Error("Could not load the logs.");
+  const data = await res.json();
+  if (!Array.isArray(data)) throw new Error("Could not load the logs.");
+  const rows = data.map(parseLog).filter(r => READING_TYPES.includes(r.type));
+  if (!rows.length) return null;
+  return logsPdfBlob(rows, `Readings only (Base, Normal, Warning, Critical)  ·  From: ${from}  ·  To: ${to}`);
+}
+
+// One month of statistics, compared with the 30-ish days before it (same rule as the page). null = no data.
+async function buildMonthlyStatsPdf(period, token, ctx, showToast) {
+  const range  = monthRange(period);
+  const shadow = getShadowRange(range.from, range.to);
+  const headers = { Authorization: `Bearer ${token}` };
+  const getJson = async (path, r) => {
+    const res = await authFetch(`${API_BASE}${path}?date_from=${r.from}&date_to=${r.to}`, { headers });
+    if (!res.ok) throw new Error("Could not load the statistics.");
+    return res.json();
+  };
+  const [wl, sb, up, pWl, pSb, pUp] = await Promise.all([
+    getJson("/stats/water-level", range),      getJson("/stats/status-breakdown", range),      getJson("/stats/uptime", range),
+    getJson("/stats/water-level", shadow),     getJson("/stats/status-breakdown", shadow),     getJson("/stats/uptime", shadow),
+  ]);
+  if (!wl?.series?.length) return null;
+  if (!Array.isArray(sb) || up?.uptime_pct == null) throw new Error("Could not load the statistics.");
+  const blob = await exportStatsToPDF({
+    range, shadow, unitPref: "cm",
+    thresholds: ctx.thresholds, thresholdsLoaded: ctx.thresholdsLoaded,
+    current: summarizeStatsData(wl, sb, up), previous: summarizeStatsData(pWl, pSb, pUp),
+    waterLevel: wl, statusBreakdown: sb, uptime: up,
+    manualFews: ctx.manualFews || [],
+    asBlob: true,
+  }, showToast);
+  if (!blob) throw new Error("PDF build failed.");
+  return blob;
+}
+
+const DMS_REPORT_LABEL = { statistics: "Statistics", logs: "History logs" };
+
+// "2026-06" ... "2026-09" -> "Jun to Sep 2026" (one month -> "Jun 2026")
+function fmtPeriodRange(periods) {
+  const part = (p) => { const [y, m] = p.split("-").map(Number); return { y, m: MONTHS[m - 1].slice(0, 3) }; };
+  const a = part(periods[0]);
+  const b = part(periods[periods.length - 1]);
+  if (periods.length === 1) return `${a.m} ${a.y}`;
+  return a.y === b.y ? `${a.m} to ${b.m} ${b.y}` : `${a.m} ${a.y} to ${b.m} ${b.y}`;
+}
+
+// Sends every completed month that is not in the DMS yet. Months already sent are never touched.
+async function pushReportsToDms(reportType, token, showToast, ctx = {}) {
+  const headers = { Authorization: `Bearer ${token}` };
+  try {
+    const st = await authFetch(`${API_BASE}/dms/status`, { headers });
+    if (!st.ok) throw new Error("Could not check the DMS.");
+    const status  = await st.json();
+    const missing = status.missing?.[reportType] || [];
+    const reportName = DMS_REPORT_LABEL[reportType] || "Report";
+    if (!missing.length) { showToast("Already up to date", false, { kind: "ok", detail: `${reportName} · no new months to send` }); return; }
+
+    let sent = 0, empty = 0, already = 0;
+    const sentPeriods = [];
+    for (const period of missing) {
+      const blob = reportType === "logs"
+        ? await buildMonthlyLogsPdf(period, token)
+        : await buildMonthlyStatsPdf(period, token, ctx, showToast);
+      if (!blob) { empty += 1; continue; }
+      const form = new FormData();
+      form.append("report_type", reportType);
+      form.append("period", period);
+      form.append("file", blob, `${period}.pdf`);
+      const up = await authFetch(`${API_BASE}/dms/reports`, { method: "POST", headers, body: form }); // no Content-Type: the browser sets it
+      if (!up.ok) {
+        const d = await up.json().catch(() => ({}));
+        throw new Error(d.detail || "Upload failed.");
+      }
+      const r = await up.json();
+      if (r.skipped) already += 1; else { sent += 1; sentPeriods.push(period); }
+    }
+    if (sent > 0) {
+      showToast("Reports sent to the DMS", false, { kind: "sent", detail: `${reportName} · ${sent} month${sent === 1 ? "" : "s"} · ${fmtPeriodRange(sentPeriods)}` });
+    } else {
+      showToast("Already up to date", false, { kind: "ok", detail: `${reportName} · no new months to send` });
+    }
+  } catch (e) {
+    if (e?.message !== "Unauthorized") showToast("Push to DMS failed", false, { kind: "error", detail: e?.message || "Try again." });
+  }
+}
+
+// Upload arrow for the Push to DMS buttons (Logs and Statistics)
+function PushIcon() {
+  return (
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <path d="M7.5 10V1M4 4.5L7.5 1L11 4.5M2 13h11" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
+  );
+}
+
 function ExportMenu({ token, activeFilters, exporting, setExporting, showToast }) {
   const [open, setOpen] = useState(false);
   const ref = useRef();
@@ -649,6 +784,15 @@ function ExportMenu({ token, activeFilters, exporting, setExporting, showToast }
     if (activeFilters.dateFrom)          parts.push(`From: ${activeFilters.dateFrom}`);
     if (activeFilters.dateTo)            parts.push(`To: ${activeFilters.dateTo}`);
     return parts.length ? parts.join("  ·  ") : "None";
+  };
+
+  const [pushing, setPushing] = useState(false);
+
+  const handlePush = async () => {
+    if (pushing) return;
+    setPushing(true);
+    try { await pushReportsToDms("logs", token, showToast); }
+    finally { setPushing(false); }
   };
 
   const handleExport = async (format) => {
@@ -679,13 +823,26 @@ function ExportMenu({ token, activeFilters, exporting, setExporting, showToast }
   };
 
   return (
+    <>
+    <button type="button" className="stats-export-btn dms-push-btn" onClick={handlePush}
+      disabled={pushing || !!exporting} title="Push to DMS" aria-label="Push to DMS">
+      {pushing
+        ? <span className="btn-spinner" style={{ borderColor: "rgba(56,189,248,0.3)", borderTopColor: "#38bdf8" }} />
+        : <PushIcon />}
+      <span className="stats-export-label">Push to DMS</span>
+    </button>
     <div className="export-menu-wrap" ref={ref} style={{ alignSelf: "flex-end" }}>
-      <button className="export-menu-trigger" onClick={() => setOpen(o => !o)} disabled={!!exporting}>
-        {exporting ? <span style={{ fontFamily: "var(--mono)", fontSize: 10 }}>⏳</span> : (
-          <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+      <button type="button" className="stats-export-btn" onClick={() => setOpen(o => !o)}
+        disabled={!!exporting || pushing} title="Export" aria-label="Export">
+        {exporting ? <span className="btn-spinner" style={{ borderColor: "rgba(56,189,248,0.3)", borderTopColor: "#38bdf8" }} /> : (
+          <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
             <path d="M7.5 1v9M4 7l3.5 3.5L11 7M2 13h11" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         )}
+        <span className="stats-export-label">Export</span>
+        <svg className="export-chevron stats-export-label" width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true">
+          <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
       </button>
       {open && (
         <div className="export-menu-dropdown">
@@ -699,6 +856,7 @@ function ExportMenu({ token, activeFilters, exporting, setExporting, showToast }
         </div>
       )}
     </div>
+    </>
   );
 }
 
@@ -918,6 +1076,14 @@ function StatisticsPage({ userRole, token, manualFews, unitPref, thresholds, thr
   const [error, setError]           = useState(false);
   const [refreshTick, setRefreshTick] = useState(0); // bumped by pull to refresh
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+
+  const handlePush = async () => {
+    if (pushBusy) return;
+    setPushBusy(true);
+    try { await pushReportsToDms("statistics", token, showToast, { thresholds, thresholdsLoaded, manualFews }); }
+    finally { setPushBusy(false); }
+  };
 
   const [waterLevel, setWaterLevel]           = useState(null);
   const [statusBreakdown, setStatusBreakdown] = useState(null);
@@ -1035,8 +1201,15 @@ function StatisticsPage({ userRole, token, manualFews, unitPref, thresholds, thr
             emptyLabel="Custom range"
             onChange={(v) => { setCustomFrom(v.from); setCustomTo(v.to); setPreset("custom"); }}
           />
+          <button type="button" className="stats-export-btn stats-push-btn" onClick={handlePush}
+            disabled={!thresholdsLoaded || pushBusy || pdfBusy} title="Push to DMS" aria-label="Push to DMS">
+            {pushBusy
+              ? <span className="btn-spinner" style={{ borderColor: "rgba(56,189,248,0.3)", borderTopColor: "#38bdf8" }} />
+              : <PushIcon />}
+            <span className="stats-export-label">Push to DMS</span>
+          </button>
           <button type="button" className="stats-export-btn" onClick={handleExportPdf}
-            disabled={!canExport || pdfBusy} title="Export to PDF" aria-label="Export to PDF">
+            disabled={!canExport || pdfBusy || pushBusy} title="Export to PDF" aria-label="Export to PDF">
             {pdfBusy
               ? <span className="btn-spinner" style={{ borderColor: "rgba(56,189,248,0.3)", borderTopColor: "#38bdf8" }} />
               : (
@@ -1521,7 +1694,7 @@ function exportToXLSX(rows, filterSummary = "", showToast = () => {}) {
   document.head.appendChild(s);
 }
 
-function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
+function exportToPDF(rows, filterSummary = "", showToast = () => {}, onBlob = null) {
   const load = (src) => new Promise((res, rej) => {
     if (document.querySelector(`script[src="${src}"]`)) { res(); return; }
     const s = document.createElement("script");
@@ -1588,6 +1761,7 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
       if (fromStr && toStr && fromStr === toStr) datePart = fromStr;
       else if (fromStr && toStr)                 datePart = `${fromStr}_to_${toStr}`;
       else                                       datePart = `All_${todayStr}`;
+      if (onBlob) { onBlob(doc.output("blob")); return; }
       doc.save(`FEWS_Incident-Log_${datePart}.pdf`);
     };
 
@@ -1641,7 +1815,8 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
     };
   };
 
-  if (window.jspdf?.jsPDF) { doIt(); return; }
+  const autoTableReady = !!window.jspdf?.jsPDF && typeof new window.jspdf.jsPDF().autoTable === "function";
+  if (autoTableReady) { doIt(); return; }
   load("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js")
     .then(() => load("https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"))
     .then(doIt)
@@ -2137,6 +2312,7 @@ function exportStatsToPDF(opts, showToast = () => {}) {
         doc.setTextColor(...RGB.ink);
         anaLines.forEach((ln, i) => doc.text(ln, rightX + 8, anaY + 26 + i * anaLead));
 
+        if (opts.asBlob) { resolve(doc.output("blob")); return; }
         doc.save(`FEWS_Statistics_${opts.range.from}_to_${opts.range.to}.pdf`);
         resolve();
       } catch (e) {
@@ -4896,16 +5072,33 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
 }
 
 // ─── TOAST ───────────────────────────────────────────────────────────────────
+// Icon tile for the richer toasts (kind: "sent" | "ok" | "error")
+function ToastTile({ kind }) {
+  const paths = kind === "sent" ? (
+    <><path d="M7 18a4.6 4.4 0 0 1 0-9a5 4.5 0 0 1 11 2h1a3.5 3.5 0 0 1 0 7h-1"/><path d="M9 15l3-3l3 3"/><path d="M12 12v9"/></>
+  ) : kind === "ok" ? (
+    <><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2l4-4"/></>
+  ) : (
+    <><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></>
+  );
+  return (
+    <span className="toast-tile">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths}</svg>
+    </span>
+  );
+}
+
 function useToast() {
   const [toasts, setToasts] = useState([]);
 
-  const showToast = useCallback((msg, persistent = false) => {
+  // opts (optional): { kind: "sent" | "ok" | "error", detail: "second line" } gives the richer toast with no button
+  const showToast = useCallback((msg, persistent = false, opts = null) => {
     const id = Date.now() + Math.random();
     setToasts(prev => {
       // Persistent toasts (the "update available" banner) shouldn't stack —
       // replace any existing persistent toast instead of adding another one.
       const base = persistent ? prev.filter(t => !t.persistent) : prev;
-      return [...base, { id, msg, leaving: false, persistent }];
+      return [...base, { id, msg, leaving: false, persistent, kind: opts?.kind || null, detail: opts?.detail || "" }];
     });
     if (!persistent) {
       setTimeout(() => {
@@ -4927,7 +5120,18 @@ function useToast() {
   const ToastContainer = useCallback(() => (
     toasts.length === 0 ? null : (
       <div className="toast-container">
-        {toasts.map(t => (
+        {toasts.map(t => t.kind ? (
+          <div key={t.id} className={`toast toast-rich toast-${t.kind} ${t.leaving ? "toast-leaving" : ""}`}>
+            <div className="toast-rich-row">
+              <ToastTile kind={t.kind} />
+              <div className="toast-rich-text">
+                <div className="toast-title">{t.msg}</div>
+                {t.detail && <div className="toast-detail">{t.detail}</div>}
+              </div>
+            </div>
+            <div className="toast-bar"><div className="toast-bar-fill" /></div>
+          </div>
+        ) : (
           <div key={t.id} className={`toast ${t.leaving ? "toast-leaving" : ""} ${t.persistent ? "toast-persistent" : ""}`}>
             <span className="toast-icon">{t.persistent ? "🔄" : "⚠"}</span>
             <span className="toast-msg">{t.msg}</span>
@@ -10262,7 +10466,7 @@ div.leaflet-container {
 .toast-msg {
   flex: 1;
   line-height: 1.4;
-  color: var(--text-2);
+  color: var(--text-1);
 }
 
 .toast-close {
@@ -11419,6 +11623,44 @@ body:has(.msw-panel) .hz-fs-warn { visibility: hidden; }
     margin-left: 0;
   }
 }
+
+/* ── Push to DMS buttons ── */
+.logs-filters-row > .dms-push-btn { align-self: flex-end; }
+
+/* Logs: Push to DMS and Export reuse the Statistics button look, so no auto margin here */
+.logs-filters-row .stats-export-btn { margin-left: 0; }
+
+@media (min-width: 769px) {
+  .stats-push-btn { margin-left: auto; }
+  .stats-push-btn + .stats-export-btn { margin-left: 0; }
+}
+
+@media (max-width: 768px) {
+  .logs-filters-row > .dms-push-btn { flex: 0 0 32px; }
+  .logs-filters-row .stats-export-btn {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 8px;
+  }
+}
+
+/* ── Richer toast (Push to DMS) ── */
+.toast-rich { flex-direction: column; align-items: stretch; gap: 10px; padding: 12px 16px 10px; }
+.toast-rich-row { display: flex; align-items: center; gap: 12px; }
+.toast-tile { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.toast-rich-text { flex: 1; min-width: 0; }
+.toast-title { font-size: 12px; font-weight: 600; line-height: 1.4; color: var(--text-1); }
+.toast-detail { font-size: 11px; font-weight: 500; line-height: 1.4; color: var(--text-3); margin-top: 1px; overflow-wrap: anywhere; }
+.toast-bar { height: 2px; border-radius: 2px; background: rgba(255,255,255,0.06); overflow: hidden; }
+.toast-bar-fill { height: 100%; width: 100%; animation: toast-bar-run 3.5s linear forwards; }
+@keyframes toast-bar-run { from { width: 100%; } to { width: 0; } }
+
+.toast-sent, .toast-ok { border-color: rgba(56,189,248,0.35); box-shadow: 0 8px 32px rgba(0,0,0,0.55), 0 0 0 1px rgba(56,189,248,0.1); }
+.toast-sent .toast-tile, .toast-ok .toast-tile { background: rgba(56,189,248,0.12); color: var(--blue); }
+.toast-sent .toast-bar-fill, .toast-ok .toast-bar-fill { background: var(--blue); }
+.toast-error .toast-tile { background: rgba(239,68,68,0.12); color: var(--red); }
+.toast-error .toast-bar-fill { background: var(--red); }
 
 =========================================
 FILE: frontend/src/index.css

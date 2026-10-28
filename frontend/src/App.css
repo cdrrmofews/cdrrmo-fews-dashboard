@@ -3206,7 +3206,7 @@ div.leaflet-container {
 .toast-msg {
   flex: 1;
   line-height: 1.4;
-  color: var(--text-2);
+  color: var(--text-1);
 }
 
 .toast-close {
@@ -4363,3 +4363,52 @@ body:has(.msw-panel) .hz-fs-warn { visibility: hidden; }
     margin-left: 0;
   }
 }
+
+/* ── Push to DMS buttons ── */
+.logs-filters-row > .dms-push-btn { align-self: flex-end; }
+
+/* Logs: Push to DMS and Export reuse the Statistics button look, so no auto margin here */
+.logs-filters-row .stats-export-btn { margin-left: 0; }
+
+@media (min-width: 769px) {
+  .stats-push-btn { margin-left: auto; }
+  .stats-push-btn + .stats-export-btn { margin-left: 0; }
+}
+
+@media (max-width: 768px) {
+  .logs-filters-row > .dms-push-btn { flex: 0 0 32px; }
+  .logs-filters-row .stats-export-btn {
+    width: 32px;
+    height: 32px;
+    padding: 0;
+    border-radius: 8px;
+  }
+}
+
+/* ── Richer toast (Push to DMS) ── */
+.toast-rich { flex-direction: column; align-items: stretch; gap: 10px; padding: 12px 16px 10px; }
+@media (min-width: 769px) {
+  .toast-rich { width: 400px; }
+}
+@media (min-width: 1440px) {
+  .toast-container { top: 84px; }
+}
+.toast-rich-row { display: flex; align-items: center; gap: 12px; }
+.toast-tile { width: 34px; height: 34px; border-radius: 10px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+.toast-rich-text { flex: 1; min-width: 0; }
+.toast-title { font-size: 12px; font-weight: 600; line-height: 1.4; color: var(--text-1); }
+.toast-detail { font-size: 11px; font-weight: 500; line-height: 1.4; color: var(--text-3); margin-top: 1px; overflow-wrap: anywhere; }
+.toast-bar { height: 2px; border-radius: 2px; background: rgba(255,255,255,0.06); overflow: hidden; }
+.toast-bar-fill { height: 100%; width: 100%; animation: toast-bar-run 3.5s linear forwards; }
+@keyframes toast-bar-run { from { width: 100%; } to { width: 0; } }
+
+@keyframes toast-bar-run { from { width: 100%; } to { width: 0; } }
+.toast-bar { position: relative; }
+.toast-bar-slide { position: absolute; top: 0; bottom: 0; left: 0; width: 35%; border-radius: 2px; background: var(--blue); animation: toast-bar-slide 1.6s ease-in-out infinite; }
+@keyframes toast-bar-slide { from { transform: translateX(-100%); } to { transform: translateX(286%); } }
+@media (prefers-reduced-motion: reduce) { .toast-bar-slide { animation: none; } }
+.toast-sent, .toast-ok, .toast-update { border-color: rgba(56,189,248,0.35); box-shadow: 0 8px 32px rgba(0,0,0,0.55), 0 0 0 1px rgba(56,189,248,0.1); }
+.toast-sent .toast-tile, .toast-ok .toast-tile, .toast-update .toast-tile { background: rgba(56,189,248,0.12); color: var(--blue); }
+.toast-sent .toast-bar-fill, .toast-ok .toast-bar-fill { background: var(--blue); }
+.toast-error .toast-tile { background: rgba(239,68,68,0.12); color: var(--red); }
+.toast-error .toast-bar-fill { background: var(--red); }

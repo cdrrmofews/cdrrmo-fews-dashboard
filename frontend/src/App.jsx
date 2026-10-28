@@ -695,21 +695,30 @@ async function buildMonthlyStatsPdf(period, token, ctx, showToast) {
   return blob;
 }
 
+const DMS_REPORT_LABEL = { statistics: "Statistics", logs: "History logs" };
+
+// "2026-06" ... "2026-09" -> "Jun to Sep 2026" (one month -> "Jun 2026")
+function fmtPeriodRange(periods) {
+  const part = (p) => { const [y, m] = p.split("-").map(Number); return { y, m: MONTHS[m - 1].slice(0, 3) }; };
+  const a = part(periods[0]);
+  const b = part(periods[periods.length - 1]);
+  if (periods.length === 1) return `${a.m} ${a.y}`;
+  return a.y === b.y ? `${a.m} to ${b.m} ${b.y}` : `${a.m} ${a.y} to ${b.m} ${b.y}`;
+}
+
 // Sends every completed month that is not in the DMS yet. Months already sent are never touched.
 async function pushReportsToDms(reportType, token, showToast, ctx = {}) {
-  if (reportType === "statistics" && !ctx.thresholdsLoaded) {
-    showToast("Alert levels have not loaded yet. Try again in a moment.");
-    return;
-  }
   const headers = { Authorization: `Bearer ${token}` };
   try {
     const st = await authFetch(`${API_BASE}/dms/status`, { headers });
     if (!st.ok) throw new Error("Could not check the DMS.");
     const status  = await st.json();
     const missing = status.missing?.[reportType] || [];
-    if (!missing.length) { showToast("Nothing to push. Every completed month is already in the DMS."); return; }
+    const reportName = DMS_REPORT_LABEL[reportType] || "Report";
+    if (!missing.length) { showToast("Already up to date", false, { kind: "ok", detail: `${reportName} · no new months to send` }); return; }
 
     let sent = 0, empty = 0, already = 0;
+    const sentPeriods = [];
     for (const period of missing) {
       const blob = reportType === "logs"
         ? await buildMonthlyLogsPdf(period, token)
@@ -725,46 +734,24 @@ async function pushReportsToDms(reportType, token, showToast, ctx = {}) {
         throw new Error(d.detail || "Upload failed.");
       }
       const r = await up.json();
-      if (r.skipped) already += 1; else sent += 1;
+      if (r.skipped) already += 1; else { sent += 1; sentPeriods.push(period); }
     }
-    const parts = [`${sent} month${sent === 1 ? "" : "s"} sent to the DMS`];
-    if (already) parts.push(`${already} already there`);
-    if (empty)   parts.push(`${empty} skipped (no data)`);
-    showToast(parts.join(" · "));
+    if (sent > 0) {
+      showToast("Reports sent to the DMS", false, { kind: "sent", detail: `${reportName} · ${sent} month${sent === 1 ? "" : "s"} · ${fmtPeriodRange(sentPeriods)}` });
+    } else {
+      showToast("Already up to date", false, { kind: "ok", detail: `${reportName} · no new months to send` });
+    }
   } catch (e) {
-    if (e?.message !== "Unauthorized") showToast(`Push to DMS failed: ${e?.message || "try again."}`);
+    if (e?.message !== "Unauthorized") showToast("Push to DMS failed", false, { kind: "error", detail: e?.message || "Try again." });
   }
 }
 
-// PDF choice popup (Logs and Statistics): Download, Push to DMS, or Cancel
-function ReportChoiceModal({ title, message, onDownload, onPush, onCancel }) {
-  const [pushing, setPushing] = useState(false);
-  useLockBodyScroll();
-
-  const doPush = async () => {
-    setPushing(true);
-    try { await onPush(); }
-    finally { setPushing(false); onCancel(); }
-  };
-
+// Upload arrow for the Push to DMS buttons (Logs and Statistics)
+function PushIcon() {
   return (
-    <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget && !pushing) onCancel(); }}>
-      <div className="modal-box">
-        <div className="modal-title">{title}</div>
-        <div className="modal-msg">{message}</div>
-        <div className="modal-actions">
-          <button className="modal-btn modal-cancel" onClick={onCancel} disabled={pushing}>Cancel</button>
-          <button className="modal-btn"
-            style={{ background: "rgba(56,189,248,0.15)", color: "var(--blue)", border: "1px solid rgba(56,189,248,0.3)" }}
-            onClick={() => { onCancel(); onDownload(); }} disabled={pushing}>
-            Download
-          </button>
-          <button className="modal-btn modal-confirm" onClick={doPush} disabled={pushing}>
-            {pushing ? <span className="btn-spinner" style={{ borderTopColor: "#000", borderColor: "rgba(0,0,0,0.2)" }} /> : "Push to DMS"}
-          </button>
-        </div>
-      </div>
-    </div>
+    <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
+      <path d="M7.5 10V1M4 4.5L7.5 1L11 4.5M2 13h11" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
+    </svg>
   );
 }
 
@@ -795,11 +782,17 @@ function ExportMenu({ token, activeFilters, exporting, setExporting, showToast }
     return parts.length ? parts.join("  ·  ") : "None";
   };
 
-  const [askPdf, setAskPdf] = useState(false);
+  const [pushing, setPushing] = useState(false);
 
-  const handleExport = async (format, confirmed = false) => {
+  const handlePush = async () => {
+    if (pushing) return;
+    setPushing(true);
+    try { await pushReportsToDms("logs", token, showToast); }
+    finally { setPushing(false); }
+  };
+
+  const handleExport = async (format) => {
     setOpen(false);
-    if (format === "pdf" && !confirmed) { setAskPdf(true); return; }
     setExporting(format);
     try {
       const params = new URLSearchParams();
@@ -826,23 +819,27 @@ function ExportMenu({ token, activeFilters, exporting, setExporting, showToast }
   };
 
   return (
+    <>
+    <button type="button" className="stats-export-btn dms-push-btn" onClick={handlePush}
+      disabled={pushing || !!exporting} title="Push to DMS" aria-label="Push to DMS">
+      {pushing
+        ? <span className="btn-spinner" style={{ borderColor: "rgba(56,189,248,0.3)", borderTopColor: "#38bdf8" }} />
+        : <PushIcon />}
+      <span className="stats-export-label">Push to DMS</span>
+    </button>
     <div className="export-menu-wrap" ref={ref} style={{ alignSelf: "flex-end" }}>
-      <button className="export-menu-trigger" onClick={() => setOpen(o => !o)} disabled={!!exporting}>
-        {exporting ? <span style={{ fontFamily: "var(--mono)", fontSize: 10 }}>⏳</span> : (
-          <svg width="15" height="15" viewBox="0 0 15 15" fill="none">
+      <button type="button" className="stats-export-btn" onClick={() => setOpen(o => !o)}
+        disabled={!!exporting || pushing} title="Export" aria-label="Export">
+        {exporting ? <span className="btn-spinner" style={{ borderColor: "rgba(56,189,248,0.3)", borderTopColor: "#38bdf8" }} /> : (
+          <svg width="15" height="15" viewBox="0 0 15 15" fill="none" aria-hidden="true">
             <path d="M7.5 1v9M4 7l3.5 3.5L11 7M2 13h11" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round"/>
           </svg>
         )}
+        <span className="stats-export-label">Export</span>
+        <svg className="export-chevron stats-export-label" width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true">
+          <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
       </button>
-      {askPdf && (
-        <ReportChoiceModal
-          title="Logs PDF"
-          message="Download uses your current filters. Push to DMS ignores them and sends every completed month not yet in the DMS."
-          onDownload={() => handleExport("pdf", true)}
-          onPush={() => pushReportsToDms("logs", token, showToast)}
-          onCancel={() => setAskPdf(false)}
-        />
-      )}
       {open && (
         <div className="export-menu-dropdown">
           {[{ fmt:"xlsx", icon:"📊", label:"Excel (.xlsx)", color:"#22c55e" }, { fmt:"pdf", icon:"📄", label:"PDF (.pdf)", color:"#ef4444" }]
@@ -855,6 +852,7 @@ function ExportMenu({ token, activeFilters, exporting, setExporting, showToast }
         </div>
       )}
     </div>
+    </>
   );
 }
 
@@ -1074,7 +1072,14 @@ function StatisticsPage({ userRole, token, manualFews, unitPref, thresholds, thr
   const [error, setError]           = useState(false);
   const [refreshTick, setRefreshTick] = useState(0); // bumped by pull to refresh
   const [pdfBusy, setPdfBusy] = useState(false);
-  const [askPdf, setAskPdf]   = useState(false);
+  const [pushBusy, setPushBusy] = useState(false);
+
+  const handlePush = async () => {
+    if (pushBusy) return;
+    setPushBusy(true);
+    try { await pushReportsToDms("statistics", token, showToast, { thresholds, thresholdsLoaded, manualFews }); }
+    finally { setPushBusy(false); }
+  };
 
   const [waterLevel, setWaterLevel]           = useState(null);
   const [statusBreakdown, setStatusBreakdown] = useState(null);
@@ -1175,15 +1180,6 @@ function StatisticsPage({ userRole, token, manualFews, unitPref, thresholds, thr
   return (
     <div className={`page-body ${loading && waterLevel ? "stats-updating" : ""}`}>
       <div className="page-card stats-controls-card">
-        {askPdf && (
-          <ReportChoiceModal
-            title="Statistics PDF"
-            message="Download gives the range on screen. Push to DMS ignores it and sends every completed month not yet in the DMS."
-            onDownload={handleExportPdf}
-            onPush={() => pushReportsToDms("statistics", token, showToast, { thresholds, thresholdsLoaded, manualFews })}
-            onCancel={() => setAskPdf(false)}
-          />
-        )}
         <div className="stats-date-controls">
           {[
             { key: "30d", label: "Last 30 days",   short: "Last 30 d." },
@@ -1201,8 +1197,15 @@ function StatisticsPage({ userRole, token, manualFews, unitPref, thresholds, thr
             emptyLabel="Custom range"
             onChange={(v) => { setCustomFrom(v.from); setCustomTo(v.to); setPreset("custom"); }}
           />
-          <button type="button" className="stats-export-btn" onClick={() => setAskPdf(true)}
-            disabled={!canExport || pdfBusy} title="Export to PDF" aria-label="Export to PDF">
+          <button type="button" className="stats-export-btn stats-push-btn" onClick={handlePush}
+            disabled={!thresholdsLoaded || pushBusy || pdfBusy} title="Push to DMS" aria-label="Push to DMS">
+            {pushBusy
+              ? <span className="btn-spinner" style={{ borderColor: "rgba(56,189,248,0.3)", borderTopColor: "#38bdf8" }} />
+              : <PushIcon />}
+            <span className="stats-export-label">Push to DMS</span>
+          </button>
+          <button type="button" className="stats-export-btn" onClick={handleExportPdf}
+            disabled={!canExport || pdfBusy || pushBusy} title="Export to PDF" aria-label="Export to PDF">
             {pdfBusy
               ? <span className="btn-spinner" style={{ borderColor: "rgba(56,189,248,0.3)", borderTopColor: "#38bdf8" }} />
               : (
@@ -5065,16 +5068,35 @@ function SettingsPage({ userRole, userName, user, onUserUpdate, token, addLog })
 }
 
 // ─── TOAST ───────────────────────────────────────────────────────────────────
+// Icon tile for the richer toasts (kind: "sent" | "ok" | "error")
+function ToastTile({ kind }) {
+  const paths = kind === "update" ? (
+    <><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></>
+  ) : kind === "sent" ? (
+    <><path d="M7 18a4.6 4.4 0 0 1 0-9a5 4.5 0 0 1 11 2h1a3.5 3.5 0 0 1 0 7h-1"/><path d="M9 15l3-3l3 3"/><path d="M12 12v9"/></>
+  ) : kind === "ok" ? (
+    <><circle cx="12" cy="12" r="9"/><path d="M9 12l2 2l4-4"/></>
+  ) : (
+    <><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></>
+  );
+  return (
+    <span className="toast-tile">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths}</svg>
+    </span>
+  );
+}
+
 function useToast() {
   const [toasts, setToasts] = useState([]);
 
-  const showToast = useCallback((msg, persistent = false) => {
+  // opts (optional): { kind: "sent" | "ok" | "error", detail: "second line" } gives the richer toast with no button
+  const showToast = useCallback((msg, persistent = false, opts = null) => {
     const id = Date.now() + Math.random();
     setToasts(prev => {
       // Persistent toasts (the "update available" banner) shouldn't stack —
       // replace any existing persistent toast instead of adding another one.
       const base = persistent ? prev.filter(t => !t.persistent) : prev;
-      return [...base, { id, msg, leaving: false, persistent }];
+      return [...base, { id, msg, leaving: false, persistent, kind: opts?.kind || null, detail: opts?.detail || "" }];
     });
     if (!persistent) {
       setTimeout(() => {
@@ -5096,7 +5118,33 @@ function useToast() {
   const ToastContainer = useCallback(() => (
     toasts.length === 0 ? null : (
       <div className="toast-container">
-        {toasts.map(t => (
+        {toasts.map(t => t.kind ? (
+          <div key={t.id} className={`toast toast-rich toast-${t.kind} ${t.persistent ? "toast-rich-persistent" : ""} ${t.leaving ? "toast-leaving" : ""}`}>
+            <div className="toast-rich-row">
+              <ToastTile kind={t.kind} />
+              <div className="toast-rich-text">
+                <div className="toast-title">{t.msg}</div>
+                {t.detail && <div className="toast-detail">{t.detail}</div>}
+              </div>
+              {t.persistent && (
+                <button className="toast-close toast-refresh-btn" aria-label="Refresh" onClick={async () => {
+                  if ('serviceWorker' in navigator) {
+                    const regs = await navigator.serviceWorker.getRegistrations();
+                    await Promise.all(regs.map(r => r.unregister()));
+                  }
+                  if ('caches' in window) {
+                    const keys = await caches.keys();
+                    await Promise.all(keys.map(k => caches.delete(k)));
+                  }
+                  window.location.reload(true);
+                }}>↺</button>
+              )}
+            </div>
+            <div className="toast-bar">
+              <div className={t.persistent ? "toast-bar-slide" : "toast-bar-fill"} />
+            </div>
+          </div>
+        ) : (
           <div key={t.id} className={`toast ${t.leaving ? "toast-leaving" : ""} ${t.persistent ? "toast-persistent" : ""}`}>
             <span className="toast-icon">{t.persistent ? "🔄" : "⚠"}</span>
             <span className="toast-msg">{t.msg}</span>
@@ -5343,12 +5391,12 @@ export default function App() {
               navigator.serviceWorker.addEventListener('controllerchange', () => {
                 window.location.reload();
               }, { once: true });
-              showToast("CDRRMO FEWS Dashboard has been updated. Please refresh to get the latest version.", true);
+              showToast("CDRRMO FEWS Dashboard has been updated.", true, { kind: "update", detail: "Refresh to get the latest version." });
               return;
             }
           }
 
-          showToast("CDRRMO FEWS Dashboard has been updated. Please refresh to get the latest version.", true);
+          showToast("CDRRMO FEWS Dashboard has been updated.", true, { kind: "update", detail: "Refresh to get the latest version." });
         }
       } catch {
         // ignore
