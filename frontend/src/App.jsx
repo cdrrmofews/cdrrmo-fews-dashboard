@@ -620,6 +620,154 @@ const READING_TYPES = ["baseline", "info", "warning", "danger"];
 
 const ROWS_PER_PAGE = 30;
 
+// ─── PUSH TO DMS ──────────────────────────────────────────────────────────────
+// First and last day of a calendar month, from "2026-09"
+function monthRange(period) {
+  const [y, m] = period.split("-").map(Number);
+  const last = new Date(y, m, 0).getDate();
+  return { from: `${period}-01`, to: `${period}-${String(last).padStart(2, "0")}` };
+}
+
+// Same numbers as summarize() inside StatisticsPage (a copy, so the page code stays untouched)
+function summarizeStatsData(wl, sb, up) {
+  if (!wl || !Array.isArray(sb) || !up) return null;
+  const series = Array.isArray(wl.series) ? wl.series : [];
+  const highs  = series.map(s => s.high).filter(v => v != null);
+  const peak   = highs.length ? Math.max(...highs) : null;
+  const avgs   = series.map(s => s.avg).filter(v => v != null);
+  const avg    = avgs.length ? avgs.reduce((a, v) => a + v, 0) / avgs.length : null;
+  return {
+    avg:  avg  != null ? Math.round(avg * 10) / 10 : null,
+    peak: peak != null ? Math.round(peak * 10) / 10 : null,
+    weeksWithAlerts: sb.filter(w => w.warning_pct > 0 || w.critical_pct > 0).length,
+    totalWeeks: sb.length,
+    uptimePct: up.uptime_pct,
+  };
+}
+
+function logsPdfBlob(rows, summary) {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error("PDF build timed out")), 60000);
+    exportToPDF(rows, summary,
+      (msg)  => { clearTimeout(t); reject(new Error(msg)); },
+      (blob) => { clearTimeout(t); resolve(blob); });
+  });
+}
+
+// One month of readings (Base, Normal, Warning, Critical only). null = no readings that month.
+async function buildMonthlyLogsPdf(period, token) {
+  const { from, to } = monthRange(period);
+  const params = new URLSearchParams({ date_from: from, date_to: to });
+  const res = await authFetch(`${API_BASE}/logs/export?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+  if (!res.ok) throw new Error("Could not load the logs.");
+  const data = await res.json();
+  if (!Array.isArray(data)) throw new Error("Could not load the logs.");
+  const rows = data.map(parseLog).filter(r => READING_TYPES.includes(r.type));
+  if (!rows.length) return null;
+  return logsPdfBlob(rows, `Readings only (Base, Normal, Warning, Critical)  ·  From: ${from}  ·  To: ${to}`);
+}
+
+// One month of statistics, compared with the 30-ish days before it (same rule as the page). null = no data.
+async function buildMonthlyStatsPdf(period, token, ctx, showToast) {
+  const range  = monthRange(period);
+  const shadow = getShadowRange(range.from, range.to);
+  const headers = { Authorization: `Bearer ${token}` };
+  const getJson = async (path, r) => {
+    const res = await authFetch(`${API_BASE}${path}?date_from=${r.from}&date_to=${r.to}`, { headers });
+    if (!res.ok) throw new Error("Could not load the statistics.");
+    return res.json();
+  };
+  const [wl, sb, up, pWl, pSb, pUp] = await Promise.all([
+    getJson("/stats/water-level", range),      getJson("/stats/status-breakdown", range),      getJson("/stats/uptime", range),
+    getJson("/stats/water-level", shadow),     getJson("/stats/status-breakdown", shadow),     getJson("/stats/uptime", shadow),
+  ]);
+  if (!wl?.series?.length) return null;
+  if (!Array.isArray(sb) || up?.uptime_pct == null) throw new Error("Could not load the statistics.");
+  const blob = await exportStatsToPDF({
+    range, shadow, unitPref: "cm",
+    thresholds: ctx.thresholds, thresholdsLoaded: ctx.thresholdsLoaded,
+    current: summarizeStatsData(wl, sb, up), previous: summarizeStatsData(pWl, pSb, pUp),
+    waterLevel: wl, statusBreakdown: sb, uptime: up,
+    manualFews: ctx.manualFews || [],
+    asBlob: true,
+  }, showToast);
+  if (!blob) throw new Error("PDF build failed.");
+  return blob;
+}
+
+// Sends every completed month that is not in the DMS yet. Months already sent are never touched.
+async function pushReportsToDms(reportType, token, showToast, ctx = {}) {
+  if (reportType === "statistics" && !ctx.thresholdsLoaded) {
+    showToast("Alert levels have not loaded yet. Try again in a moment.");
+    return;
+  }
+  const headers = { Authorization: `Bearer ${token}` };
+  try {
+    const st = await authFetch(`${API_BASE}/dms/status`, { headers });
+    if (!st.ok) throw new Error("Could not check the DMS.");
+    const status  = await st.json();
+    const missing = status.missing?.[reportType] || [];
+    if (!missing.length) { showToast("Nothing to push. Every completed month is already in the DMS."); return; }
+
+    let sent = 0, empty = 0, already = 0;
+    for (const period of missing) {
+      const blob = reportType === "logs"
+        ? await buildMonthlyLogsPdf(period, token)
+        : await buildMonthlyStatsPdf(period, token, ctx, showToast);
+      if (!blob) { empty += 1; continue; }
+      const form = new FormData();
+      form.append("report_type", reportType);
+      form.append("period", period);
+      form.append("file", blob, `${period}.pdf`);
+      const up = await authFetch(`${API_BASE}/dms/reports`, { method: "POST", headers, body: form }); // no Content-Type: the browser sets it
+      if (!up.ok) {
+        const d = await up.json().catch(() => ({}));
+        throw new Error(d.detail || "Upload failed.");
+      }
+      const r = await up.json();
+      if (r.skipped) already += 1; else sent += 1;
+    }
+    const parts = [`${sent} month${sent === 1 ? "" : "s"} sent to the DMS`];
+    if (already) parts.push(`${already} already there`);
+    if (empty)   parts.push(`${empty} skipped (no data)`);
+    showToast(parts.join(" · "));
+  } catch (e) {
+    if (e?.message !== "Unauthorized") showToast(`Push to DMS failed: ${e?.message || "try again."}`);
+  }
+}
+
+// PDF choice popup (Logs and Statistics): Download, Push to DMS, or Cancel
+function ReportChoiceModal({ title, message, onDownload, onPush, onCancel }) {
+  const [pushing, setPushing] = useState(false);
+  useLockBodyScroll();
+
+  const doPush = async () => {
+    setPushing(true);
+    try { await onPush(); }
+    finally { setPushing(false); onCancel(); }
+  };
+
+  return (
+    <div className="modal-overlay" onClick={e => { if (e.target === e.currentTarget && !pushing) onCancel(); }}>
+      <div className="modal-box">
+        <div className="modal-title">{title}</div>
+        <div className="modal-msg">{message}</div>
+        <div className="modal-actions">
+          <button className="modal-btn modal-cancel" onClick={onCancel} disabled={pushing}>Cancel</button>
+          <button className="modal-btn"
+            style={{ background: "rgba(56,189,248,0.15)", color: "var(--blue)", border: "1px solid rgba(56,189,248,0.3)" }}
+            onClick={() => { onCancel(); onDownload(); }} disabled={pushing}>
+            Download
+          </button>
+          <button className="modal-btn modal-confirm" onClick={doPush} disabled={pushing}>
+            {pushing ? <span className="btn-spinner" style={{ borderTopColor: "#000", borderColor: "rgba(0,0,0,0.2)" }} /> : "Push to DMS"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function ExportMenu({ token, activeFilters, exporting, setExporting, showToast }) {
   const [open, setOpen] = useState(false);
   const ref = useRef();
@@ -647,8 +795,11 @@ function ExportMenu({ token, activeFilters, exporting, setExporting, showToast }
     return parts.length ? parts.join("  ·  ") : "None";
   };
 
-  const handleExport = async (format) => {
+  const [askPdf, setAskPdf] = useState(false);
+
+  const handleExport = async (format, confirmed = false) => {
     setOpen(false);
+    if (format === "pdf" && !confirmed) { setAskPdf(true); return; }
     setExporting(format);
     try {
       const params = new URLSearchParams();
@@ -683,6 +834,15 @@ function ExportMenu({ token, activeFilters, exporting, setExporting, showToast }
           </svg>
         )}
       </button>
+      {askPdf && (
+        <ReportChoiceModal
+          title="Logs PDF"
+          message="Download uses your current filters. Push to DMS ignores them and sends every completed month not yet in the DMS."
+          onDownload={() => handleExport("pdf", true)}
+          onPush={() => pushReportsToDms("logs", token, showToast)}
+          onCancel={() => setAskPdf(false)}
+        />
+      )}
       {open && (
         <div className="export-menu-dropdown">
           {[{ fmt:"xlsx", icon:"📊", label:"Excel (.xlsx)", color:"#22c55e" }, { fmt:"pdf", icon:"📄", label:"PDF (.pdf)", color:"#ef4444" }]
@@ -914,6 +1074,7 @@ function StatisticsPage({ userRole, token, manualFews, unitPref, thresholds, thr
   const [error, setError]           = useState(false);
   const [refreshTick, setRefreshTick] = useState(0); // bumped by pull to refresh
   const [pdfBusy, setPdfBusy] = useState(false);
+  const [askPdf, setAskPdf]   = useState(false);
 
   const [waterLevel, setWaterLevel]           = useState(null);
   const [statusBreakdown, setStatusBreakdown] = useState(null);
@@ -1014,6 +1175,15 @@ function StatisticsPage({ userRole, token, manualFews, unitPref, thresholds, thr
   return (
     <div className={`page-body ${loading && waterLevel ? "stats-updating" : ""}`}>
       <div className="page-card stats-controls-card">
+        {askPdf && (
+          <ReportChoiceModal
+            title="Statistics PDF"
+            message="Download gives the range on screen. Push to DMS ignores it and sends every completed month not yet in the DMS."
+            onDownload={handleExportPdf}
+            onPush={() => pushReportsToDms("statistics", token, showToast, { thresholds, thresholdsLoaded, manualFews })}
+            onCancel={() => setAskPdf(false)}
+          />
+        )}
         <div className="stats-date-controls">
           {[
             { key: "30d", label: "Last 30 days",   short: "Last 30 d." },
@@ -1031,7 +1201,7 @@ function StatisticsPage({ userRole, token, manualFews, unitPref, thresholds, thr
             emptyLabel="Custom range"
             onChange={(v) => { setCustomFrom(v.from); setCustomTo(v.to); setPreset("custom"); }}
           />
-          <button type="button" className="stats-export-btn" onClick={handleExportPdf}
+          <button type="button" className="stats-export-btn" onClick={() => setAskPdf(true)}
             disabled={!canExport || pdfBusy} title="Export to PDF" aria-label="Export to PDF">
             {pdfBusy
               ? <span className="btn-spinner" style={{ borderColor: "rgba(56,189,248,0.3)", borderTopColor: "#38bdf8" }} />
@@ -1517,7 +1687,7 @@ function exportToXLSX(rows, filterSummary = "", showToast = () => {}) {
   document.head.appendChild(s);
 }
 
-function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
+function exportToPDF(rows, filterSummary = "", showToast = () => {}, onBlob = null) {
   const load = (src) => new Promise((res, rej) => {
     if (document.querySelector(`script[src="${src}"]`)) { res(); return; }
     const s = document.createElement("script");
@@ -1584,6 +1754,7 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
       if (fromStr && toStr && fromStr === toStr) datePart = fromStr;
       else if (fromStr && toStr)                 datePart = `${fromStr}_to_${toStr}`;
       else                                       datePart = `All_${todayStr}`;
+      if (onBlob) { onBlob(doc.output("blob")); return; }
       doc.save(`FEWS_Incident-Log_${datePart}.pdf`);
     };
 
@@ -1637,7 +1808,8 @@ function exportToPDF(rows, filterSummary = "", showToast = () => {}) {
     };
   };
 
-  if (window.jspdf?.jsPDF) { doIt(); return; }
+  const autoTableReady = !!window.jspdf?.jsPDF && typeof new window.jspdf.jsPDF().autoTable === "function";
+  if (autoTableReady) { doIt(); return; }
   load("https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js")
     .then(() => load("https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.8.2/jspdf.plugin.autotable.min.js"))
     .then(doIt)
@@ -2133,6 +2305,7 @@ function exportStatsToPDF(opts, showToast = () => {}) {
         doc.setTextColor(...RGB.ink);
         anaLines.forEach((ln, i) => doc.text(ln, rightX + 8, anaY + 26 + i * anaLead));
 
+        if (opts.asBlob) { resolve(doc.output("blob")); return; }
         doc.save(`FEWS_Statistics_${opts.range.from}_to_${opts.range.to}.pdf`);
         resolve();
       } catch (e) {

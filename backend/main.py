@@ -1210,6 +1210,106 @@ def dms_download_document(request: Request, doc_id: int, dms=Depends(require_dms
         headers={"Content-Disposition": f'attachment; filename="{row["filename"]}"'},
     )
 
+# --- DMS REPORTS: dashboard side (which months are due, and the upload) ---
+from datetime import timedelta
+from fastapi import File, Form, UploadFile
+
+DMS_FIRST_PERIOD = "2026-06"          # first month with data
+DMS_MAX_BYTES    = 10 * 1024 * 1024   # 10 MB per PDF
+
+def dms_periods_due():
+    # Every completed calendar month from June 2026 up to last month (Manila time, UTC+8, no DST)
+    now  = datetime.utcnow() + timedelta(hours=8)
+    last = (now.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
+    y, m = map(int, DMS_FIRST_PERIOD.split("-"))
+    out  = []
+    while f"{y:04d}-{m:02d}" <= last:
+        out.append(f"{y:04d}-{m:02d}")
+        m += 1
+        if m == 13:
+            y, m = y + 1, 1
+    return out
+
+@app.get("/dms/status")
+def dms_status(user=Depends(get_current_user)):
+    due  = dms_periods_due()
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        cur.execute("SELECT report_type, period FROM dms_reports")
+        sent = {t: set() for t in DMS_REPORT_META}
+        for r in cur.fetchall():
+            if r["report_type"] in sent:
+                sent[r["report_type"]].add(r["period"])
+        return {
+            "due":     due,
+            "missing": {t: [p for p in due if p not in sent[t]] for t in DMS_REPORT_META},
+        }
+    finally:
+        cur.close()
+        release_db(conn)
+
+@app.post("/dms/reports")
+@limiter.limit("60/minute")
+def dms_upload_report(
+    request:     Request,
+    report_type: str        = Form(...),
+    period:      str        = Form(...),
+    file:        UploadFile = File(...),
+    user=Depends(get_current_user),
+):
+    if supabase is None:
+        raise HTTPException(status_code=500, detail="Storage not configured.")
+    if report_type not in DMS_REPORT_META:
+        raise HTTPException(status_code=400, detail="Unknown report type.")
+    if period not in dms_periods_due():
+        raise HTTPException(status_code=400, detail="That month is not ready to send.")
+    data = file.file.read(DMS_MAX_BYTES + 1)
+    if len(data) > DMS_MAX_BYTES:
+        raise HTTPException(status_code=413, detail="Report is too large.")
+    if not data.startswith(b"%PDF"):
+        raise HTTPException(status_code=400, detail="File must be a PDF.")
+
+    meta     = DMS_REPORT_META[report_type]
+    nice     = meta["folder"].title()                      # "Statistics" / "History Logs"
+    month    = datetime.strptime(period + "-01", "%Y-%m-%d").strftime("%B %Y")
+    title    = f"FEWS {nice} - {month}"
+    filename = f"FEWS_{nice.replace(' ', '-')}_{period}.pdf"
+    path     = f"{report_type}/{period}.pdf"
+
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        # A month already sent is never replaced or duplicated
+        cur.execute("SELECT id FROM dms_reports WHERE report_type = %s AND period = %s", (report_type, period))
+        if cur.fetchone():
+            return {"ok": True, "skipped": True}
+
+        cur.execute("SELECT name FROM users WHERE id = %s", (int(user["sub"]),))
+        u       = cur.fetchone()
+        sent_by = u["name"] if u else ""
+
+        try:
+            supabase.storage.from_(DMS_BUCKET).upload(
+                path, data, {"content-type": "application/pdf", "upsert": "true"}
+            )
+        except Exception as e:
+            print(f"[DMS] Upload failed for {path}: {e}")
+            raise HTTPException(status_code=502, detail="Report could not be stored.")
+
+        cur.execute("""
+            INSERT INTO dms_reports (report_type, period, title, filename, storage_path, file_size, sent_by)
+            VALUES (%s, %s, %s, %s, %s, %s, %s)
+            ON CONFLICT (report_type, period) DO NOTHING
+            RETURNING id
+        """, (report_type, period, title, filename, path, len(data), sent_by))
+        row = cur.fetchone()
+        conn.commit()
+        return {"ok": True, "skipped": row is None}
+    finally:
+        cur.close()
+        release_db(conn)
+
 # --- PUSH NOTIFICATIONS ---
 
 VAPID_PRIVATE_KEY = os.environ.get("VAPID_PRIVATE_KEY", "")
