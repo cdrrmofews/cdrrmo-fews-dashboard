@@ -1016,9 +1016,9 @@ function StatisticsPage({ userRole, token, manualFews, unitPref, thresholds, thr
       <div className="page-card stats-controls-card">
         <div className="stats-date-controls">
           {[
-            { key: "30d", label: "Last 30 days",   short: "Last 30 days" },
-            { key: "90d", label: "Last 90 days",   short: "Last 90 days" },
-            { key: "12m", label: "Last 12 months", short: "Last 12 months" },
+            { key: "30d", label: "Last 30 days",   short: "Last 30 d." },
+            { key: "90d", label: "Last 90 days",   short: "Last 90 d." },
+            { key: "12m", label: "Last 12 months", short: "Last 12 mo." },
           ].map(p => (
             <button key={p.key} className={`stats-preset-btn ${preset === p.key ? "stats-preset-active" : ""}`} onClick={() => { setPreset(p.key); setCustomFrom(""); setCustomTo(""); }}>
               <span className="wl-full">{p.label}</span>
@@ -1155,7 +1155,8 @@ function StatisticsPage({ userRole, token, manualFews, unitPref, thresholds, thr
                 const dashLength = (pct / 100) * circumference;
                 return (
                   <div className="stats-donut-row">
-                    <svg viewBox="0 0 100 100" className="stats-donut-svg">
+                    <svg viewBox="0 0 100 100" className="stats-donut-svg"
+                      style={{ "--donut-size": `${Math.round(Math.min(240, Math.max(120, 120 + ((statusBreakdown?.length || 0) - 5) * 14)))}px` }}>
                       <circle cx="50" cy="50" r="40" fill="none" stroke="#64748b" strokeWidth="14" />
                       <circle
                         cx="50" cy="50" r="40" fill="none" stroke="#38bdf8" strokeWidth="14"
@@ -1742,7 +1743,9 @@ function exportStatsToPDF(opts, showToast = () => {}) {
         const manualH = 56;
         const manualY = bodyY + splitH + gap;
         const incY    = manualY + manualH + gap;
-        const incH    = contentBottom - incY;
+        const anaH    = 88;                   // analysis box, bottom of the right column
+        const anaY    = contentBottom - anaH;
+        const incH    = anaY - gap - incY;
 
         const RGB = {
           base: [226, 232, 240], normal: [253, 224, 71], warning: [249, 115, 22], critical: [239, 68, 68],
@@ -2068,6 +2071,67 @@ function exportStatsToPDF(opts, showToast = () => {}) {
             );
           }
         }
+
+        // ── Analysis and recommendation (fixed wording rules built from the numbers above, no AI) ──
+        card(rightX, anaY, rightW, anaH, "Analysis and recommendation");
+        const anaText = (() => {
+          if (current?.peak == null || !series.length) return "No readings in this range.";
+          if (!thresholdsLoaded) return "Alert levels have not loaded yet, so no analysis is available. Export again in a moment.";
+          const peak    = current.peak;
+          const peakTxt = formatWaterLevel(peak, unitPref);
+          let top = series[0];
+          series.forEach(s => { if (s.high != null && (top.high == null || s.high > top.high)) top = s; });
+          const when = wl.bucket === "day"   ? `on ${fmtBucketLabel(top.bucket_start, "day")}`
+                     : wl.bucket === "month" ? `in ${new Date(top.bucket_start + "T00:00:00").toLocaleDateString("en-PH", { month: "long", year: "numeric" })}`
+                     : `week of ${fmtBucketLabel(top.bucket_start, "week")}`;
+          const level = peak > thresholds.danger  ? "critical"
+                      : peak > thresholds.warning ? "warning"
+                      : peak < getBaselineCutoff(thresholds) ? "base" : "normal";
+          const baseShare = totalReadings > 0 ? (shares[0] > 0 && shares[0] < 1 ? "<1" : String(Math.round(shares[0]))) : null;
+          const warnTxt = formatWaterLevel(thresholds.warning, unitPref);
+          const critTxt = formatWaterLevel(thresholds.danger, unitPref);
+          const alertWeeks = current.weeksWithAlerts > 0 ? `, with alerts in ${current.weeksWithAlerts} of ${current.totalWeeks} weeks` : "";
+          let first, second;
+          if (level === "critical") {
+            first  = `Water level reached the Critical level during the reporting period, peaking at ${peakTxt} (${when}), above the Critical level of ${critTxt}${alertWeeks}.`;
+            second = "It is recommended to review the response actions, siren activation records, and notification logs for the weeks with Critical readings, and to confirm that all alert channels performed as expected.";
+          } else if (level === "warning") {
+            first  = `Water level reached the Warning level during the reporting period, peaking at ${peakTxt} (${when}), above the Warning level of ${warnTxt}${alertWeeks}.`;
+            second = "It is recommended to review preparedness measures and station readiness for the weeks with Warning readings, and to continue close monitoring of water level trends.";
+          } else {
+            first = level === "base"
+              ? `Water level remained at Base${baseShare ? ` for ${baseShare}% of readings` : ""} during the reporting period, peaking at ${peakTxt} (${when}), which is below the Warning level of ${warnTxt}.`
+              : `Water level remained below the Warning level during the reporting period${baseShare ? ` (at Base for ${baseShare}% of readings)` : ""}, peaking at ${peakTxt} (${when}) against the Warning level of ${warnTxt}.`;
+            const up = current.uptimePct;
+            if (up != null && up < 98) {
+              const longest = incidents.reduce((m, i) => Math.max(m, i.duration_sec), 0);
+              const fix = "It is recommended to inspect the device's power supply and cellular signal, and to verify the connection to the MQTT broker and the server, to improve data continuity.";
+              second = incidents.length
+                ? `No flood action is indicated at this time. FEWS 1 was online ${up}% of the time, with ${incidents.length} offline incident${incidents.length === 1 ? "" : "s"} of 5 minutes or more (longest ${fmtDuration(longest)}). ${fix}`
+                : `No flood action is indicated at this time. FEWS 1 was online ${up}% of the time. ${fix}`;
+            } else {
+              second = "No flood action is indicated at this time. It is recommended to continue routine monitoring and regular inspection of FEWS 1.";
+            }
+          }
+          return `${first} ${second}`;
+        })();
+        doc.setFont("helvetica", "normal");
+        let anaSize = 7.5, anaLead = 9.5;
+        const anaW    = rightW - 16;
+        const anaFits = (n, lead) => 26 + (n - 1) * lead <= anaH - 6;
+        doc.setFontSize(anaSize);
+        let anaLines = doc.splitTextToSize(anaText, anaW);
+        if (!anaFits(anaLines.length, anaLead)) {          // too long: smaller text first
+          anaSize = 6.8; anaLead = 8.6;
+          doc.setFontSize(anaSize);
+          anaLines = doc.splitTextToSize(anaText, anaW);
+        }
+        if (!anaFits(anaLines.length, anaLead)) {          // still too long: cut it so it never leaves the box
+          while (anaLines.length > 1 && !anaFits(anaLines.length, anaLead)) anaLines.pop();
+          anaLines[anaLines.length - 1] = `${anaLines[anaLines.length - 1].replace(/\s+$/, "")}…`;
+        }
+        doc.setTextColor(...RGB.ink);
+        anaLines.forEach((ln, i) => doc.text(ln, rightX + 8, anaY + 26 + i * anaLead));
 
         doc.save(`FEWS_Statistics_${opts.range.from}_to_${opts.range.to}.pdf`);
         resolve();

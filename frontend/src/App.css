@@ -2148,6 +2148,15 @@ body {
 .stats-donut-legend-row strong { color: var(--text-1); margin-left: 4px; }
 .stats-donut-dot { width: 10px; height: 10px; border-radius: 3px; flex-shrink: 0; }
 
+/* Desktop only: the circle size comes from the number of weeks (set in App.jsx as --donut-size,
+   120px up to 240px). The legend grows with it. Phones keep their 96px rule above. */
+@media (min-width: 769px) {
+  .stats-donut-svg { width: var(--donut-size, 120px); height: var(--donut-size, 120px); }
+  .stats-donut-legend { gap: clamp(10px, calc(var(--donut-size, 120px) / 20), 12px); }
+  .stats-donut-legend-row { font-size: clamp(13px, calc(var(--donut-size, 120px) / 16), 15px); }
+  .stats-donut-dot { width: clamp(10px, calc(var(--donut-size, 120px) / 20), 12px); height: clamp(10px, calc(var(--donut-size, 120px) / 20), 12px); }
+}
+
 .stats-incidents-list { display: flex; flex-direction: column; gap: 4px; }
 .stats-incident-row {
   display: flex; align-items: center; gap: 12px; padding: 8px 10px;
