@@ -1294,7 +1294,9 @@ def dms_upload_report(
                 path, data, {"content-type": "application/pdf", "upsert": "true"}
             )
         except Exception as e:
+            import traceback
             print(f"[DMS] Upload failed for {path}: {e}")
+            traceback.print_exc()
             raise HTTPException(status_code=502, detail="Report could not be stored.")
 
         cur.execute("""
