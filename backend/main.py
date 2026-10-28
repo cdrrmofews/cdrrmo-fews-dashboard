@@ -167,6 +167,20 @@ def startup():
                 ALTER TABLE push_subscriptions
                   ADD COLUMN IF NOT EXISTS user_id INTEGER REFERENCES users(id)
             """)
+            cur.execute("""
+                CREATE TABLE IF NOT EXISTS dms_reports (
+                    id           SERIAL PRIMARY KEY,
+                    report_type  TEXT NOT NULL,
+                    period       TEXT NOT NULL,
+                    title        TEXT NOT NULL,
+                    filename     TEXT NOT NULL,
+                    storage_path TEXT NOT NULL,
+                    file_size    INTEGER NOT NULL DEFAULT 0,
+                    sent_by      TEXT DEFAULT '',
+                    created_at   TIMESTAMPTZ DEFAULT NOW(),
+                    UNIQUE (report_type, period)
+                )
+            """)
             conn.commit()
         except Exception as e:
             print(f"[STARTUP] Migration error: {e}")
@@ -1122,6 +1136,79 @@ def get_version():
 @app.get("/")
 def root():
     return {"ok": True}
+
+# --- DMS REPORTS API (pulled by the CDRRMO DMS) ---
+import hmac
+from fastapi.responses import Response
+
+DMS_API_TOKEN = os.environ.get("DMS_API_TOKEN", "")
+DMS_BUCKET    = "dms-reports"
+DMS_REPORT_META = {
+    "statistics": {"folder": "STATISTICS",   "about": "Water level statistics"},
+    "logs":       {"folder": "HISTORY LOGS", "about": "Water level readings log"},
+}
+
+def require_dms_token(authorization: str = Header(None)):
+    if not DMS_API_TOKEN:
+        raise HTTPException(status_code=503, detail="DMS API is not configured")
+    scheme, _, token = (authorization or "").partition(" ")
+    if scheme.lower() != "bearer" or not hmac.compare_digest(token.encode(), DMS_API_TOKEN.encode()):
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+def dms_item(row):
+    meta  = DMS_REPORT_META[row["report_type"]]
+    month = datetime.strptime(row["period"] + "-01", "%Y-%m-%d").strftime("%B %Y")
+    return {
+        "id":           row["id"],
+        "title":        row["title"],
+        "description":  f"{meta['about']} for {month} · FEWS 1",
+        "filename":     row["filename"],
+        "category":     "FEWS",
+        "subcategory":  f"{meta['folder']} {row['period'][:4]}",
+        "updated_at":   row["created_at"].isoformat(),
+        "download_url": f"/dms/documents/{row['id']}/download",
+    }
+
+@app.get("/dms/documents")
+@limiter.limit("30/minute")
+def dms_list_documents(request: Request, dms=Depends(require_dms_token)):
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        cur.execute("""
+            SELECT id, report_type, period, title, filename, created_at
+            FROM dms_reports ORDER BY id
+        """)
+        return {"documents": [dms_item(r) for r in cur.fetchall()]}
+    finally:
+        cur.close()
+        release_db(conn)
+
+@app.get("/dms/documents/{doc_id}/download")
+@limiter.limit("120/minute")
+def dms_download_document(request: Request, doc_id: int, dms=Depends(require_dms_token)):
+    if supabase is None:
+        raise HTTPException(status_code=500, detail="Storage not configured.")
+    conn = get_db()
+    cur  = conn.cursor()
+    try:
+        cur.execute("SELECT filename, storage_path FROM dms_reports WHERE id = %s", (doc_id,))
+        row = cur.fetchone()
+    finally:
+        cur.close()
+        release_db(conn)
+    if not row:
+        raise HTTPException(status_code=404, detail="Report not found")
+    try:
+        data = supabase.storage.from_(DMS_BUCKET).download(row["storage_path"])
+    except Exception as e:
+        print(f"[DMS] Could not read {row['storage_path']}: {e}")
+        raise HTTPException(status_code=502, detail="Report file could not be read.")
+    return Response(
+        content=data,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{row["filename"]}"'},
+    )
 
 # --- PUSH NOTIFICATIONS ---
 
