@@ -1144,8 +1144,10 @@ from fastapi.responses import Response
 DMS_API_TOKEN = os.environ.get("DMS_API_TOKEN", "")
 DMS_BUCKET    = "dms-reports"
 DMS_REPORT_META = {
-    "statistics": {"folder": "STATISTICS",   "about": "Water level statistics"},
-    "logs":       {"folder": "HISTORY LOGS", "about": "Water level readings log"},
+    "statistics":   {"folder": "STATISTICS",   "about": "Water level statistics"},
+    "logs":         {"folder": "HISTORY LOGS", "about": "Water level readings log"},
+    "connectivity": {"folder": "CONNECTIVITY", "about": "FEWS 1 connectivity log"},
+    "activity":     {"folder": "ACTIVITY",     "about": "System activity log"},
 }
 
 def require_dms_token(authorization: str = Header(None)):

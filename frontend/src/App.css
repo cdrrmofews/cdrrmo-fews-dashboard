@@ -1836,7 +1836,7 @@ body {
   padding: 6px;
   box-shadow: 0 12px 40px rgba(0,0,0,0.6);
   z-index: 9999;
-  min-width: 160px;
+  min-width: 100%;
   animation: cdp-fade 0.12s ease;
 }
 
@@ -1859,7 +1859,9 @@ body {
 }
 .export-menu-item:hover { background: var(--bg-raised); color: var(--text-1); }
 .export-menu-item-icon  { font-size: 14px; flex-shrink: 0; }
-.export-menu-item-label { flex: 1; }
+.export-menu-item-label { flex: 1; text-transform: uppercase; white-space: nowrap; }
+.dms-push-dropdown { min-width: 100%; }
+.dms-push-dropdown .export-menu-item-label { white-space: nowrap; }
 
 .logs-reset-icon-btn {
   width: 36px;

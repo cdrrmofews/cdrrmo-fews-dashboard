@@ -654,23 +654,34 @@ function logsPdfBlob(rows, summary) {
   });
 }
 
-// One month of readings (Base, Normal, Warning, Critical only). null = no readings that month.
-async function buildMonthlyLogsPdf(period, token) {
+// Which log types go into each monthly report, and the note printed in the PDF header
+const DMS_LOG_FILTER = {
+  logs:         { types: READING_TYPES,    note: "Readings only (Base, Normal, Warning, Critical)" },
+  connectivity: { types: ["connectivity"], note: "Connectivity events only" },
+  activity:     { types: ["system"],       note: "Activity events only" },
+};
+
+// One month of one log category. null = no rows that month.
+async function buildMonthlyLogsPdf(period, token, reportType = "logs") {
   const { from, to } = monthRange(period);
+  const f = DMS_LOG_FILTER[reportType] || DMS_LOG_FILTER.logs;
   const params = new URLSearchParams({ date_from: from, date_to: to });
   const res = await authFetch(`${API_BASE}/logs/export?${params}`, { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) throw new Error("Could not load the logs.");
   const data = await res.json();
   if (!Array.isArray(data)) throw new Error("Could not load the logs.");
-  const rows = data.map(parseLog).filter(r => READING_TYPES.includes(r.type));
+  const rows = data.map(parseLog).filter(r => f.types.includes(r.type));
   if (!rows.length) return null;
-  return logsPdfBlob(rows, `Readings only (Base, Normal, Warning, Critical)  ·  From: ${from}  ·  To: ${to}`);
+  return logsPdfBlob(rows, `${f.note}  ·  From: ${from}  ·  To: ${to}`);
 }
 
 // One month of statistics, compared with the 30-ish days before it (same rule as the page). null = no data.
 async function buildMonthlyStatsPdf(period, token, ctx, showToast) {
   const range  = monthRange(period);
-  const shadow = getShadowRange(range.from, range.to);
+  // Compared with the whole previous calendar month (May 1-31 for June), not the same number of days
+  const [py, pm] = period.split("-").map(Number);
+  const prevPeriod = pm === 1 ? `${py - 1}-12` : `${py}-${String(pm - 1).padStart(2, "0")}`;
+  const shadow = monthRange(prevPeriod);
   const headers = { Authorization: `Bearer ${token}` };
   const getJson = async (path, r) => {
     const res = await authFetch(`${API_BASE}${path}?date_from=${r.from}&date_to=${r.to}`, { headers });
@@ -695,7 +706,7 @@ async function buildMonthlyStatsPdf(period, token, ctx, showToast) {
   return blob;
 }
 
-const DMS_REPORT_LABEL = { statistics: "Statistics", logs: "History logs" };
+const DMS_REPORT_LABEL = { statistics: "Statistics", logs: "Readings", connectivity: "Connectivity", activity: "Activity" };
 
 // "2026-06" ... "2026-09" -> "Jun to Sep 2026" (one month -> "Jun 2026")
 function fmtPeriodRange(periods) {
@@ -720,9 +731,9 @@ async function pushReportsToDms(reportType, token, showToast, ctx = {}) {
     let sent = 0, empty = 0, already = 0;
     const sentPeriods = [];
     for (const period of missing) {
-      const blob = reportType === "logs"
-        ? await buildMonthlyLogsPdf(period, token)
-        : await buildMonthlyStatsPdf(period, token, ctx, showToast);
+      const blob = reportType === "statistics"
+        ? await buildMonthlyStatsPdf(period, token, ctx, showToast)
+        : await buildMonthlyLogsPdf(period, token, reportType);
       if (!blob) { empty += 1; continue; }
       const form = new FormData();
       form.append("report_type", reportType);
@@ -755,8 +766,10 @@ function PushIcon() {
   );
 }
 
-function ExportMenu({ token, activeFilters, exporting, setExporting, showToast }) {
+function ExportMenu({ token, userRole, activeFilters, exporting, setExporting, showToast }) {
   const [open, setOpen] = useState(false);
+  const [pushOpen, setPushOpen] = useState(false);
+  const pushRef = useRef();
   const ref = useRef();
   useEffect(() => {
     const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
@@ -783,12 +796,36 @@ function ExportMenu({ token, activeFilters, exporting, setExporting, showToast }
   };
 
   const [pushing, setPushing] = useState(false);
+  const isAdmin = userRole === "Admin";
 
-  const handlePush = async () => {
+  // Same close rules as the Export menu: click outside, or scroll on phones
+  useEffect(() => {
+    const handler = (e) => { if (pushRef.current && !pushRef.current.contains(e.target)) setPushOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+  useEffect(() => {
+    if (!pushOpen) return;
+    const handleScroll = () => { if (isMobileViewport()) setPushOpen(false); };
+    window.addEventListener("scroll", handleScroll, true);
+    return () => window.removeEventListener("scroll", handleScroll, true);
+  }, [pushOpen]);
+
+  // Operators can't see ACTIVITY rows in /logs/export, so they only get Readings and Connectivity (until the Admin-only step)
+  const pushItems = [
+    ...(isAdmin ? [{ key: "all", types: ["logs", "connectivity", "activity"], label: "Push all" }] : []),
+    { key: "logs",         types: ["logs"],         label: "Readings" },
+    { key: "connectivity", types: ["connectivity"], label: "Connectivity" },
+    ...(isAdmin ? [{ key: "activity", types: ["activity"], label: "Activity" }] : []),
+  ];
+
+  const handlePush = async (types) => {
+    setPushOpen(false);
     if (pushing) return;
     setPushing(true);
-    try { await pushReportsToDms("logs", token, showToast); }
-    finally { setPushing(false); }
+    try {
+      for (const t of types) await pushReportsToDms(t, token, showToast);
+    } finally { setPushing(false); }
   };
 
   const handleExport = async (format) => {
@@ -820,13 +857,27 @@ function ExportMenu({ token, activeFilters, exporting, setExporting, showToast }
 
   return (
     <>
-    <button type="button" className="stats-export-btn dms-push-btn" onClick={handlePush}
-      disabled={pushing || !!exporting} title="Push to DMS" aria-label="Push to DMS">
-      {pushing
-        ? <span className="btn-spinner" style={{ borderColor: "rgba(56,189,248,0.3)", borderTopColor: "#38bdf8" }} />
-        : <PushIcon />}
-      <span className="stats-export-label">Push to DMS</span>
-    </button>
+    <div className="export-menu-wrap" ref={pushRef} style={{ alignSelf: "flex-end" }}>
+      <button type="button" className="stats-export-btn dms-push-btn" onClick={() => setPushOpen(o => !o)}
+        disabled={pushing || !!exporting} title="Push to DMS" aria-label="Push to DMS">
+        {pushing
+          ? <span className="btn-spinner" style={{ borderColor: "rgba(56,189,248,0.3)", borderTopColor: "#38bdf8" }} />
+          : <PushIcon />}
+        <span className="stats-export-label">Push to DMS</span>
+        <svg className="export-chevron stats-export-label" width="10" height="6" viewBox="0 0 10 6" fill="none" aria-hidden="true">
+          <path d="M1 1l4 4 4-4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </button>
+      {pushOpen && (
+        <div className="export-menu-dropdown dms-push-dropdown">
+          {pushItems.map(({ key, types, label }) => (
+            <button key={key} className="export-menu-item" onClick={() => handlePush(types)}>
+              <span className="export-menu-item-label">{label}</span>
+            </button>
+          ))}
+        </div>
+      )}
+    </div>
     <div className="export-menu-wrap" ref={ref} style={{ alignSelf: "flex-end" }}>
       <button type="button" className="stats-export-btn" onClick={() => setOpen(o => !o)}
         disabled={!!exporting || pushing} title="Export" aria-label="Export">
@@ -842,10 +893,9 @@ function ExportMenu({ token, activeFilters, exporting, setExporting, showToast }
       </button>
       {open && (
         <div className="export-menu-dropdown">
-          {[{ fmt:"xlsx", icon:"📊", label:"Excel (.xlsx)", color:"#22c55e" }, { fmt:"pdf", icon:"📄", label:"PDF (.pdf)", color:"#ef4444" }]
-            .map(({ fmt, icon, label, color }) => (
+          {[{ fmt:"xlsx", label:"Excel (.xlsx)" }, { fmt:"pdf", label:"PDF (.pdf)" }]
+            .map(({ fmt, label }) => (
               <button key={fmt} className="export-menu-item" onClick={() => handleExport(fmt)}>
-                <span className="export-menu-item-icon" style={{ color }}>{icon}</span>
                 <span className="export-menu-item-label">{label}</span>
               </button>
           ))}
@@ -876,6 +926,16 @@ function getShadowRange(from, to) {
   const fromD = new Date(from + "T00:00:00");
   const toD   = new Date(to + "T00:00:00");
   const days  = Math.round((toD - fromD) / 86400000);
+  // Exactly one full calendar month (e.g. Sep 1 - Sep 30): compare with the whole previous calendar month
+  const isFullMonth = fromD.getDate() === 1
+    && toD.getMonth() === fromD.getMonth()
+    && toD.getFullYear() === fromD.getFullYear()
+    && new Date(toD.getFullYear(), toD.getMonth() + 1, 0).getDate() === toD.getDate();
+  if (isFullMonth) {
+    const prevFrom = new Date(fromD.getFullYear(), fromD.getMonth() - 1, 1);
+    const prevTo   = new Date(fromD.getFullYear(), fromD.getMonth(), 0);
+    return { from: toLocalIso(prevFrom), to: toLocalIso(prevTo) };
+  }
   const shadowTo = new Date(fromD);
   shadowTo.setDate(shadowTo.getDate() - 1);
   const shadowFrom = new Date(shadowTo);
@@ -1549,6 +1609,7 @@ function LogsPage({ token, userRole, showToast }) {
           )}
           <ExportMenu
             token={token}
+            userRole={userRole}
             activeFilters={activeFilters}
             exporting={exporting}
             setExporting={setExporting}
@@ -2266,29 +2327,43 @@ function exportStatsToPDF(opts, showToast = () => {}) {
           const warnTxt = formatWaterLevel(thresholds.warning, unitPref);
           const critTxt = formatWaterLevel(thresholds.danger, unitPref);
           const alertWeeks = current.weeksWithAlerts > 0 ? `, with alerts in ${current.weeksWithAlerts} of ${current.totalWeeks} weeks` : "";
-          let first, second;
+          const up      = current.uptimePct;
+          const longest = incidents.reduce((m, i) => Math.max(m, i.duration_sec), 0);
+          const upSentence = up == null ? ""
+            : incidents.length
+              ? `FEWS 1 was online ${up}% of the time, with ${incidents.length} offline incident${incidents.length === 1 ? "" : "s"} of 5 minutes or more (longest ${fmtDuration(longest)}).`
+              : `FEWS 1 was online ${up}% of the time.`;
+          const sh = opts.shadow;
+          const shadowIsMonth = sh.from.endsWith("-01") && sh.to === monthRange(sh.from.slice(0, 7)).to;
+          const shadowLabel = shadowIsMonth
+            ? new Date(sh.from + "T00:00:00").toLocaleDateString("en-PH", { month: "long", year: "numeric" })
+            : `${fmtLong(sh.from)} – ${fmtLong(sh.to)}`;
+          const compareSentence = (previous?.peak != null && previous?.avg != null && current.avg != null)
+            ? `Versus ${shadowLabel}: peak ${peakTxt} vs ${formatWaterLevel(previous.peak, unitPref)}, average ${formatWaterLevel(current.avg, unitPref)} vs ${formatWaterLevel(previous.avg, unitPref)}.`
+            : "";
+          const alertPct = shares[2] + shares[3];
+          const alertShareSentence = totalReadings > 0 && alertPct > 0
+            ? `Readings were at Warning or above for ${alertPct < 1 ? "<1" : Math.round(alertPct)}% of the period.`
+            : "";
+          let first, mid, second;
           if (level === "critical") {
             first  = `Water level reached the Critical level during the reporting period, peaking at ${peakTxt} (${when}), above the Critical level of ${critTxt}${alertWeeks}.`;
-            second = "It is recommended to review the response actions, siren activation records, and notification logs for the weeks with Critical readings, and to confirm that all alert channels performed as expected.";
+            mid    = [alertShareSentence, compareSentence, upSentence].filter(Boolean).join(" ");
+            second = "It is recommended to review response actions, siren records, and notification logs for the Critical weeks, and to confirm all alert channels worked.";
           } else if (level === "warning") {
             first  = `Water level reached the Warning level during the reporting period, peaking at ${peakTxt} (${when}), above the Warning level of ${warnTxt}${alertWeeks}.`;
-            second = "It is recommended to review preparedness measures and station readiness for the weeks with Warning readings, and to continue close monitoring of water level trends.";
+            mid    = [alertShareSentence, compareSentence, upSentence].filter(Boolean).join(" ");
+            second = "It is recommended to review preparedness and station readiness for the Warning weeks, and to keep monitoring closely.";
           } else {
             first = level === "base"
               ? `Water level remained at Base${baseShare ? ` for ${baseShare}% of readings` : ""} during the reporting period, peaking at ${peakTxt} (${when}), which is below the Warning level of ${warnTxt}.`
               : `Water level remained below the Warning level during the reporting period${baseShare ? ` (at Base for ${baseShare}% of readings)` : ""}, peaking at ${peakTxt} (${when}) against the Warning level of ${warnTxt}.`;
-            const up = current.uptimePct;
-            if (up != null && up < 98) {
-              const longest = incidents.reduce((m, i) => Math.max(m, i.duration_sec), 0);
-              const fix = "It is recommended to inspect the device's power supply and cellular signal, and to verify the connection to the MQTT broker and the server, to improve data continuity.";
-              second = incidents.length
-                ? `No flood action is indicated at this time. FEWS 1 was online ${up}% of the time, with ${incidents.length} offline incident${incidents.length === 1 ? "" : "s"} of 5 minutes or more (longest ${fmtDuration(longest)}). ${fix}`
-                : `No flood action is indicated at this time. FEWS 1 was online ${up}% of the time. ${fix}`;
-            } else {
-              second = "No flood action is indicated at this time. It is recommended to continue routine monitoring and regular inspection of FEWS 1.";
-            }
+            mid = [compareSentence, "No flood action is indicated at this time.", upSentence].filter(Boolean).join(" ");
+            second = (up != null && up < 98)
+              ? "It is recommended to inspect the device's power supply and cellular signal, and to verify the MQTT broker and server connection."
+              : "It is recommended to continue routine monitoring and regular inspection of FEWS 1.";
           }
-          return `${first} ${second}`;
+          return [first, mid, second].filter(Boolean).join(" ");
         })();
         doc.setFont("helvetica", "normal");
         let anaSize = 7.5, anaLead = 9.5;
