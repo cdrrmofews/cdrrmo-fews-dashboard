@@ -656,15 +656,15 @@ function logsPdfBlob(rows, summary) {
 
 // Which log types go into each monthly report, and the note printed in the PDF header
 const DMS_LOG_FILTER = {
-  logs:         { types: READING_TYPES,    note: "Readings only (Base, Normal, Warning, Critical)" },
+  readings:     { types: READING_TYPES,    note: "Readings only (Base, Normal, Warning, Critical)" },
   connectivity: { types: ["connectivity"], note: "Connectivity events only" },
   activity:     { types: ["system"],       note: "Activity events only" },
 };
 
 // One month of one log category. null = no rows that month.
-async function buildMonthlyLogsPdf(period, token, reportType = "logs") {
+async function buildMonthlyLogsPdf(period, token, reportType = "readings") {
   const { from, to } = monthRange(period);
-  const f = DMS_LOG_FILTER[reportType] || DMS_LOG_FILTER.logs;
+  const f = DMS_LOG_FILTER[reportType] || DMS_LOG_FILTER.readings;
   const params = new URLSearchParams({ date_from: from, date_to: to });
   const res = await authFetch(`${API_BASE}/logs/export?${params}`, { headers: { Authorization: `Bearer ${token}` } });
   if (!res.ok) throw new Error("Could not load the logs.");
@@ -706,7 +706,7 @@ async function buildMonthlyStatsPdf(period, token, ctx, showToast) {
   return blob;
 }
 
-const DMS_REPORT_LABEL = { statistics: "Statistics", logs: "Readings", connectivity: "Connectivity", activity: "Activity" };
+const DMS_REPORT_LABEL = { statistics: "Statistics", readings: "Readings", connectivity: "Connectivity", activity: "Activity" };
 
 // "2026-06" ... "2026-09" -> "Jun to Sep 2026" (one month -> "Jun 2026")
 function fmtPeriodRange(periods) {
@@ -718,17 +718,22 @@ function fmtPeriodRange(periods) {
 }
 
 // Sends every completed month that is not in the DMS yet. Months already sent are never touched.
-async function pushReportsToDms(reportType, token, showToast, ctx = {}) {
+async function pushReportsToDms(reportType, token, showToast, ctx = {}, quiet = false) {
   const headers = { Authorization: `Bearer ${token}` };
+  const reportName = DMS_REPORT_LABEL[reportType] || "Report";
+  // quiet = no toasts from here; Push all reads the result and shows one combined toast
+  const result = { reportName, sent: 0, error: null, unauthorized: false };
   try {
     const st = await authFetch(`${API_BASE}/dms/status`, { headers });
     if (!st.ok) throw new Error("Could not check the DMS.");
     const status  = await st.json();
     const missing = status.missing?.[reportType] || [];
-    const reportName = DMS_REPORT_LABEL[reportType] || "Report";
-    if (!missing.length) { showToast("Already up to date", false, { kind: "ok", detail: `${reportName} · no new months to send` }); return; }
+    if (!missing.length) {
+      if (!quiet) showToast("Already up to date", false, { kind: "ok", detail: `${reportName} · no new months to send` });
+      return result;
+    }
 
-    let sent = 0, empty = 0, already = 0;
+    let empty = 0, already = 0;
     const sentPeriods = [];
     for (const period of missing) {
       const blob = reportType === "statistics"
@@ -745,16 +750,23 @@ async function pushReportsToDms(reportType, token, showToast, ctx = {}) {
         throw new Error(d.detail || "Upload failed.");
       }
       const r = await up.json();
-      if (r.skipped) already += 1; else { sent += 1; sentPeriods.push(period); }
+      if (r.skipped) already += 1; else { result.sent += 1; sentPeriods.push(period); }
     }
-    if (sent > 0) {
-      showToast("Reports sent to the DMS", false, { kind: "sent", detail: `${reportName} · ${sent} month${sent === 1 ? "" : "s"} · ${fmtPeriodRange(sentPeriods)}` });
+    if (quiet) return result;
+    if (result.sent > 0) {
+      showToast("Reports sent to the DMS", false, { kind: "sent", detail: `${reportName} · ${result.sent} month${result.sent === 1 ? "" : "s"} · ${fmtPeriodRange(sentPeriods)}` });
     } else {
       showToast("Already up to date", false, { kind: "ok", detail: `${reportName} · no new months to send` });
     }
   } catch (e) {
-    if (e?.message !== "Unauthorized") showToast("Push to DMS failed", false, { kind: "error", detail: e?.message || "Try again." });
+    if (e?.message === "Unauthorized") {
+      result.unauthorized = true;
+    } else {
+      result.error = e?.message || "Try again.";
+      if (!quiet) showToast("Push to DMS failed", false, { kind: "error", detail: result.error });
+    }
   }
+  return result;
 }
 
 // Upload arrow for the Push to DMS buttons (Logs and Statistics)
@@ -813,8 +825,8 @@ function ExportMenu({ token, userRole, activeFilters, exporting, setExporting, s
 
   // Operators can't see ACTIVITY rows in /logs/export, so they only get Readings and Connectivity (until the Admin-only step)
   const pushItems = [
-    ...(isAdmin ? [{ key: "all", types: ["logs", "connectivity", "activity"], label: "Push all" }] : []),
-    { key: "logs",         types: ["logs"],         label: "Readings" },
+    ...(isAdmin ? [{ key: "all", types: ["readings", "connectivity", "activity"], label: "Push all" }] : []),
+    { key: "readings",     types: ["readings"],     label: "Readings" },
     { key: "connectivity", types: ["connectivity"], label: "Connectivity" },
     ...(isAdmin ? [{ key: "activity", types: ["activity"], label: "Activity" }] : []),
   ];
@@ -824,7 +836,27 @@ function ExportMenu({ token, userRole, activeFilters, exporting, setExporting, s
     if (pushing) return;
     setPushing(true);
     try {
-      for (const t of types) await pushReportsToDms(t, token, showToast);
+      if (types.length === 1) {
+        await pushReportsToDms(types[0], token, showToast);
+      } else {
+        // Push all: run the reports one after another, then show ONE toast
+        const results = [];
+        for (const t of types) {
+          const r = await pushReportsToDms(t, token, showToast, {}, true);
+          if (r.unauthorized) return; // logged out, so no toast
+          results.push(r);
+        }
+        const failed = results.filter(r => r.error);
+        const sentRes = results.filter(r => r.sent > 0);
+        if (failed.length) {
+          const sentNote = sentRes.length ? ` · Sent: ${sentRes.map(r => `${r.reportName} ${r.sent}`).join(", ")}` : "";
+          showToast("Push to DMS failed", false, { kind: "error", detail: `${failed.map(r => `${r.reportName}: ${r.error}`).join(" · ")}${sentNote}` });
+        } else if (sentRes.length) {
+          showToast("Reports sent to the DMS", false, { kind: "sent", detail: `Months sent: ${sentRes.map(r => `${r.reportName} ${r.sent}`).join(" · ")}` });
+        } else {
+          showToast("Already up to date", false, { kind: "ok", detail: `${results.map(r => r.reportName).join(", ")} · no new months to send` });
+        }
+      }
     } finally { setPushing(false); }
   };
 

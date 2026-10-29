@@ -1077,6 +1077,9 @@ def update_user(user_id: int, req: UpdateUserRequest, admin=Depends(require_admi
                 raise HTTPException(status_code=400, detail=f"Invalid role. Must be one of: {', '.join(VALID_ROLES)}")
             fields.append("role = %s")
             values.append(req.role)
+            # a changed role ends the user's sessions, so a demoted Admin loses access right away
+            fields.append("token_version = CASE WHEN role IS DISTINCT FROM %s THEN token_version + 1 ELSE token_version END")
+            values.append(req.role)
         if req.department is not None:
             fields.append("department = %s")
             values.append(req.department)
@@ -1145,7 +1148,7 @@ DMS_API_TOKEN = os.environ.get("DMS_API_TOKEN", "")
 DMS_BUCKET    = "dms-reports"
 DMS_REPORT_META = {
     "statistics":   {"folder": "STATISTICS",   "about": "Water level statistics"},
-    "logs":         {"folder": "HISTORY LOGS", "about": "Water level readings log"},
+    "readings":     {"folder": "READINGS",     "about": "Water level readings log"},
     "connectivity": {"folder": "CONNECTIVITY", "about": "FEWS 1 connectivity log"},
     "activity":     {"folder": "ACTIVITY",     "about": "System activity log"},
 }
