@@ -823,12 +823,11 @@ function ExportMenu({ token, userRole, activeFilters, exporting, setExporting, s
     return () => window.removeEventListener("scroll", handleScroll, true);
   }, [pushOpen]);
 
-  // Operators can't see ACTIVITY rows in /logs/export, so they only get Readings and Connectivity (until the Admin-only step)
   const pushItems = [
-    ...(isAdmin ? [{ key: "all", types: ["readings", "connectivity", "activity"], label: "Push all" }] : []),
+    { key: "all",          types: ["readings", "connectivity", "activity"], label: "Push all" },
     { key: "readings",     types: ["readings"],     label: "Readings" },
     { key: "connectivity", types: ["connectivity"], label: "Connectivity" },
-    ...(isAdmin ? [{ key: "activity", types: ["activity"], label: "Activity" }] : []),
+    { key: "activity",     types: ["activity"],     label: "Activity" },
   ];
 
   const handlePush = async (types) => {
@@ -889,6 +888,7 @@ function ExportMenu({ token, userRole, activeFilters, exporting, setExporting, s
 
   return (
     <>
+    {isAdmin && (
     <div className="export-menu-wrap" ref={pushRef} style={{ alignSelf: "flex-end" }}>
       <button type="button" className="stats-export-btn dms-push-btn" onClick={() => setPushOpen(o => !o)}
         disabled={pushing || !!exporting} title="Push to DMS" aria-label="Push to DMS">
@@ -910,6 +910,7 @@ function ExportMenu({ token, userRole, activeFilters, exporting, setExporting, s
         </div>
       )}
     </div>
+    )}
     <div className="export-menu-wrap" ref={ref} style={{ alignSelf: "flex-end" }}>
       <button type="button" className="stats-export-btn" onClick={() => setOpen(o => !o)}
         disabled={!!exporting || pushing} title="Export" aria-label="Export">
@@ -1289,6 +1290,7 @@ function StatisticsPage({ userRole, token, manualFews, unitPref, thresholds, thr
             emptyLabel="Custom range"
             onChange={(v) => { setCustomFrom(v.from); setCustomTo(v.to); setPreset("custom"); }}
           />
+          {userRole === "Admin" && (
           <button type="button" className="stats-export-btn stats-push-btn" onClick={handlePush}
             disabled={!thresholdsLoaded || pushBusy || pdfBusy} title="Push to DMS" aria-label="Push to DMS">
             {pushBusy
@@ -1296,6 +1298,7 @@ function StatisticsPage({ userRole, token, manualFews, unitPref, thresholds, thr
               : <PushIcon />}
             <span className="stats-export-label">Push to DMS</span>
           </button>
+          )}
           <button type="button" className="stats-export-btn" onClick={handleExportPdf}
             disabled={!canExport || pdfBusy || pushBusy} title="Export to PDF" aria-label="Export to PDF">
             {pdfBusy

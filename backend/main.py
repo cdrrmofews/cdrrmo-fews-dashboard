@@ -1236,7 +1236,7 @@ def dms_periods_due():
     return out
 
 @app.get("/dms/status")
-def dms_status(user=Depends(get_current_user)):
+def dms_status(user=Depends(require_admin)):
     due  = dms_periods_due()
     conn = get_db()
     cur  = conn.cursor()
@@ -1261,7 +1261,7 @@ def dms_upload_report(
     report_type: str        = Form(...),
     period:      str        = Form(...),
     file:        UploadFile = File(...),
-    user=Depends(get_current_user),
+    user=Depends(require_admin),
 ):
     if supabase is None:
         raise HTTPException(status_code=500, detail="Storage not configured.")
