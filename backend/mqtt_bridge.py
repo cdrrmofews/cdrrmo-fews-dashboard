@@ -312,11 +312,8 @@ def on_message(client, userdata, msg):
         is_immediate        = data.get("is_immediate", False)
         safe_after_critical = data.get("safe_after_critical", False)
 
-        # ── TEMP OFFSET — remove once sensor is physically recalibrated ──
-        # 2026-11-04: changed from +40 to -40 to match the new CM_PER_COUNT in the sketch
-        # (raw 500 -> 148 from the device -> 108 stored). Originally +40, added 2026-08-07.
-        if water_level_cm is not None:  # TEMP OFFSET
-            water_level_cm -= 60
+        # No offset: the stored level is exactly what the device sends.
+        # 2026-11-04: the TEMP OFFSET (+40 since 2026-08-07) was removed.
 
         conn = get_db()
         cur  = conn.cursor()
