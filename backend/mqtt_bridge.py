@@ -328,7 +328,10 @@ def on_message(client, userdata, msg):
             water_level_cm += 40
 
         # ── TEMP SENSOR CAP — remove once the sensor is fixed ──
-        # The status word is forced to NORMAL too: the dashboard and the auto-siren read the device's own status.
+        # The status word is forced to NORMAL so the dashboard shows a calm status.
+        # The siren state further down still follows device_status (what the device itself reported),
+        # because the device sounds its own physical siren and the dashboard has to mirror that.
+        device_status = status
         if SENSOR_CAP_ON and water_level_cm is not None:
             water_level_cm = max(SENSOR_CAP_MIN, min(SENSOR_CAP_MAX, water_level_cm))
             status = "NORMAL"
@@ -484,7 +487,7 @@ def on_message(client, userdata, msg):
 
             _prev_status[station_id] = log_type
             # Auto-siren ON: after 2min CRITICAL — skip if manually silenced or already active
-            if is_immediate and status == "CRITICAL":
+            if is_immediate and device_status == "CRITICAL":
                 try:
                     cur.execute(
                         "SELECT siren_manual_off, siren_state, siren_auto_triggered FROM fews_units WHERE device_id = %s",
