@@ -316,7 +316,7 @@ def on_message(client, userdata, msg):
         # 2026-11-04: changed from +40 to -40 to match the new CM_PER_COUNT in the sketch
         # (raw 500 -> 148 from the device -> 108 stored). Originally +40, added 2026-08-07. Back to 40. new update
         if water_level_cm is not None:  # TEMP OFFSET
-            water_level_cm -= 20
+            water_level_cm += 40
 
         conn = get_db()
         cur  = conn.cursor()
