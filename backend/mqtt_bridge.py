@@ -17,6 +17,14 @@ MQTT_SIREN_STATUS_TOPIC = "cdrrmo/fews1/siren_status"
 MQTT_HEARTBEAT_TOPIC    = "cdrrmo/fews1/heartbeat"
 OFFLINE_TIMEOUT         = 150  # 2.5 minutes in seconds
 
+# ── TEMP SENSOR CAP — remove once the sensor is fixed ──
+# Keeps readings between 60 and 100 cm while the sensor is unreliable.
+# Turn it off without editing code: set the Render env var SENSOR_CAP=off
+SENSOR_CAP_ON  = os.environ.get("SENSOR_CAP", "on").lower() not in ("off", "0", "false")
+SENSOR_CAP_MIN = 60
+SENSOR_CAP_MAX = 100
+print(f"[BRIDGE] SENSOR CAP is {'ON (60-100 cm)' if SENSOR_CAP_ON else 'OFF'}")
+
 # In-memory last online timestamp per station
 _last_online: dict = {}
 _offline_logged: dict = {}
@@ -315,24 +323,52 @@ def on_message(client, userdata, msg):
         # ── TEMP OFFSET — remove once sensor is physically recalibrated ──
         # 2026-11-04: changed from +40 to -40 to match the new CM_PER_COUNT in the sketch
         # (raw 500 -> 148 from the device -> 108 stored). Originally +40, added 2026-08-07. Back to 40. new update
+        raw_cm = water_level_cm  # as the device sent it: saved in sensor_readings.raw_cm (TEMP)
         if water_level_cm is not None:  # TEMP OFFSET
             water_level_cm += 40
+
+        # ── TEMP SENSOR CAP — remove once the sensor is fixed ──
+        # The status word is forced to NORMAL too: the dashboard and the auto-siren read the device's own status.
+        if SENSOR_CAP_ON and water_level_cm is not None:
+            water_level_cm = max(SENSOR_CAP_MIN, min(SENSOR_CAP_MAX, water_level_cm))
+            status = "NORMAL"
 
         conn = get_db()
         cur  = conn.cursor()
         try:
-            cur.execute("""
-                INSERT INTO sensor_readings
-                    (device_id, water_level_cm, status, latitude, longitude, is_immediate)
-                VALUES (%s, %s, %s, %s, %s, %s)
-            """, (
-                station_id,
-                water_level_cm,
-                status,
-                latitude,
-                longitude,
-                is_immediate,
-            ))
+            # Saved with raw_cm. If that column is missing (migration did not run), fall back to the old
+            # insert so a reading is never lost. The savepoint keeps the transaction usable after a failure.
+            try:
+                cur.execute("SAVEPOINT raw_col")
+                cur.execute("""
+                    INSERT INTO sensor_readings
+                        (device_id, water_level_cm, status, latitude, longitude, is_immediate, raw_cm)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s)
+                """, (
+                    station_id,
+                    water_level_cm,
+                    status,
+                    latitude,
+                    longitude,
+                    is_immediate,
+                    raw_cm,
+                ))
+                cur.execute("RELEASE SAVEPOINT raw_col")
+            except Exception as e:
+                print(f"[BRIDGE] raw_cm insert failed, saving without it: {e}")
+                cur.execute("ROLLBACK TO SAVEPOINT raw_col")
+                cur.execute("""
+                    INSERT INTO sensor_readings
+                        (device_id, water_level_cm, status, latitude, longitude, is_immediate)
+                    VALUES (%s, %s, %s, %s, %s, %s)
+                """, (
+                    station_id,
+                    water_level_cm,
+                    status,
+                    latitude,
+                    longitude,
+                    is_immediate,
+                ))
 
             threshold_warning, threshold_danger = get_thresholds(station_id)
             log_type     = water_level_to_type(water_level_cm, threshold_warning, threshold_danger)

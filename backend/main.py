@@ -181,6 +181,11 @@ def startup():
                     UNIQUE (report_type, period)
                 )
             """)
+            # TEMP: the sensor value exactly as the device sent it (before the offset and the cap)
+            cur.execute("""
+                ALTER TABLE sensor_readings
+                  ADD COLUMN IF NOT EXISTS raw_cm DOUBLE PRECISION
+            """)
             conn.commit()
         except Exception as e:
             print(f"[STARTUP] Migration error: {e}")
@@ -550,6 +555,7 @@ def latest():
         for row in rows:
             key = row["device_id"].lower().replace("-", "_").replace(" ", "_")
             result[key] = dict(row)
+            result[key].pop("raw_cm", None)  # TEMP: the raw device value stays out of this public endpoint
         return result
     finally:
         cur.close()
