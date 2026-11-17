@@ -5417,6 +5417,8 @@ export default function App() {
   const [thresholdsLoaded, setThresholdsLoaded] = useState(false); // false until /units has answered once
   const [fews1Info, setFews1Info] = useState({});
   const { showToast, ToastContainer: AppToastContainer } = useToast();
+  // Notice about FEWS 1 being shut down. Closing only hides it until the next refresh (no storage).
+  const [fewsNoticeOpen, setFewsNoticeOpen] = useState(true);
 
   // Re-fetches the data. The open page (Logs, Statistics...) listens for this event and refetches its own.
   const refreshData = useCallback(() => {
@@ -6586,6 +6588,20 @@ const waterChartOptions = useMemo(() => ({
   return (
       <ErrorBoundary>
       <AppToastContainer />
+      {fewsNoticeOpen && (
+        <div className="fews-notice-wrap">
+          <div className="toast toast-notice" role="alert">
+            <ToastTile kind="error" />
+            <div className="toast-rich-text">
+              <div className="toast-title">FEWS 1 sensor under inspection</div>
+              <div className="toast-detail">
+                The unit was shut down after the sensor started giving erratic readings (out of range, with a very low water level at Bridge of Progress). Any readings or logs from FEWS 1 may be inaccurate. Monitor the river manually until the unit is back.
+              </div>
+            </div>
+            <button type="button" className="toast-close" aria-label="Close notice" onClick={() => setFewsNoticeOpen(false)}>✕</button>
+          </div>
+        </div>
+      )}
       <PullIndicator />
       <div className="app-shell" style={{ flexDirection: "column" }}>
         {sirenConfirm !== null && (() => {
