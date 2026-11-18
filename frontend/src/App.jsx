@@ -5505,7 +5505,7 @@ function StationStatusModal({ rows, focusId, onClose }) {
         </div>
         <div className="ss-note">
           <span className="ss-note-full">Each station has its own alert levels. Level 1 to 3 show the reading where each alert starts.</span>
-          <span className="ss-note-short">Alert levels are set per station.</span>
+          <span className="ss-note-short">Each station has its own alert levels, shown per row.</span>
         </div>
       </div>
     </div>
