@@ -283,7 +283,7 @@ function usePullToRefresh(onRefresh) {
       pullingRef.current = false;
       if (!isMobileViewport()) return; // phone only
       // not on the map, the drawer, a panel or a popup: those drag or scroll on their own
-      if (e.target?.closest?.(".map-fullscreen-overlay, .msw-panel, .map-wrap, .sidebar, .sidebar-backdrop, .modal-overlay")) return;
+      if (e.target?.closest?.(".map-fullscreen-overlay, .ss-overlay, .msw-panel, .map-wrap, .sidebar, .sidebar-backdrop, .modal-overlay")) return;
       const { indicator, scroller } = getEls();
       if (!indicator || !scroller || scroller.scrollTop > 0) return; // only from the very top of the page
       startYRef.current = e.touches[0].clientY;
@@ -5281,6 +5281,212 @@ function useToast() {
 }
 
 // ─── MAIN APP ─────────────────────────────────────────────────────────────────
+// ─── STATION STATUS ───────────────────────────────────────────────────────────
+// One row per station for the Station Status card and its expanded table.
+// level: 0 = baseline, 1 to 3 = alert level 1 to 3, null = no reading (offline or manual).
+const ALERT_LEVEL_CFG = [
+  { label: "BASELINE", color: "#e2e8f0" },
+  { label: "ALERT 1",  color: "#fde047" },
+  { label: "ALERT 2",  color: "#f97316" },
+  { label: "ALERT 3",  color: "#ef4444" },
+];
+const STATION_OFFLINE_COLOR = "#64748b";
+const STATION_OK_COLOR      = "#38bdf8";
+const STATUS_LEVEL_FROM_KEY = { base: 0, safe: 1, warning: 2, danger: 3 };
+
+const STATUS_KEY = [
+  { name: "Base",          color: "#e2e8f0" },
+  { name: "L1",            color: "#fde047" },
+  { name: "L2",            color: "#f97316" },
+  { name: "L3",            color: "#ef4444" },
+  { name: "Active",   color: STATION_OK_COLOR },
+  { name: "Inactive", color: STATION_OFFLINE_COLOR },
+];
+
+const STATUS_LEGEND_LIVE = [
+  { color: "#e2e8f0", name: "Baseline",      note: "Steady" },
+  { color: "#fde047", name: "Alert level 1", note: "Slow blink" },
+  { color: "#f97316", name: "Alert level 2", note: "Blink" },
+  { color: "#ef4444", name: "Alert level 3", note: "Fast blink" },
+  { color: STATION_OFFLINE_COLOR, name: "Offline", note: "No data" },
+];
+const STATUS_LEGEND_MANUAL = [
+  { color: STATION_OK_COLOR,      name: "Serviceable",   note: "Working" },
+  { color: STATION_OFFLINE_COLOR, name: "Unserviceable", note: "Out of service" },
+];
+const STATUS_FILTERS = [["all", "All"], ["live", "Live"], ["manual", "Manual"], ["alerts", "Alerts"]];
+
+function buildStatusRows(allFews, isHardwareOnline, thresholds, unit) {
+  const fmt = (cm) => formatWaterLevel(cm, unit);
+  const cutoffs = [getBaselineCutoff(thresholds), thresholds.warning, thresholds.danger];
+  return allFews.map((f) => {
+    const digits = String(f.name || "").replace(/\D+/g, "");
+    if (f.isLive) {
+      const online = isHardwareOnline;
+      const level  = STATUS_LEVEL_FROM_KEY[getDisplayStatus(f.status, f.waterLevel, online, thresholds)] ?? 1;
+      return {
+        id: f.id, tile: digits || "?", name: f.name, live: true,
+        location: f.location || "—",
+        reading:  online ? fmt(f.waterLevel) : "—",
+        level:    online ? level : null,
+        label:    online ? ALERT_LEVEL_CFG[level].label : "OFFLINE",
+        color:    online ? ALERT_LEVEL_CFG[level].color : STATION_OFFLINE_COLOR,
+        blink:    online ? level : 0,
+        cutoffs:  cutoffs.map(fmt),
+        rank:     online ? 3 - level : 4,
+      };
+    }
+    const ok = f.manualStatus === "serviceable";
+    return {
+      id: f.id, tile: `M${digits}`, name: f.name, live: false,
+      location: f.location || "—", reading: "—", level: null,
+      label: ok ? "SERVICEABLE" : "UNSERVICEABLE",
+      color: ok ? STATION_OK_COLOR : STATION_OFFLINE_COLOR,
+      blink: 0, cutoffs: null, rank: ok ? 6 : 5,
+    };
+  });
+}
+
+function statusSummary(rows) {
+  const live   = rows.filter(r => r.live);
+  const manual = rows.filter(r => !r.live);
+  const alerts = live.filter(r => r.level >= 1).length;
+  const ok     = manual.filter(r => r.label === "SERVICEABLE").length;
+  return `${live.length} live · ${alerts} in alert · ${ok} of ${manual.length} manual serviceable`;
+}
+
+function StationStatusCard({ rows, onExpand }) {
+  return (
+    <div className="card card-battery">
+      <div className="card-header ss-head">
+        <h2>Station Status</h2>
+        <button type="button" className="map-ctrl-btn ss-expand" onClick={() => onExpand(null)}
+          title="Expand station status" aria-label="Expand station status">
+          <ExpandIcon />
+        </button>
+      </div>
+      <div className="ss-body">
+        <div className="ss-summary">{statusSummary(rows)}</div>
+        <div className="ss-tiles">
+          {rows.map(r => (
+            <button key={r.id} type="button"
+              className={`ss-tile ${r.blink ? `ss-b${r.blink}` : ""}`}
+              style={{ background: r.color, color: r.color === STATION_OFFLINE_COLOR ? "#e2e8f0" : "#0a0a0b" }}
+              title={`${r.name} · ${r.location} · ${r.label}`}
+              aria-label={`${r.name}, ${r.location}: ${r.label}`}
+              onClick={() => onExpand(r.id)}>
+              {r.tile}
+            </button>
+          ))}
+        </div>
+        <div className="ss-key">
+          {STATUS_KEY.map(k => (
+            <span key={k.name}><i style={{ background: k.color }} />{k.name}</span>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function StationStatusModal({ rows, focusId, onClose }) {
+  const [filter, setFilter] = useState("all");
+  const focusRef = useRef(null);
+  useLockBodyScroll();
+  useEffect(() => { focusRef.current?.scrollIntoView({ block: "center" }); }, []);
+
+  const shown = rows
+    .filter(r => filter === "all"
+      || (filter === "live" && r.live)
+      || (filter === "manual" && !r.live)
+      || (filter === "alerts" && r.level >= 1))
+    .sort((a, b) => a.rank - b.rank);
+
+  return (
+    <div className="ss-overlay" role="dialog" aria-modal="true" aria-label="Station status">
+      <div className="ss-shell">
+        <div className="ss-top">
+          <div>
+            <div className="ss-title">Station Status</div>
+            <div className="ss-sub">{statusSummary(rows)}</div>
+          </div>
+          <button type="button" className="map-ctrl-btn" onClick={onClose} title="Close" aria-label="Close">
+            <CollapseIcon />
+          </button>
+        </div>
+
+        <div className="ss-legend">
+          <div className="ss-group ss-group-live">
+            <div className="ss-group-label">LIVE STATIONS</div>
+            <div className="ss-items">
+              {STATUS_LEGEND_LIVE.map(l => (
+                <div key={l.name} className="ss-item"><i style={{ background: l.color }} /><div><b>{l.name}</b><small>{l.note}</small></div></div>
+              ))}
+            </div>
+          </div>
+          <div className="ss-group ss-group-manual">
+            <div className="ss-group-label">MANUAL STATIONS</div>
+            <div className="ss-items">
+              {STATUS_LEGEND_MANUAL.map(l => (
+                <div key={l.name} className="ss-item"><i style={{ background: l.color }} /><div><b>{l.name}</b><small>{l.note}</small></div></div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        <div className="ss-filters">
+          {STATUS_FILTERS.map(([key, label]) => (
+            <button key={key} type="button"
+              className={`stats-preset-btn ${filter === key ? "stats-preset-active" : ""}`}
+              onClick={() => setFilter(key)}>{label}</button>
+          ))}
+        </div>
+
+        <div className="ss-table">
+          <div className="ss-cols">
+            <span>STATION</span><span>LOCATION</span><span>LEVEL</span>
+            <span><i style={{ background: "#fde047" }} />L1 · FROM</span>
+            <span><i style={{ background: "#f97316" }} />L2 · FROM</span>
+            <span><i style={{ background: "#ef4444" }} />L3 · FROM</span>
+            <span>STATUS</span>
+          </div>
+          <div className="ss-table-body">
+            {shown.length === 0 && <div className="ss-empty">No stations in alert.</div>}
+            {shown.map(r => (
+              <div key={r.id} ref={r.id === focusId ? focusRef : null}
+                className={`ss-row ${r.id === focusId ? "ss-row-focus" : ""}`}>
+                <div className="ss-name">
+                  {r.name}
+                  <span className={`ss-kind ${r.live ? "ss-kind-live" : ""}`}>{r.live ? "LIVE" : "manual"}</span>
+                </div>
+                <div className="ss-loc">{r.location}</div>
+                <div className="ss-lvl">{r.reading}</div>
+                <div className="ss-lv">
+                  {r.cutoffs
+                    ? r.cutoffs.map((c, i) => (
+                        <span key={i} className={`ss-c ss-c${i + 1}`}
+                          style={r.level === i + 1 ? { background: ALERT_LEVEL_CFG[i + 1].color, color: "#0a0a0b", fontWeight: 700 } : undefined}>
+                          {c}
+                        </span>
+                      ))
+                    : <span className="ss-none">No sensor, no alert levels</span>}
+                </div>
+                <div className="ss-st">
+                  <span className={`ss-badge ${r.blink ? `ss-p${r.blink}` : ""}`} style={{ "--c": r.color }}>
+                    <i />{r.label}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="ss-note">L1 to L3 show where each alert level starts. Every station has its own values.</div>
+      </div>
+    </div>
+  );
+}
+
+// ─── MAIN APP ─────────────────────────────────────────────────────────────────
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(() => {
     try {
@@ -6044,6 +6250,11 @@ export default function App() {
       [allFews, isHardwareOnline, fews1DataRecent]
     );
 
+    const statusRows = useMemo(
+      () => buildStatusRows(allFews, isHardwareOnline, thresholds, user.unit_preference),
+      [allFews, isHardwareOnline, thresholds, user.unit_preference]
+    );
+
     useEffect(() => {
       if (!isLoggedIn || !user.push_enabled) return;
       const setupPush = async () => {
@@ -6081,6 +6292,7 @@ export default function App() {
     }, [isLoggedIn, user.push_enabled]);
 
     const [sirenConfirm, setSirenConfirm] = useState(null);
+    const [statusView, setStatusView] = useState(null); // null = closed, { focus: stationId | null } = expanded table
     const [fullscreenMap, setFullscreenMap] = useState(false);
     // One shared base-map choice for the dashboard map and the fullscreen map.
     // Lives here because the fullscreen map is only mounted while it's open.
@@ -6127,6 +6339,7 @@ export default function App() {
     useEffect(() => {
       if (isLoggedIn) return;
       setFullscreenMap(false);
+      setStatusView(null);
       setFsSelectedFEWS(null);
       setFsDrawerOpen(!isMobileViewport());
     }, [isLoggedIn]);
@@ -6180,6 +6393,13 @@ export default function App() {
       window.addEventListener("keydown", onKey);
       return () => window.removeEventListener("keydown", onKey);
     }, [fullscreenMap, sirenConfirm]);
+
+    useEffect(() => {
+      if (!statusView) return;
+      const onKey = (e) => { if (e.key === "Escape" && sirenConfirm === null) setStatusView(null); };
+      window.addEventListener("keydown", onKey);
+      return () => window.removeEventListener("keydown", onKey);
+    }, [statusView, sirenConfirm]);
 
     const toggleSiren = async (id) => {
         if (!can(user.role, "sirenControl")) return;
@@ -7010,148 +7230,8 @@ const waterChartOptions = useMemo(() => ({
                   )}
               </div>
 
-             {/* ─── ALARM STATUS ─── */}
-              {(() => {
-                const ALARM_CFG = {
-                  base: {
-                    color:  "#e2e8f0",
-                    bg:     "rgba(226,232,240,0.12)",
-                    border: "rgba(226,232,240,0.30)",
-                    sqBg:   "rgba(226,232,240,0.16)",
-                    sqBor:  "rgba(226,232,240,0.45)",
-                    label:  "BASE",
-                    icon:   "✓",
-                    anim:   false,
-                  },
-                  safe: {
-                    color:  "#fde047",
-                    bg:     "rgba(253,224,71,0.14)",
-                    border: "rgba(253,224,71,0.35)",
-                    sqBg:   "rgba(253,224,71,0.18)",
-                    sqBor:  "rgba(253,224,71,0.50)",
-                    label:  "NORMAL",
-                    icon:   "✓",
-                    anim:   false,
-                  },
-                  warning: {
-                    color:  "#fb923c",
-                    bg:     "rgba(249,115,22,0.60)",
-                    border: "rgba(249,115,22,0.70)",
-                    sqBg:   "rgba(249,115,22,0.65)",
-                    sqBor:  "rgba(249,115,22,0.80)",
-                    label:  "WARNING",
-                    icon:   "!",
-                    anim:   true,
-                  },
-                  danger: {
-                    color:  "#fc6f6f",
-                    bg:     "rgba(239,68,68,0.60)",
-                    border: "rgba(239,68,68,0.70)",
-                    sqBg:   "rgba(239,68,68,0.65)",
-                    sqBor:  "rgba(239,68,68,0.80)",
-                    label:  "CRITICAL",
-                    icon:   "!!",
-                    anim:   true,
-                  },
-                  offline: {
-                    color:    "#c0c5cc",
-                    bg:       "rgba(122,128,138,0.30)",
-                    border:   "rgba(122,128,138,0.50)",
-                    sqBg:     "rgba(122,128,138,0.36)",
-                    sqBor:    "rgba(122,128,138,0.60)",
-                    label:    "OFFLINE",
-                    icon:     "◌",
-                    anim:     false,
-                    iconFont: "sans-serif",
-                  },
-                };
-
-                const fews1 = allFews.find(f => f.id === 1);
-                const isFews1ActuallyLive = fews1 && fews1.isLive && isHardwareOnline;
-                const worstStatus = isFews1ActuallyLive
-                  ? getDisplayStatus(fews1.status, fews1.waterLevel, isFews1ActuallyLive, thresholds)
-                  : "offline";
-
-                const cfg = ALARM_CFG[worstStatus];
-
-                // Build dynamic sub message based on affected stations
-                const buildSub = () => {
-                  if (worstStatus === "offline") return "FEWS 1 is offline.";
-                  if (worstStatus === "base")    return "Water level is at baseline, well below normal levels.";
-                  if (worstStatus === "safe")    return "No critical advisories at this time.";
-                  if (worstStatus === "warning") return "Water level is above the warning level at FEWS 1.";
-                  return "Immediate action required for FEWS 1.";
-                };
-
-                return (
-                  <div className="card card-battery">
-                    <div className="card-header">
-                      <h2>Alarm Status</h2>
-                      <span className="card-tag">Fews 1</span>
-                    </div>
-
-                    <div style={{
-                      flex: 1,
-                      borderRadius: 10,
-                      border: `1px solid ${cfg.border}`,
-                      background: cfg.bg,
-                      display: "flex",
-                      flexDirection: "column",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      gap: 10,
-                      padding: "12px 10px",
-                      minHeight: 0,
-                    }}>
-                      {/* Square icon — fixed wrapper prevents pulse from shifting layout */}
-                      <div className="alarm-icon-wrap" style={{ width: "clamp(38px, 3.2vw, 64px)", height: "clamp(38px, 3.2vw, 64px)", flexShrink: 0, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                        <div className="alarm-icon" style={{
-                          width: "100%", height: "100%",
-                          borderRadius: 8,
-                          border: `2px solid ${cfg.sqBor}`,
-                          background: cfg.sqBg,
-                          display: "flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          fontSize: worstStatus === "danger" ? "clamp(14px, 1.4vw, 28px)" : "clamp(17px, 1.7vw, 32px)",
-                          fontWeight: 900,
-                          fontFamily: cfg.iconFont || "var(--mono)",
-                          lineHeight: 1,
-                          color: cfg.color,
-                          letterSpacing: worstStatus === "danger" ? "-1px" : "0",
-                          animation: cfg.anim ? "pulse 1.8s ease-in-out infinite" : "none",
-                        }}>
-                          {cfg.icon}
-                        </div>
-                      </div>
-
-                      {/* Label */}
-                      <div className="alarm-label" style={{
-                        fontSize: "clamp(14px, 1.5vw, 26px)",
-                        fontWeight: 800,
-                        color: cfg.color,
-                        fontFamily: "var(--mono)",
-                        letterSpacing: "0.10em",
-                        animation: cfg.anim ? "blink 1.2s infinite" : "none",
-                      }}>
-                        {cfg.label}
-                      </div>
-
-                      {/* Dynamic sub message */}
-                      <div className="alarm-sub" style={{
-                        fontSize: "clamp(10px, 0.95vw, 15px)",
-                        color: cfg.color,
-                        textAlign: "center",
-                        lineHeight: 1.5,
-                        opacity: 0.75,
-                        maxWidth: "clamp(160px, 20vw, 260px)",
-                      }}>
-                        {buildSub()}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })()}
+              {/* ─── STATION STATUS ─── */}
+              <StationStatusCard rows={statusRows} onExpand={(id) => setStatusView({ focus: id ?? null })} />
             </main>
 
             <aside className="right-sidebar">
@@ -7369,6 +7449,10 @@ const waterChartOptions = useMemo(() => ({
                 </div>
               </div>
             </div>
+          )}
+
+          {statusView && (
+            <StationStatusModal rows={statusRows} focusId={statusView.focus} onClose={() => setStatusView(null)} />
           )}
 
         {activeNav === "Statistics"  && <StatisticsPage userRole={user.role} token={token} manualFews={manualFews} unitPref={user.unit_preference} thresholds={thresholds} thresholdsLoaded={thresholdsLoaded} showToast={showToast} />}
