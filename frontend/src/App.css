@@ -4416,45 +4416,6 @@ body:has(.msw-panel) .hz-fs-warn { visibility: hidden; }
 .toast-error .toast-tile { background: rgba(239,68,68,0.12); color: var(--red); }
 .toast-error .toast-bar-fill { background: var(--red); }
 
-/* ── FEWS 1 notice (stays until closed, comes back on refresh) ── */
-.fews-notice-wrap {
-  position: fixed;
-  top: 72px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 99998; /* just under the normal toasts */
-  width: calc(100vw - 32px);
-  max-width: 680px;
-  pointer-events: none;
-}
-.toast.toast-notice {
-  width: 100%;
-  max-width: 100%;
-  align-items: flex-start;
-  gap: 14px;
-  padding: 16px 18px;
-  border-color: rgba(245,158,11,0.45);
-  box-shadow: 0 8px 32px rgba(0,0,0,0.55), 0 0 0 1px rgba(245,158,11,0.12);
-}
-.toast-notice .toast-tile { background: rgba(245,158,11,0.14); color: var(--amber); }
-.toast-notice .toast-title { font-size: 14px; }
-.toast-notice .toast-detail { font-size: 12px; line-height: 1.55; color: var(--text-2); margin-top: 4px; }
-.toast-notice .toast-close { border-color: var(--border); }
-.toast-notice .toast-close:hover { color: var(--text-1); border-color: rgba(255,255,255,0.3); background: var(--bg-raised); }
-
-@media (min-width: 1440px) {
-  .fews-notice-wrap { top: 84px; max-width: 800px; }
-  .toast.toast-notice { padding: 20px 24px; gap: 18px; }
-  .toast-notice .toast-title { font-size: 20px; }
-  .toast-notice .toast-detail { font-size: 18px; }
-}
-
-@media (max-width: 768px) {
-  .fews-notice-wrap { top: calc(72px + env(safe-area-inset-top)); }
-  .toast.toast-notice { padding: 12px 14px; gap: 4px; }
-  .toast-notice .toast-detail { font-size: 11px; }
-}
-
 /* ================================
    STATION STATUS
 ================================ */
@@ -4514,15 +4475,23 @@ body:has(.msw-panel) .hz-fs-warn { visibility: hidden; }
 
 /* Expanded view */
 .ss-overlay {
-  --bg-card: #1c1c20;
-  --bg-raised: #26262b;
+  --bg-card: rgba(28, 28, 32, 0.88);
+  --bg-raised: rgba(38, 38, 43, 0.95);
   --border: rgba(255, 255, 255, 0.12);
-  position: fixed; inset: 0; z-index: 9800; background: #121215; overflow: hidden; display: flex;
+  position: fixed; inset: 0; z-index: 9800; overflow: hidden; display: flex;
+  background: rgba(10, 10, 12, 0.78);
+  -webkit-backdrop-filter: blur(18px) saturate(1.1);
+  backdrop-filter: blur(18px) saturate(1.1);
   padding:
     calc(clamp(14px, 2.2vw, 40px) + env(safe-area-inset-top, 0px))
     calc(clamp(14px, 2.2vw, 48px) + env(safe-area-inset-right, 0px))
     calc(clamp(14px, 2.2vw, 40px) + env(safe-area-inset-bottom, 0px))
     calc(clamp(14px, 2.2vw, 48px) + env(safe-area-inset-left, 0px));
+}
+
+/* Browsers without backdrop blur get the solid dark background */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  .ss-overlay { background: #121215; --bg-card: #1c1c20; --bg-raised: #26262b; }
 }
 .ss-shell { flex: 1; min-height: 0; width: 100%; max-width: 1560px; margin: 0 auto; display: flex; flex-direction: column; gap: 16px; }
 .ss-top { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; flex-shrink: 0; }
@@ -4586,29 +4555,71 @@ grid-template-columns: minmax(150px, 1fr) minmax(0, 1.6fr) 110px 110px repeat(3,
 .ss-none { grid-column: span 3; text-align: center; color: var(--text-3); font-size: 12px; }
 .ss-empty { padding: 32px 16px; text-align: center; color: var(--text-3); font-size: 12px; font-weight: 600; }
 .ss-note { font-size: 11px; color: var(--text-3); flex-shrink: 0; }
+.ss-note-short { display: none; }
+
+@media (max-width: 900px) {
+  .ss-note-full  { display: none; }
+  .ss-note-short { display: inline; }
+  .ss-note {
+    font-size: 10px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
 
 /* Phones and small tablets: each row becomes a stacked card, nothing scrolls sideways */
 @media (max-width: 900px) {
-  .ss-shell { gap: 12px; }
-  .ss-legend { flex-direction: column; }
-  .ss-group { padding: 12px 14px; }
+  .ss-shell { gap: 10px; }
+  .ss-title { font-size: 20px; }
+  .ss-sub { font-size: 11px; margin-top: 2px; }
+
+  /* Legend: compact chips, notes hidden */
+  .ss-legend { flex-direction: column; border-radius: 12px; }
+  .ss-group { padding: 8px 12px; }
   .ss-group-manual { border-left: none; border-top: 1px solid var(--border); }
-  .ss-group-label { margin-bottom: 10px; }
-  .ss-items { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px 14px; }
+  .ss-group-label { font-size: 9px; margin-bottom: 6px; }
+  .ss-items { grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 6px 8px; }
+  .ss-group-live .ss-items { grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 6px 5px; }
+  .ss-group-live .ss-item { gap: 5px; }
+
+  /* Smaller filter tabs */
+  .ss-filters { gap: 6px; }
+  .ss-filters .stats-preset-btn { height: 28px; padding: 0 12px; font-size: 11px; }
+  .ss-item { gap: 6px; align-items: center; }
+  .ss-item i { width: 9px; height: 9px; margin-top: 0; }
+  .ss-item b { font-size: 11px; white-space: nowrap; }
+  .ss-item small { display: none; }
+
+  /* Rows: name + status on top, location + reading below, thresholds last */
   .ss-cols { display: none; }
   .ss-row {
     grid-template-columns: minmax(0, 1fr) auto;
-    grid-template-areas: "name lvl" "loc upd" "lv st";
-    row-gap: 6px; column-gap: 10px; padding: 12px 14px; min-height: 0;
+    grid-template-areas: "name st" "loc lvl" "lv upd";
+    row-gap: 3px; column-gap: 8px; padding: 8px 12px; min-height: 0;
   }
-  .ss-name { grid-area: name; }
-  .ss-loc  { grid-area: loc; white-space: normal; }
-  .ss-lvl  { grid-area: lvl; text-align: right; }
-  .ss-upd  { grid-area: upd; text-align: right; }
-  .ss-lv   { grid-area: lv; display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+  .ss-name { grid-area: name; font-size: 12px; }
+  .ss-loc  { grid-area: loc; white-space: normal; font-size: 12px; }
+  .ss-lvl  { grid-area: lvl; text-align: right; font-size: 12px; }
+  .ss-upd  { grid-area: upd; text-align: right; font-size: 11px; }
+  .ss-lv   { grid-area: lv; display: flex; flex-wrap: wrap; align-items: center; gap: 4px; }
   .ss-st   { grid-area: st; }
-  .ss-badge { width: auto; }
-  .ss-none { grid-column: auto; text-align: left; }
-  .ss-c { padding: 3px 7px; font-size: 11px; border: 1px solid var(--border); }
-  .ss-c::before { display: inline-block; }
+  .ss-badge { width: auto; height: 22px; padding: 0 8px; font-size: 10px; gap: 6px; }
+  .ss-badge i { width: 6px; height: 6px; }
+  .ss-c { padding: 2px 6px; font-size: 10px; border: 1px solid var(--border); }
+  .ss-c::before { display: inline-block; width: 5px; height: 5px; margin-right: 4px; }
+
+  /* Manual stations: only name, status and location (no sensor, so nothing else to show) */
+  .ss-row-manual { grid-template-areas: "name st" "loc loc"; }
+  .ss-row-manual .ss-lvl,
+  .ss-row-manual .ss-upd,
+  .ss-row-manual .ss-lv { display: none; }
+
+  .ss-note { font-size: 10px; }
+
+  .ss-overlay {
+    -webkit-backdrop-filter: blur(10px);
+    backdrop-filter: blur(10px);
+    background: rgba(10, 10, 12, 0.78);
+  }
 }

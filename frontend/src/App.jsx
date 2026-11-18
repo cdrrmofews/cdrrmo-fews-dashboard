@@ -5304,10 +5304,10 @@ const STATUS_KEY = [
 ];
 
 const STATUS_LEGEND_LIVE = [
-  { color: "#e2e8f0", name: "Baseline",      note: "Steady" },
-  { color: "#fde047", name: "Alert level 1", note: "Slow blink" },
-  { color: "#f97316", name: "Alert level 2", note: "Blink" },
-  { color: "#ef4444", name: "Alert level 3", note: "Fast blink" },
+  { color: "#e2e8f0", name: "Base",    note: "Steady" },
+  { color: "#fde047", name: "Alert 1", note: "Slow blink" },
+  { color: "#f97316", name: "Alert 2", note: "Blink" },
+  { color: "#ef4444", name: "Alert 3", note: "Fast blink" },
   { color: STATION_OFFLINE_COLOR, name: "Offline", note: "No data" },
 ];
 const STATUS_LEGEND_MANUAL = [
@@ -5476,7 +5476,7 @@ function StationStatusModal({ rows, focusId, onClose }) {
             {shown.length === 0 && <div className="ss-empty">No stations in alert.</div>}
             {shown.map(r => (
               <div key={r.id} ref={r.id === focusId ? focusRef : null}
-                className={`ss-row ${r.id === focusId ? "ss-row-focus" : ""}`}>
+                className={`ss-row ${r.live ? "" : "ss-row-manual"} ${r.id === focusId ? "ss-row-focus" : ""}`}>
                 <div className="ss-name">
                   {r.name}
                   <span className={`ss-kind ${r.live ? "ss-kind-live" : ""}`}>{r.live ? "LIVE" : "manual"}</span>
@@ -5503,7 +5503,10 @@ function StationStatusModal({ rows, focusId, onClose }) {
             ))}
           </div>
         </div>
-        <div className="ss-note">Each station has its own alert levels. Level 1 to 3 show the reading where each alert starts.</div>
+        <div className="ss-note">
+          <span className="ss-note-full">Each station has its own alert levels. Level 1 to 3 show the reading where each alert starts.</span>
+          <span className="ss-note-short">Alert levels are set per station.</span>
+        </div>
       </div>
     </div>
   );
@@ -5646,8 +5649,6 @@ export default function App() {
   const [thresholdsLoaded, setThresholdsLoaded] = useState(false); // false until /units has answered once
   const [fews1Info, setFews1Info] = useState({});
   const { showToast, ToastContainer: AppToastContainer } = useToast();
-  // Notice about FEWS 1 being shut down. Closing only hides it until the next refresh (no storage).
-  const [fewsNoticeOpen, setFewsNoticeOpen] = useState(true);
 
   // Re-fetches the data. The open page (Logs, Statistics...) listens for this event and refetches its own.
   const refreshData = useCallback(() => {
@@ -6830,20 +6831,6 @@ const waterChartOptions = useMemo(() => ({
   return (
       <ErrorBoundary>
       <AppToastContainer />
-      {fewsNoticeOpen && (
-        <div className="fews-notice-wrap">
-          <div className="toast toast-notice" role="alert">
-            <ToastTile kind="error" />
-            <div className="toast-rich-text">
-              <div className="toast-title">FEWS 1 sensor under inspection</div>
-              <div className="toast-detail">
-                The unit was shut down after the sensor started giving erratic readings (out of range, with a very low water level at Bridge of Progress). Any readings or logs from FEWS 1 may be inaccurate. Monitor the river manually until the unit is back.
-              </div>
-            </div>
-            <button type="button" className="toast-close" aria-label="Close notice" onClick={() => setFewsNoticeOpen(false)}>✕</button>
-          </div>
-        </div>
-      )}
       <PullIndicator />
       <div className="app-shell" style={{ flexDirection: "column" }}>
         {sirenConfirm !== null && (() => {
