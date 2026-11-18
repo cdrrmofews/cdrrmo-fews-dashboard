@@ -5295,7 +5295,7 @@ const STATION_OK_COLOR      = "#38bdf8";
 const STATUS_LEVEL_FROM_KEY = { base: 0, safe: 1, warning: 2, danger: 3 };
 
 const STATUS_KEY = [
-  { name: "Base",          color: "#e2e8f0" },
+  { name: "Baseline",          color: "#e2e8f0" },
   { name: "L1",            color: "#fde047" },
   { name: "L2",            color: "#f97316" },
   { name: "L3",            color: "#ef4444" },
@@ -5316,7 +5316,18 @@ const STATUS_LEGEND_MANUAL = [
 ];
 const STATUS_FILTERS = [["all", "All"], ["live", "Live"], ["manual", "Manual"], ["alerts", "Alerts"]];
 
-function buildStatusRows(allFews, isHardwareOnline, thresholds, unit) {
+function formatAgo(ts, now) {
+  if (!ts) return "—";
+  const t = new Date(String(ts).replace(" ", "T").replace(/Z?$/, "Z")).getTime();
+  if (Number.isNaN(t)) return "—";
+  const s = Math.max(0, Math.floor((now - t) / 1000));
+  if (s < 60)    return "just now";
+  if (s < 3600)  return `${Math.floor(s / 60)} min ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)} hr ago`;
+  return `${Math.floor(s / 86400)} d ago`;
+}
+
+function buildStatusRows(allFews, isHardwareOnline, thresholds, unit, lastSeenTs) {
   const fmt = (cm) => formatWaterLevel(cm, unit);
   const cutoffs = [getBaselineCutoff(thresholds), thresholds.warning, thresholds.danger];
   return allFews.map((f) => {
@@ -5325,7 +5336,7 @@ function buildStatusRows(allFews, isHardwareOnline, thresholds, unit) {
       const online = isHardwareOnline;
       const level  = STATUS_LEVEL_FROM_KEY[getDisplayStatus(f.status, f.waterLevel, online, thresholds)] ?? 1;
       return {
-        id: f.id, tile: digits || "?", name: f.name, live: true,
+        id: f.id, tile: digits ? `F${digits}` : "?", name: f.name, live: true,
         location: f.location || "—",
         reading:  online ? fmt(f.waterLevel) : "—",
         level:    online ? level : null,
@@ -5333,6 +5344,7 @@ function buildStatusRows(allFews, isHardwareOnline, thresholds, unit) {
         color:    online ? ALERT_LEVEL_CFG[level].color : STATION_OFFLINE_COLOR,
         blink:    online ? level : 0,
         cutoffs:  cutoffs.map(fmt),
+        updatedTs: lastSeenTs || null,
         rank:     online ? 3 - level : 4,
       };
     }
@@ -5342,7 +5354,7 @@ function buildStatusRows(allFews, isHardwareOnline, thresholds, unit) {
       location: f.location || "—", reading: "—", level: null,
       label: ok ? "SERVICEABLE" : "UNSERVICEABLE",
       color: ok ? STATION_OK_COLOR : STATION_OFFLINE_COLOR,
-      blink: 0, cutoffs: null, rank: ok ? 6 : 5,
+      blink: 0, cutoffs: null, rank: ok ? 5 : 6,
     };
   });
 }
@@ -5395,6 +5407,12 @@ function StationStatusModal({ rows, focusId, onClose }) {
   useLockBodyScroll();
   useEffect(() => { focusRef.current?.scrollIntoView({ block: "center" }); }, []);
 
+  const [now, setNow] = useState(Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 30000);
+    return () => clearInterval(t);
+  }, []);
+
   const shown = rows
     .filter(r => filter === "all"
       || (filter === "live" && r.live)
@@ -5444,11 +5462,15 @@ function StationStatusModal({ rows, focusId, onClose }) {
 
         <div className="ss-table">
           <div className="ss-cols">
-            <span>STATION</span><span>LOCATION</span><span>LEVEL</span>
-            <span><i style={{ background: "#fde047" }} />L1 · FROM</span>
-            <span><i style={{ background: "#f97316" }} />L2 · FROM</span>
-            <span><i style={{ background: "#ef4444" }} />L3 · FROM</span>
-            <span>STATUS</span>
+            <span className="ss-col-station">STATION</span>
+            <span className="ss-col-loc">LOCATION</span>
+            <span className="ss-col-read">READING</span>
+            <span className="ss-col-upd">UPDATED</span>
+            <span className="ss-col-group">ALERT STARTS AT</span>
+            <span className="ss-col-l1"><i style={{ background: "#fde047" }} />LEVEL 1</span>
+            <span className="ss-col-l2"><i style={{ background: "#f97316" }} />LEVEL 2</span>
+            <span className="ss-col-l3"><i style={{ background: "#ef4444" }} />LEVEL 3</span>
+            <span className="ss-col-status">STATUS</span>
           </div>
           <div className="ss-table-body">
             {shown.length === 0 && <div className="ss-empty">No stations in alert.</div>}
@@ -5461,6 +5483,7 @@ function StationStatusModal({ rows, focusId, onClose }) {
                 </div>
                 <div className="ss-loc">{r.location}</div>
                 <div className="ss-lvl">{r.reading}</div>
+                <div className="ss-upd">{formatAgo(r.updatedTs, now)}</div>
                 <div className="ss-lv">
                   {r.cutoffs
                     ? r.cutoffs.map((c, i) => (
@@ -5480,7 +5503,7 @@ function StationStatusModal({ rows, focusId, onClose }) {
             ))}
           </div>
         </div>
-        <div className="ss-note">L1 to L3 show where each alert level starts. Every station has its own values.</div>
+        <div className="ss-note">Each station has its own alert levels. Level 1 to 3 show the reading where each alert starts.</div>
       </div>
     </div>
   );
@@ -6251,10 +6274,9 @@ export default function App() {
     );
 
     const statusRows = useMemo(
-      () => buildStatusRows(allFews, isHardwareOnline, thresholds, user.unit_preference),
-      [allFews, isHardwareOnline, thresholds, user.unit_preference]
+      () => buildStatusRows(allFews, isHardwareOnline, thresholds, user.unit_preference, fews1Live?.timestamp),
+      [allFews, isHardwareOnline, thresholds, user.unit_preference, fews1Live?.timestamp]
     );
-
     useEffect(() => {
       if (!isLoggedIn || !user.push_enabled) return;
       const setupPush = async () => {
