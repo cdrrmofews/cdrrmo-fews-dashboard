@@ -25,6 +25,13 @@ SENSOR_CAP_MIN = 60
 SENSOR_CAP_MAX = 100
 print(f"[BRIDGE] SENSOR CAP is {'ON (60-100 cm)' if SENSOR_CAP_ON else 'OFF'}")
 
+# ── TEMP AUTO-SIREN SWITCH — remove once the sensor is fixed and the siren is rewired ──
+# While off, the bridge never marks the siren as ON in the database, so the dashboard shows no
+# siren state, plays no alarm sound and writes no "automatically activated" log.
+# Turn it off without editing code: set the Render env var AUTO_SIREN=off
+AUTO_SIREN_ON = os.environ.get("AUTO_SIREN", "on").lower() not in ("off", "0", "false")
+print(f"[BRIDGE] AUTO SIREN is {'ON' if AUTO_SIREN_ON else 'OFF'}")
+
 # In-memory last online timestamp per station
 _last_online: dict = {}
 _offline_logged: dict = {}
@@ -487,7 +494,7 @@ def on_message(client, userdata, msg):
 
             _prev_status[station_id] = log_type
             # Auto-siren ON: after 2min CRITICAL — skip if manually silenced or already active
-            if is_immediate and device_status == "CRITICAL":
+            if AUTO_SIREN_ON and is_immediate and device_status == "CRITICAL":
                 try:
                     cur.execute(
                         "SELECT siren_manual_off, siren_state, siren_auto_triggered FROM fews_units WHERE device_id = %s",

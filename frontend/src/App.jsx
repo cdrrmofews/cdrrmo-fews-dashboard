@@ -5638,13 +5638,13 @@ export default function App() {
       sirenAudioRef.current = new Audio("/siren.mp3");
       sirenAudioRef.current.loop = true;
     }
-    if (sirens[1] && user.audio_enabled) {
+    if (sirens[1] && user.audio_enabled && !sirenLoading[1]) {
       sirenAudioRef.current.play().catch(() => {});
     } else {
       sirenAudioRef.current.pause();
       sirenAudioRef.current.currentTime = 0;
     }
-  }, [sirens[1], user.audio_enabled]);
+  }, [sirens[1], user.audio_enabled, sirenLoading[1]]);
   const [thresholds, setThresholds] = useState({ warning: 200, danger: 300 });
   const [thresholdsLoaded, setThresholdsLoaded] = useState(false); // false until /units has answered once
   const [fews1Info, setFews1Info] = useState({});
